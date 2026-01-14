@@ -23,8 +23,8 @@ export function UserManagementTable() {
   const [loadingUserId, setLoadingUserId] = useState<Id<"users"> | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Check if current user is loading
-  if (currentUser === undefined) {
+  // Check if current user or users list is loading
+  if (currentUser === undefined || users === undefined) {
     return (
       <div className="flex justify-center items-center min-h-[400px]">
         <div className="relative w-16 h-16">
@@ -35,7 +35,7 @@ export function UserManagementTable() {
     );
   }
 
-  // Check if user is not found in database
+  // Check if user is not authenticated or not found
   if (!currentUser) {
     return (
       <div className="bg-white rounded-2xl p-6 shadow-warm border-2 border-red-200">
@@ -48,18 +48,6 @@ export function UserManagementTable() {
           <p className="text-red-900 font-bold text-sm md:text-base">
             Грешка при зареждане на потребителски данни.
           </p>
-        </div>
-      </div>
-    );
-  }
-
-  // Check if users list is loading
-  if (users === undefined) {
-    return (
-      <div className="flex justify-center items-center min-h-[400px]">
-        <div className="relative w-16 h-16">
-          <div className="absolute inset-0 rounded-full border-4 border-purple-200 animate-spin-slow"></div>
-          <div className="absolute inset-0 rounded-full border-t-4 border-purple-600 animate-spin"></div>
         </div>
       </div>
     );
