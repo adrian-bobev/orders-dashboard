@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import "./clerk-overrides.css";
 import { ClerkProvider } from "@clerk/nextjs";
+import { bgBG } from "@clerk/localizations";
 import { ConvexClientProvider } from "@/components/providers/convex-client-provider";
 import { UserSync } from "@/components/user-sync";
 
@@ -27,8 +28,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <ClerkProvider>
-      <html lang="en">
+    <ClerkProvider localization={bgBG}>
+      <html lang="bg">
         <body
           className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         >

@@ -20,9 +20,9 @@ export default async function AdminUsersPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-3xl font-bold text-gray-900">User Management</h2>
+        <h2 className="text-3xl font-bold text-gray-900">Управление на потребители</h2>
         <p className="text-gray-600 mt-2">
-          Manage user roles and permissions across the platform.
+          Управление на потребителски роли и разрешения в платформата.
         </p>
       </div>
 

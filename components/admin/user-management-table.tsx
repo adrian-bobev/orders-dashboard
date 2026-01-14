@@ -35,7 +35,7 @@ export function UserManagementTable() {
   if (!currentUser) {
     return (
       <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-        <p className="text-red-800">Error loading user data.</p>
+        <p className="text-red-800">Грешка при зареждане на потребителски данни.</p>
       </div>
     );
   }
@@ -54,7 +54,7 @@ export function UserManagementTable() {
     return (
       <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
         <p className="text-yellow-800">
-          You do not have permission to access this page. Redirecting...
+          Нямате разрешение за достъп до тази страница. Пренасочване...
         </p>
       </div>
     );
@@ -70,14 +70,14 @@ export function UserManagementTable() {
     try {
       await updateUserRole({ userId, newRole });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update role");
+      setError(err instanceof Error ? err.message : "Неуспешна промяна на роля");
     } finally {
       setLoadingUserId(null);
     }
   };
 
   const handleRemoveUser = async (userId: Id<"users">) => {
-    if (!confirm("Are you sure you want to remove this user?")) {
+    if (!confirm("Сигурни ли сте, че искате да премахнете този потребител?")) {
       return;
     }
 
@@ -87,7 +87,7 @@ export function UserManagementTable() {
     try {
       await removeUser({ userId });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to remove user");
+      setError(err instanceof Error ? err.message : "Неуспешно премахване на потребител");
     } finally {
       setLoadingUserId(null);
     }
@@ -107,16 +107,16 @@ export function UserManagementTable() {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  User
+                  Потребител
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Email
+                  Имейл
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Role
+                  Роля
                 </th>
                 <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
+                  Действия
                 </th>
               </tr>
             </thead>
@@ -142,7 +142,7 @@ export function UserManagementTable() {
                       </div>
                       <div className="ml-4">
                         <div className="text-sm font-medium text-gray-900">
-                          {user.name || "No name"}
+                          {user.name || "Без име"}
                         </div>
                       </div>
                     </div>
@@ -158,7 +158,7 @@ export function UserManagementTable() {
                           : "bg-green-100 text-green-800"
                       }`}
                     >
-                      {user.role}
+                      {user.role === "admin" ? "администратор" : user.role === "viewer" ? "наблюдател" : user.role}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
@@ -178,21 +178,21 @@ export function UserManagementTable() {
                             {loadingUserId === user._id
                               ? "..."
                               : user.role === "admin"
-                              ? "Make Viewer"
-                              : "Make Admin"}
+                              ? "Направи наблюдател"
+                              : "Направи администратор"}
                           </button>
                           <button
                             onClick={() => handleRemoveUser(user._id)}
                             disabled={loadingUserId === user._id}
                             className="text-red-600 hover:text-red-900 disabled:opacity-50"
                           >
-                            {loadingUserId === user._id ? "..." : "Remove"}
+                            {loadingUserId === user._id ? "..." : "Премахни"}
                           </button>
                         </>
                       )}
                       {user._id === currentUser._id && (
                         <span className="text-gray-400 text-xs">
-                          (You)
+                          (Вие)
                         </span>
                       )}
                     </div>
@@ -206,7 +206,7 @@ export function UserManagementTable() {
 
       {users.length === 0 && (
         <div className="text-center py-12 bg-white rounded-lg shadow">
-          <p className="text-gray-500">No users found.</p>
+          <p className="text-gray-500">Не са намерени потребители.</p>
         </div>
       )}
     </div>
