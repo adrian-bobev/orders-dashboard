@@ -25,8 +25,11 @@ export function UserManagementTable() {
   // Check if current user is loading
   if (currentUser === undefined) {
     return (
-      <div className="flex justify-center items-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+      <div className="flex justify-center items-center min-h-[500px]">
+        <div className="relative w-20 h-20">
+          <div className="absolute inset-0 rounded-full border-4 border-purple-200 animate-spin-slow"></div>
+          <div className="absolute inset-0 rounded-full border-t-4 border-purple-600 animate-spin"></div>
+        </div>
       </div>
     );
   }
@@ -34,8 +37,17 @@ export function UserManagementTable() {
   // Check if user is not found in database
   if (!currentUser) {
     return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-        <p className="text-red-800">Грешка при зареждане на потребителски данни.</p>
+      <div className="bg-white rounded-3xl p-8 shadow-warm border-2 border-red-200">
+        <div className="flex items-center gap-4">
+          <div className="w-14 h-14 bg-red-500 rounded-2xl flex items-center justify-center shadow-warm">
+            <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <p className="text-red-900 font-bold text-lg">
+            Грешка при зареждане на потребителски данни.
+          </p>
+        </div>
       </div>
     );
   }
@@ -43,8 +55,11 @@ export function UserManagementTable() {
   // Check if users list is loading
   if (users === undefined) {
     return (
-      <div className="flex justify-center items-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+      <div className="flex justify-center items-center min-h-[500px]">
+        <div className="relative w-20 h-20">
+          <div className="absolute inset-0 rounded-full border-4 border-purple-200 animate-spin-slow"></div>
+          <div className="absolute inset-0 rounded-full border-t-4 border-purple-600 animate-spin"></div>
+        </div>
       </div>
     );
   }
@@ -52,10 +67,17 @@ export function UserManagementTable() {
   if (currentUser.role !== "admin") {
     router.push("/dashboard");
     return (
-      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-        <p className="text-yellow-800">
-          Нямате разрешение за достъп до тази страница. Пренасочване...
-        </p>
+      <div className="bg-white rounded-3xl p-8 shadow-warm border-2 border-amber-200">
+        <div className="flex items-center gap-4">
+          <div className="w-14 h-14 bg-amber-500 rounded-2xl flex items-center justify-center shadow-warm">
+            <svg className="w-7 h-7 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <p className="text-amber-900 font-bold text-lg">
+            Нямате разрешение за достъп до тази страница. Пренасочване...
+          </p>
+        </div>
       </div>
     );
   }
@@ -94,75 +116,86 @@ export function UserManagementTable() {
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {error && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <p className="text-red-800">{error}</p>
+        <div className="bg-white rounded-3xl p-8 shadow-warm border-2 border-red-200 animate-shake">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-red-500 rounded-2xl flex items-center justify-center shadow-warm">
+              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </div>
+            <p className="text-red-900 font-bold text-lg">{error}</p>
+          </div>
         </div>
       )}
 
-      <div className="bg-white rounded-lg shadow overflow-hidden">
+      <div className="bg-white rounded-3xl shadow-warm border border-purple-100 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+          <table className="min-w-full">
+            <thead>
+              <tr className="bg-purple-50 border-b-2 border-purple-100">
+                <th className="px-8 py-5 text-left text-xs font-bold text-purple-900 uppercase tracking-wider">
                   Потребител
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-8 py-5 text-left text-xs font-bold text-purple-900 uppercase tracking-wider">
                   Имейл
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-8 py-5 text-left text-xs font-bold text-purple-900 uppercase tracking-wider">
                   Роля
                 </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                <th className="px-8 py-5 text-right text-xs font-bold text-purple-900 uppercase tracking-wider">
                   Действия
                 </th>
               </tr>
             </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {users.map((user) => (
-                <tr key={user._id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap">
+            <tbody className="divide-y divide-neutral-200">
+              {users.map((user, index) => (
+                <tr
+                  key={user._id}
+                  className="hover:bg-purple-50/50 transition-colors duration-200"
+                  style={{ animationDelay: `${index * 50}ms` }}
+                >
+                  <td className="px-8 py-6 whitespace-nowrap">
                     <div className="flex items-center">
-                      <div className="flex-shrink-0 h-10 w-10">
+                      <div className="flex-shrink-0 w-14 h-14">
                         {user.imageUrl ? (
                           <img
-                            className="h-10 w-10 rounded-full"
+                            className="w-14 h-14 rounded-2xl border-2 border-purple-200 shadow-warm"
                             src={user.imageUrl}
                             alt=""
                           />
                         ) : (
-                          <div className="h-10 w-10 rounded-full bg-gray-300 flex items-center justify-center">
-                            <span className="text-gray-600 font-medium">
+                          <div className="w-14 h-14 rounded-2xl bg-purple-600 flex items-center justify-center shadow-warm">
+                            <span className="text-white font-bold text-xl">
                               {user.name?.[0] || user.email[0].toUpperCase()}
                             </span>
                           </div>
                         )}
                       </div>
-                      <div className="ml-4">
-                        <div className="text-sm font-medium text-gray-900">
+                      <div className="ml-5">
+                        <div className="text-base font-bold text-purple-900">
                           {user.name || "Без име"}
                         </div>
                       </div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm text-gray-900">{user.email}</div>
+                  <td className="px-8 py-6 whitespace-nowrap">
+                    <div className="text-base text-neutral-700 font-medium">{user.email}</div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
+                  <td className="px-8 py-6 whitespace-nowrap">
                     <span
-                      className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                      className={`px-4 py-2 inline-flex text-xs leading-5 font-bold rounded-2xl shadow-warm ${
                         user.role === "admin"
-                          ? "bg-purple-100 text-purple-800"
-                          : "bg-green-100 text-green-800"
+                          ? "bg-purple-600 text-white"
+                          : "bg-green-500 text-white"
                       }`}
                     >
                       {user.role === "admin" ? "администратор" : user.role === "viewer" ? "наблюдател" : user.role}
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <div className="flex justify-end gap-2">
+                  <td className="px-8 py-6 whitespace-nowrap text-right text-sm font-medium">
+                    <div className="flex justify-end gap-3">
                       {user._id !== currentUser._id && (
                         <>
                           <button
@@ -173,7 +206,7 @@ export function UserManagementTable() {
                               )
                             }
                             disabled={loadingUserId === user._id}
-                            className="text-indigo-600 hover:text-indigo-900 disabled:opacity-50"
+                            className="px-5 py-2.5 bg-purple-100 text-purple-700 rounded-2xl hover:bg-purple-200 disabled:opacity-50 font-bold transition-all duration-300 hover:shadow-warm hover:-translate-y-0.5"
                           >
                             {loadingUserId === user._id
                               ? "..."
@@ -184,14 +217,14 @@ export function UserManagementTable() {
                           <button
                             onClick={() => handleRemoveUser(user._id)}
                             disabled={loadingUserId === user._id}
-                            className="text-red-600 hover:text-red-900 disabled:opacity-50"
+                            className="px-5 py-2.5 bg-red-100 text-red-700 rounded-2xl hover:bg-red-200 disabled:opacity-50 font-bold transition-all duration-300 hover:shadow-warm hover:-translate-y-0.5"
                           >
                             {loadingUserId === user._id ? "..." : "Премахни"}
                           </button>
                         </>
                       )}
                       {user._id === currentUser._id && (
-                        <span className="text-gray-400 text-xs">
+                        <span className="px-4 py-2 bg-neutral-100 text-neutral-600 text-xs font-bold rounded-2xl">
                           (Вие)
                         </span>
                       )}
@@ -205,8 +238,13 @@ export function UserManagementTable() {
       </div>
 
       {users.length === 0 && (
-        <div className="text-center py-12 bg-white rounded-lg shadow">
-          <p className="text-gray-500">Не са намерени потребители.</p>
+        <div className="bg-white rounded-3xl shadow-warm border border-purple-100 p-16 text-center">
+          <div className="w-20 h-20 bg-neutral-100 rounded-3xl flex items-center justify-center mx-auto mb-6">
+            <svg className="w-10 h-10 text-neutral-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+            </svg>
+          </div>
+          <p className="text-neutral-500 font-bold text-xl">Не са намерени потребители.</p>
         </div>
       )}
     </div>
