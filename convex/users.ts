@@ -79,6 +79,18 @@ export const listUsers = query({
 });
 
 /**
+ * Lists all users including inactive ones (admin only)
+ */
+export const listAllUsers = query({
+  args: {},
+  handler: async (ctx) => {
+    await requireAdmin(ctx);
+
+    return await ctx.db.query("users").collect();
+  },
+});
+
+/**
  * Updates a user's role (admin only)
  * Prevents users from changing their own role
  */
@@ -140,6 +152,35 @@ export const removeUser = mutation({
     // Soft delete
     await ctx.db.patch(args.userId, {
       isActive: false,
+    });
+
+    return { success: true };
+  },
+});
+
+/**
+ * Reactivates an inactive user (admin only)
+ */
+export const reactivateUser = mutation({
+  args: {
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    await requireAdmin(ctx);
+
+    // Get target user
+    const targetUser = await ctx.db.get(args.userId);
+    if (!targetUser) {
+      throw new Error("User not found");
+    }
+
+    if (targetUser.isActive) {
+      throw new Error("User is already active");
+    }
+
+    // Reactivate
+    await ctx.db.patch(args.userId, {
+      isActive: true,
     });
 
     return { success: true };

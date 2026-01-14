@@ -12,12 +12,13 @@ export function UserManagementTable() {
 
   // Only fetch users list if we have a current user (authentication is ready)
   const users = useQuery(
-    api.users.listUsers,
+    api.users.listAllUsers,
     currentUser !== undefined && currentUser !== null ? {} : "skip"
   );
 
   const updateUserRole = useMutation(api.users.updateUserRole);
   const removeUser = useMutation(api.users.removeUser);
+  const reactivateUser = useMutation(api.users.reactivateUser);
 
   const [loadingUserId, setLoadingUserId] = useState<Id<"users"> | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -115,6 +116,23 @@ export function UserManagementTable() {
     }
   };
 
+  const handleReactivateUser = async (userId: Id<"users">) => {
+    if (!confirm("Сигурни ли сте, че искате да активирате отново този потребител?")) {
+      return;
+    }
+
+    setLoadingUserId(userId);
+    setError(null);
+
+    try {
+      await reactivateUser({ userId });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Неуспешна активация на потребител");
+    } finally {
+      setLoadingUserId(null);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {error && (
@@ -144,6 +162,9 @@ export function UserManagementTable() {
                 <th className="px-8 py-5 text-left text-xs font-bold text-purple-900 uppercase tracking-wider">
                   Роля
                 </th>
+                <th className="px-8 py-5 text-left text-xs font-bold text-purple-900 uppercase tracking-wider">
+                  Статус
+                </th>
                 <th className="px-8 py-5 text-right text-xs font-bold text-purple-900 uppercase tracking-wider">
                   Действия
                 </th>
@@ -153,7 +174,11 @@ export function UserManagementTable() {
               {users.map((user, index) => (
                 <tr
                   key={user._id}
-                  className="hover:bg-purple-50/50 transition-colors duration-200"
+                  className={`transition-colors duration-200 ${
+                    user.isActive
+                      ? "hover:bg-purple-50/50"
+                      : "bg-neutral-50 hover:bg-neutral-100 opacity-60"
+                  }`}
                   style={{ animationDelay: `${index * 50}ms` }}
                 >
                   <td className="px-8 py-6 whitespace-nowrap">
@@ -161,12 +186,20 @@ export function UserManagementTable() {
                       <div className="flex-shrink-0 w-14 h-14">
                         {user.imageUrl ? (
                           <img
-                            className="w-14 h-14 rounded-2xl border-2 border-purple-200 shadow-warm"
+                            className={`w-14 h-14 rounded-2xl border-2 shadow-warm ${
+                              user.isActive
+                                ? "border-purple-200"
+                                : "border-neutral-300 grayscale"
+                            }`}
                             src={user.imageUrl}
                             alt=""
                           />
                         ) : (
-                          <div className="w-14 h-14 rounded-2xl bg-purple-600 flex items-center justify-center shadow-warm">
+                          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-warm ${
+                            user.isActive
+                              ? "bg-purple-600"
+                              : "bg-neutral-400"
+                          }`}>
                             <span className="text-white font-bold text-xl">
                               {user.name?.[0] || user.email[0].toUpperCase()}
                             </span>
@@ -174,29 +207,48 @@ export function UserManagementTable() {
                         )}
                       </div>
                       <div className="ml-5">
-                        <div className="text-base font-bold text-purple-900">
+                        <div className={`text-base font-bold ${
+                          user.isActive ? "text-purple-900" : "text-neutral-500"
+                        }`}>
                           {user.name || "Без име"}
                         </div>
                       </div>
                     </div>
                   </td>
                   <td className="px-8 py-6 whitespace-nowrap">
-                    <div className="text-base text-neutral-700 font-medium">{user.email}</div>
+                    <div className={`text-base font-medium ${
+                      user.isActive ? "text-neutral-700" : "text-neutral-500"
+                    }`}>{user.email}</div>
                   </td>
                   <td className="px-8 py-6 whitespace-nowrap">
                     <span
                       className={`px-4 py-2 inline-flex text-xs leading-5 font-bold rounded-2xl shadow-warm ${
                         user.role === "admin"
-                          ? "bg-purple-600 text-white"
-                          : "bg-green-500 text-white"
+                          ? user.isActive
+                            ? "bg-purple-600 text-white"
+                            : "bg-neutral-400 text-white"
+                          : user.isActive
+                            ? "bg-green-500 text-white"
+                            : "bg-neutral-400 text-white"
                       }`}
                     >
                       {user.role === "admin" ? "администратор" : user.role === "viewer" ? "наблюдател" : user.role}
                     </span>
                   </td>
+                  <td className="px-8 py-6 whitespace-nowrap">
+                    <span
+                      className={`px-4 py-2 inline-flex text-xs leading-5 font-bold rounded-2xl shadow-warm ${
+                        user.isActive
+                          ? "bg-green-100 text-green-700"
+                          : "bg-red-100 text-red-700"
+                      }`}
+                    >
+                      {user.isActive ? "Активен" : "Неактивен"}
+                    </span>
+                  </td>
                   <td className="px-8 py-6 whitespace-nowrap text-right text-sm font-medium">
                     <div className="flex justify-end gap-3">
-                      {user._id !== currentUser._id && (
+                      {user._id !== currentUser._id && user.isActive && (
                         <>
                           <button
                             onClick={() =>
@@ -222,6 +274,15 @@ export function UserManagementTable() {
                             {loadingUserId === user._id ? "..." : "Премахни"}
                           </button>
                         </>
+                      )}
+                      {user._id !== currentUser._id && !user.isActive && (
+                        <button
+                          onClick={() => handleReactivateUser(user._id)}
+                          disabled={loadingUserId === user._id}
+                          className="px-5 py-2.5 bg-green-100 text-green-700 rounded-2xl hover:bg-green-200 disabled:opacity-50 font-bold transition-all duration-300 hover:shadow-warm hover:-translate-y-0.5"
+                        >
+                          {loadingUserId === user._id ? "..." : "Активирай отново"}
+                        </button>
                       )}
                       {user._id === currentUser._id && (
                         <span className="px-4 py-2 bg-neutral-100 text-neutral-600 text-xs font-bold rounded-2xl">
