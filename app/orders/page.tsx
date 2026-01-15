@@ -1,9 +1,11 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import { UserManagementTable } from '@/components/admin/user-management-table'
-import { listAllUsers, getCurrentUser } from '@/lib/services/user-service'
+import { getCurrentUser } from '@/lib/services/user-service'
+import { getOrders } from '@/lib/services/order-service'
+import { OrdersTable } from '@/components/orders/orders-table'
+import Link from 'next/link'
 
-export default async function AdminUsersPage() {
+export default async function OrdersPage() {
   const supabase = await createClient()
 
   const {
@@ -14,15 +16,15 @@ export default async function AdminUsersPage() {
     redirect('/sign-in')
   }
 
-  // Get current user and check if admin
+  // Get current user and check permissions
   const currentUser = await getCurrentUser()
 
-  if (!currentUser || currentUser.role !== 'admin') {
-    redirect('/dashboard')
+  if (!currentUser) {
+    redirect('/sign-in')
   }
 
-  // Fetch all users for the table
-  const users = await listAllUsers()
+  // Fetch orders based on user role
+  const orders = await getOrders(currentUser.role)
 
   return (
     <div className="space-y-4 animate-fade-in">
@@ -39,22 +41,22 @@ export default async function AdminUsersPage() {
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 strokeWidth={2}
-                d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"
+                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
               />
             </svg>
           </div>
           <div>
             <h2 className="text-2xl font-bold text-purple-900 tracking-tight">
-              Управление на потребители
+              Управление на поръчки
             </h2>
             <p className="text-neutral-600 mt-1 text-base">
-              Управление на потребителски роли и разрешения в платформата.
+              Преглед, филтриране и управление на статуса на поръчките.
             </p>
           </div>
         </div>
       </div>
 
-      <UserManagementTable initialUsers={users} currentUser={currentUser} />
+      <OrdersTable initialOrders={orders} currentUser={currentUser} />
     </div>
   )
 }

@@ -1,0 +1,536 @@
+{
+  "timestamp": "2026-01-15T20:50:52.696Z",
+  "headers": {
+    "signature": "K6oTgsF4pltrDx4Crnxu10zNXChd2henA+aMPF/pKxo=",
+    "contentType": "application/json",
+    "userAgent": "WooCommerce/10.4.3 Hookshot (WordPress/6.9)"
+  },
+  "orderData": {
+    "id": 1576,
+    "parent_id": 0,
+    "status": "pending-validate",
+    "currency": "EUR",
+    "version": "10.4.3",
+    "prices_include_tax": false,
+    "date_created": "2026-01-15T22:50:22",
+    "date_modified": "2026-01-15T22:50:22",
+    "discount_total": "0.00",
+    "discount_tax": "0.00",
+    "shipping_total": "3.83",
+    "shipping_tax": "0.00",
+    "cart_tax": "0.00",
+    "total": "62.73",
+    "total_tax": "0.00",
+    "customer_id": 1,
+    "order_key": "wc_order_OE00DpRwsDZe0",
+    "billing": {
+      "first_name": "Адриан",
+      "last_name": "Бобев",
+      "company": "",
+      "address_1": "ул. ХРИСТО ЧЕРНОПЕЕВ",
+      "address_2": "10",
+      "city": "гр. ПЛОВДИВ (ПЛОВДИВ)",
+      "state": "",
+      "postcode": "4000",
+      "country": "",
+      "email": "adrian.bobev@gmail.com",
+      "phone": "+359883451860"
+    },
+    "shipping": {
+      "first_name": "Адриан",
+      "last_name": "Бобев",
+      "company": "",
+      "address_1": "ул. ХРИСТО ЧЕРНОПЕЕВ",
+      "address_2": "10",
+      "city": "гр. ПЛОВДИВ (ПЛОВДИВ)",
+      "state": "",
+      "postcode": "4000",
+      "country": "",
+      "phone": ""
+    },
+    "payment_method": "cod",
+    "payment_method_title": "Наложен платеж",
+    "transaction_id": "",
+    "customer_ip_address": "::1",
+    "customer_user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36",
+    "created_via": "checkout",
+    "customer_note": "",
+    "date_completed": null,
+    "date_paid": null,
+    "cart_hash": "53057da33ed52e8df5236494e78148b5",
+    "number": "1576",
+    "meta_data": [
+      {
+        "id": 4974,
+        "key": "_debug_log_source_pending_deletion",
+        "value": "place-order-debug-3cac6e48"
+      },
+      {
+        "id": 4956,
+        "key": "_delivery_address_component_id",
+        "value": "11139"
+      },
+      {
+        "id": 4958,
+        "key": "_delivery_address_component_name",
+        "value": "ХРИСТО ЧЕРНОПЕЕВ"
+      },
+      {
+        "id": 4959,
+        "key": "_delivery_address_component_type",
+        "value": "street"
+      },
+      {
+        "id": 4957,
+        "key": "_delivery_address_type_prefix",
+        "value": "ул."
+      },
+      {
+        "id": 4952,
+        "key": "_delivery_city_id",
+        "value": "56784"
+      },
+      {
+        "id": 4954,
+        "key": "_delivery_city_name",
+        "value": "ПЛОВДИВ"
+      },
+      {
+        "id": 4955,
+        "key": "_delivery_city_region",
+        "value": "ПЛОВДИВ"
+      },
+      {
+        "id": 4953,
+        "key": "_delivery_city_type",
+        "value": "гр."
+      },
+      {
+        "id": 4975,
+        "key": "_pys_purchase_event_fired",
+        "value": "1"
+      },
+      {
+        "id": 4968,
+        "key": "_wc_order_attribution_device_type",
+        "value": "Desktop"
+      },
+      {
+        "id": 4966,
+        "key": "_wc_order_attribution_session_count",
+        "value": "1"
+      },
+      {
+        "id": 4963,
+        "key": "_wc_order_attribution_session_entry",
+        "value": "https://prikazko.local/"
+      },
+      {
+        "id": 4965,
+        "key": "_wc_order_attribution_session_pages",
+        "value": "18"
+      },
+      {
+        "id": 4964,
+        "key": "_wc_order_attribution_session_start_time",
+        "value": "2026-01-15 20:38:19"
+      },
+      {
+        "id": 4961,
+        "key": "_wc_order_attribution_source_type",
+        "value": "typein"
+      },
+      {
+        "id": 4967,
+        "key": "_wc_order_attribution_user_agent",
+        "value": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
+      },
+      {
+        "id": 4962,
+        "key": "_wc_order_attribution_utm_source",
+        "value": "(direct)"
+      },
+      {
+        "id": 4948,
+        "key": "is_vat_exempt",
+        "value": "no"
+      },
+      {
+        "id": 4951,
+        "key": "pys_enrich_data",
+        "value": {
+          "pys_landing": "https://prikazko.local/",
+          "pys_source": "direct",
+          "pys_utm": "utm_source:undefined|utm_medium:undefined|utm_campaign:undefined|utm_term:undefined|utm_content:undefined",
+          "pys_utm_id": "fbadid:undefined|gadid:undefined|padid:undefined|bingid:undefined",
+          "last_pys_landing": "https://prikazko.local/",
+          "last_pys_source": "direct",
+          "last_pys_utm": "utm_source:undefined|utm_medium:undefined|utm_campaign:undefined|utm_term:undefined|utm_content:undefined",
+          "last_pys_utm_id": "fbadid:undefined|gadid:undefined|padid:undefined|bingid:undefined",
+          "pys_browser_time": "22-23|Thursday|January"
+        }
+      },
+      {
+        "id": 4960,
+        "key": "pys_fb_cookie",
+        "value": {
+          "fbc": null,
+          "fbp": "fb.1.1768077549949.6706639836"
+        }
+      },
+      {
+        "id": 4971,
+        "key": "woo_bg_order_document",
+        "value": "1577"
+      },
+      {
+        "id": 4970,
+        "key": "woo_bg_order_number",
+        "value": "0000000082"
+      }
+    ],
+    "line_items": [
+      {
+        "id": 1081,
+        "name": "Твърда корица",
+        "product_id": 1203,
+        "variation_id": 0,
+        "quantity": 1,
+        "tax_class": "",
+        "subtotal": "29.45",
+        "subtotal_tax": "0.00",
+        "total": "29.45",
+        "total_tax": "0.00",
+        "taxes": [],
+        "meta_data": [
+          {
+            "id": 10679,
+            "key": "_prikazko_wizard_config_id",
+            "value": "742",
+            "display_key": "_prikazko_wizard_config_id",
+            "display_value": "742"
+          },
+          {
+            "id": 10680,
+            "key": "_prikazko_wizard_child_name",
+            "value": "Виктор",
+            "display_key": "_prikazko_wizard_child_name",
+            "display_value": "Виктор"
+          },
+          {
+            "id": 10681,
+            "key": "_prikazko_wizard_child_gender",
+            "value": "boy",
+            "display_key": "_prikazko_wizard_child_gender",
+            "display_value": "boy"
+          },
+          {
+            "id": 10682,
+            "key": "_prikazko_wizard_age_range",
+            "value": "3",
+            "display_key": "_prikazko_wizard_age_range",
+            "display_value": "3"
+          },
+          {
+            "id": 10683,
+            "key": "_prikazko_wizard_book_title",
+            "value": "Виктор и Магическото Приключение",
+            "display_key": "_prikazko_wizard_book_title",
+            "display_value": "Виктор и Магическото Приключение"
+          }
+        ],
+        "sku": "",
+        "global_unique_id": "",
+        "price": 29.45,
+        "image": {
+          "id": "",
+          "src": ""
+        },
+        "parent_name": null
+      },
+      {
+        "id": 1082,
+        "name": "Твърда корица",
+        "product_id": 1203,
+        "variation_id": 0,
+        "quantity": 1,
+        "tax_class": "",
+        "subtotal": "29.45",
+        "subtotal_tax": "0.00",
+        "total": "29.45",
+        "total_tax": "0.00",
+        "taxes": [],
+        "meta_data": [
+          {
+            "id": 10693,
+            "key": "_prikazko_wizard_config_id",
+            "value": "743",
+            "display_key": "_prikazko_wizard_config_id",
+            "display_value": "743"
+          },
+          {
+            "id": 10694,
+            "key": "_prikazko_wizard_child_name",
+            "value": "Ивет",
+            "display_key": "_prikazko_wizard_child_name",
+            "display_value": "Ивет"
+          },
+          {
+            "id": 10695,
+            "key": "_prikazko_wizard_child_gender",
+            "value": "girl",
+            "display_key": "_prikazko_wizard_child_gender",
+            "display_value": "girl"
+          },
+          {
+            "id": 10696,
+            "key": "_prikazko_wizard_age_range",
+            "value": "3",
+            "display_key": "_prikazko_wizard_age_range",
+            "display_value": "3"
+          },
+          {
+            "id": 10697,
+            "key": "_prikazko_wizard_book_title",
+            "value": "Ивет и Магическото Приключение",
+            "display_key": "_prikazko_wizard_book_title",
+            "display_value": "Ивет и Магическото Приключение"
+          }
+        ],
+        "sku": "",
+        "global_unique_id": "",
+        "price": 29.45,
+        "image": {
+          "id": "",
+          "src": ""
+        },
+        "parent_name": null
+      }
+    ],
+    "tax_lines": [],
+    "shipping_lines": [
+      {
+        "id": 1086,
+        "method_title": "До адрес със Спиди",
+        "method_id": "address_delivery",
+        "instance_id": "10",
+        "total": "3.83",
+        "total_tax": "0.00",
+        "taxes": [],
+        "tax_status": "taxable",
+        "meta_data": [
+          {
+            "id": 10724,
+            "key": "price_type",
+            "value": "fixed",
+            "display_key": "price_type",
+            "display_value": "fixed"
+          },
+          {
+            "id": 10725,
+            "key": "Артикули",
+            "value": "Твърда корица &times; 1, Твърда корица &times; 1",
+            "display_key": "Артикули",
+            "display_value": "Твърда корица &times; 1, Твърда корица &times; 1"
+          }
+        ]
+      }
+    ],
+    "fee_lines": [],
+    "coupon_lines": [],
+    "refunds": [],
+    "payment_url": "https://prikazko.local/checkout/order-pay/1576/?pay_for_order=true&key=wc_order_OE00DpRwsDZe0",
+    "is_editable": false,
+    "needs_payment": false,
+    "needs_processing": true,
+    "date_created_gmt": "2026-01-15T20:50:22",
+    "date_modified_gmt": "2026-01-15T20:50:22",
+    "date_completed_gmt": null,
+    "date_paid_gmt": null,
+    "currency_symbol": "€",
+    "_links": {
+      "self": [
+        {
+          "href": "https://prikazko.local/wp-json/wc/v3/orders/1576",
+          "targetHints": {
+            "allow": [
+              "GET",
+              "POST",
+              "PUT",
+              "PATCH",
+              "DELETE"
+            ]
+          }
+        }
+      ],
+      "collection": [
+        {
+          "href": "https://prikazko.local/wp-json/wc/v3/orders"
+        }
+      ],
+      "email_templates": [
+        {
+          "embeddable": true,
+          "href": "https://prikazko.local/wp-json/wc/v3/orders/1576/actions/email_templates"
+        }
+      ],
+      "customer": [
+        {
+          "href": "https://prikazko.local/wp-json/wc/v3/customers/1"
+        }
+      ]
+    }
+  },
+  "bookConfigurations": [
+    {
+      "line_item_id": 1081,
+      "prikazko_wizard_config_id": "742",
+      "configuration_data": {
+        "id": 742,
+        "name": "Виктор",
+        "gender": "boy",
+        "age": "3",
+        "email": "adrian.bobev@gmail.com",
+        "created_at": "2026-01-15T22:48:51Z",
+        "completed_at": "2026-01-15T22:50:22Z",
+        "content": {
+          "title": "Виктор и Магическото Приключение",
+          "shortDescription": "Приключенията на Виктор са наистина вълшебни! Следвайте him в едно невероятно пътешествие.",
+          "scenes": [
+            {
+              "text": "Една сутрин, Виктор се събуди с невероятно вълнение. Днес щеше да бъде специален ден, пълен с тест, промпт!"
+            },
+            {
+              "text": "Виктор отиде на тест, промпт и видя нещо невероятно. Очите his светнаха от любопитство."
+            },
+            {
+              "text": "Докато изследваше, Виктор срещна нов приятел. Заедно те решиха да продължат his приключение."
+            },
+            {
+              "text": "Виктор и his приятел откриха тайнствено място. Това беше началото на нещо магическо."
+            },
+            {
+              "text": "Пред тях се появи голямо предизвикателство. Но Виктор не се отказа. he беше смел и решителен."
+            },
+            {
+              "text": "С помощта на his приятел, Виктор намери начин да реши проблема. Работейки заедно, те бяха по-силни."
+            },
+            {
+              "text": "Приключението продължи с още по-вълнуващи открития. Виктор изучаваше всичко за тест, промпт с огромен интерес."
+            },
+            {
+              "text": "Появи се ново предизвикателство, но Виктор вече знаеше как да се справя. he беше по-уверен от всякога."
+            },
+            {
+              "text": "Заедно с приятелите си, Виктор откри тайната на тест, промпт. Това беше невероятно постижение!"
+            },
+            {
+              "text": "Всички в градчето празнуваха успеха на Виктор. he беше истински герой!"
+            },
+            {
+              "text": "Виктор сподели уроците си с другите деца. he разбра колко важно е да помагаме един на друг."
+            },
+            {
+              "text": "С усмивка на лицето, Виктор знаеше, че това е само началото на много нови приключения."
+            },
+            {
+              "text": "Виктор разбра, че с смелост и упоритост всичко е възможно. he беше готов за следващото предизвикателство."
+            },
+            {
+              "text": "И така завърши прекрасният ден на Виктор. Историята his ще бъде разказвана дълги години напред."
+            }
+          ],
+          "motivationEnd": "Винаги помни, Виктор, че he можеш да постигнеш всичко, което си пожелаеш. Бъди смел/а, любопитен/а и добър/а!"
+        },
+        "story_description": "Тест промпт",
+        "images": [
+          {
+            "r2_key": "742-1768510171-1e49a450-7660-4de8-8dc9-c7e920d7c1bb.jpg",
+            "sort_order": 1
+          }
+        ]
+      },
+      "book_title": "Виктор и Магическото Приключение",
+      "main_character_name": "Виктор",
+      "character_count": 1,
+      "scene_count": 14
+    },
+    {
+      "line_item_id": 1082,
+      "prikazko_wizard_config_id": "743",
+      "configuration_data": {
+        "id": 743,
+        "name": "Ивет",
+        "gender": "girl",
+        "age": "3",
+        "email": "adrian.bobev@gmail.com",
+        "created_at": "2026-01-15T22:49:41Z",
+        "completed_at": "2026-01-15T22:50:22Z",
+        "content": {
+          "title": "Ивет и Магическото Приключение",
+          "shortDescription": "Приключенията на Ивет са наистина вълшебни! Следвайте her в едно невероятно пътешествие.",
+          "scenes": [
+            {
+              "text": "Една сутрин, Ивет се събуди с невероятно вълнение. Днес щеше да бъде специален ден, пълен с ивет, обича!"
+            },
+            {
+              "text": "Ивет отиде на ивет, обича и видя нещо невероятно. Очите her светнаха от любопитство."
+            },
+            {
+              "text": "Докато изследваше, Ивет срещна нов приятел. Заедно те решиха да продължат her приключение."
+            },
+            {
+              "text": "Ивет и her приятел откриха тайнствено място. Това беше началото на нещо магическо."
+            },
+            {
+              "text": "Пред тях се появи голямо предизвикателство. Но Ивет не се отказа. she беше смел и решителен."
+            },
+            {
+              "text": "С помощта на her приятел, Ивет намери начин да реши проблема. Работейки заедно, те бяха по-силни."
+            },
+            {
+              "text": "Приключението продължи с още по-вълнуващи открития. Ивет изучаваше всичко за ивет, обича с огромен интерес."
+            },
+            {
+              "text": "Появи се ново предизвикателство, но Ивет вече знаеше как да се справя. she беше по-уверен от всякога."
+            },
+            {
+              "text": "Заедно с приятелите си, Ивет откри тайната на ивет, обича. Това беше невероятно постижение!"
+            },
+            {
+              "text": "Всички в градчето празнуваха успеха на Ивет. she беше истински герой!"
+            },
+            {
+              "text": "Ивет сподели уроците си с другите деца. she разбра колко важно е да помагаме един на друг."
+            },
+            {
+              "text": "С усмивка на лицето, Ивет знаеше, че това е само началото на много нови приключения."
+            },
+            {
+              "text": "Ивет разбра, че с смелост и упоритост всичко е възможно. she беше готов за следващото предизвикателство."
+            },
+            {
+              "text": "И така завърши прекрасният ден на Ивет. Историята her ще бъде разказвана дълги години напред."
+            }
+          ],
+          "motivationEnd": "Ивет, her приключения тепърва започват. Нека всеки ден бъде изпълнен с усмивки, учене и любов!"
+        },
+        "story_description": "Ивет обича бонбони",
+        "images": [
+          {
+            "r2_key": "743-1768510208-630e5129-0430-4d29-8a61-cd277d09533b.jpg",
+            "sort_order": 1
+          },
+          {
+            "r2_key": "743-1768510208-fe992482-bd7d-4fbd-bdf9-c85f9a4d00ba.jpg",
+            "sort_order": 1
+          }
+        ]
+      },
+      "book_title": "Ивет и Магическото Приключение",
+      "main_character_name": "Ивет",
+      "character_count": 1,
+      "scene_count": 14
+    }
+  ]
+}

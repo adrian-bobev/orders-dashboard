@@ -34,6 +34,270 @@ export type Database = {
   }
   public: {
     Tables: {
+      book_configurations: {
+        Row: {
+          age: string | null
+          config_id: string
+          content: Json
+          created_at: string
+          gender: string | null
+          id: string
+          images: Json | null
+          line_item_id: string
+          name: string
+          story_description: string | null
+          woocommerce_completed_at: string | null
+          woocommerce_created_at: string | null
+        }
+        Insert: {
+          age?: string | null
+          config_id: string
+          content: Json
+          created_at?: string
+          gender?: string | null
+          id?: string
+          images?: Json | null
+          line_item_id: string
+          name: string
+          story_description?: string | null
+          woocommerce_completed_at?: string | null
+          woocommerce_created_at?: string | null
+        }
+        Update: {
+          age?: string | null
+          config_id?: string
+          content?: Json
+          created_at?: string
+          gender?: string | null
+          id?: string
+          images?: Json | null
+          line_item_id?: string
+          name?: string
+          story_description?: string | null
+          woocommerce_completed_at?: string | null
+          woocommerce_created_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "book_configurations_line_item_id_fkey"
+            columns: ["line_item_id"]
+            isOneToOne: false
+            referencedRelation: "line_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_line_item"
+            columns: ["line_item_id"]
+            isOneToOne: false
+            referencedRelation: "line_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      line_items: {
+        Row: {
+          created_at: string
+          id: string
+          order_id: string
+          prikazko_wizard_config_id: string | null
+          product_id: number | null
+          product_name: string
+          quantity: number
+          total: number
+          woocommerce_line_item_id: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          order_id: string
+          prikazko_wizard_config_id?: string | null
+          product_id?: number | null
+          product_name: string
+          quantity?: number
+          total: number
+          woocommerce_line_item_id: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          order_id?: string
+          prikazko_wizard_config_id?: string | null
+          product_id?: number | null
+          product_name?: string
+          quantity?: number
+          total?: number
+          woocommerce_line_item_id?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_order"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "line_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      order_status_history: {
+        Row: {
+          changed_at: string
+          changed_by: string | null
+          id: string
+          notes: string | null
+          order_id: string
+          status: Database["public"]["Enums"]["order_status"]
+        }
+        Insert: {
+          changed_at?: string
+          changed_by?: string | null
+          id?: string
+          notes?: string | null
+          order_id: string
+          status: Database["public"]["Enums"]["order_status"]
+        }
+        Update: {
+          changed_at?: string
+          changed_by?: string | null
+          id?: string
+          notes?: string | null
+          order_id?: string
+          status?: Database["public"]["Enums"]["order_status"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_order"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "order_status_history_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      orders: {
+        Row: {
+          billing_address_1: string | null
+          billing_address_2: string | null
+          billing_city: string | null
+          billing_company: string | null
+          billing_country: string | null
+          billing_email: string
+          billing_first_name: string
+          billing_last_name: string
+          billing_phone: string | null
+          billing_postcode: string | null
+          billing_state: string | null
+          created_at: string
+          currency: string | null
+          delivery_address_component_id: string | null
+          delivery_address_component_name: string | null
+          delivery_address_component_type: string | null
+          delivery_address_type_prefix: string | null
+          delivery_city_id: string | null
+          delivery_city_name: string | null
+          delivery_city_region: string | null
+          delivery_city_type: string | null
+          id: string
+          order_number: string | null
+          payment_method: string
+          payment_method_title: string | null
+          shipping_method_title: string | null
+          shipping_total: number | null
+          speedy_office_id: string | null
+          speedy_office_name: string | null
+          status: Database["public"]["Enums"]["order_status"]
+          total: number
+          updated_at: string
+          woocommerce_created_at: string | null
+          woocommerce_order_id: number
+        }
+        Insert: {
+          billing_address_1?: string | null
+          billing_address_2?: string | null
+          billing_city?: string | null
+          billing_company?: string | null
+          billing_country?: string | null
+          billing_email: string
+          billing_first_name: string
+          billing_last_name: string
+          billing_phone?: string | null
+          billing_postcode?: string | null
+          billing_state?: string | null
+          created_at?: string
+          currency?: string | null
+          delivery_address_component_id?: string | null
+          delivery_address_component_name?: string | null
+          delivery_address_component_type?: string | null
+          delivery_address_type_prefix?: string | null
+          delivery_city_id?: string | null
+          delivery_city_name?: string | null
+          delivery_city_region?: string | null
+          delivery_city_type?: string | null
+          id?: string
+          order_number?: string | null
+          payment_method: string
+          payment_method_title?: string | null
+          shipping_method_title?: string | null
+          shipping_total?: number | null
+          speedy_office_id?: string | null
+          speedy_office_name?: string | null
+          status?: Database["public"]["Enums"]["order_status"]
+          total: number
+          updated_at?: string
+          woocommerce_created_at?: string | null
+          woocommerce_order_id: number
+        }
+        Update: {
+          billing_address_1?: string | null
+          billing_address_2?: string | null
+          billing_city?: string | null
+          billing_company?: string | null
+          billing_country?: string | null
+          billing_email?: string
+          billing_first_name?: string
+          billing_last_name?: string
+          billing_phone?: string | null
+          billing_postcode?: string | null
+          billing_state?: string | null
+          created_at?: string
+          currency?: string | null
+          delivery_address_component_id?: string | null
+          delivery_address_component_name?: string | null
+          delivery_address_component_type?: string | null
+          delivery_address_type_prefix?: string | null
+          delivery_city_id?: string | null
+          delivery_city_name?: string | null
+          delivery_city_region?: string | null
+          delivery_city_type?: string | null
+          id?: string
+          order_number?: string | null
+          payment_method?: string
+          payment_method_title?: string | null
+          shipping_method_title?: string | null
+          shipping_total?: number | null
+          speedy_office_id?: string | null
+          speedy_office_name?: string | null
+          status?: Database["public"]["Enums"]["order_status"]
+          total?: number
+          updated_at?: string
+          woocommerce_created_at?: string | null
+          woocommerce_order_id?: number
+        }
+        Relationships: []
+      }
       users: {
         Row: {
           created_at: string
@@ -75,7 +339,13 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      order_status:
+        | "NEW"
+        | "VALIDATION_PENDING"
+        | "READY_FOR_PRINT"
+        | "PRINTING"
+        | "IN_TRANSIT"
+        | "COMPLETED"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -205,7 +475,16 @@ export const Constants = {
     Enums: {},
   },
   public: {
-    Enums: {},
+    Enums: {
+      order_status: [
+        "NEW",
+        "VALIDATION_PENDING",
+        "READY_FOR_PRINT",
+        "PRINTING",
+        "IN_TRANSIT",
+        "COMPLETED",
+      ],
+    },
   },
 } as const
 

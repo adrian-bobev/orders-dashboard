@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
-import fs from 'fs';
-import path from 'path';
 import https from 'https';
 import http from 'http';
+import { createOrderFromWebhook } from '@/lib/services/order-service';
 
 /**
  * Create HTTPS agent that accepts self-signed certificates for local development
@@ -243,38 +242,35 @@ export async function POST(request: NextRequest) {
       console.log('ℹ️ No book configurations found for this order');
     }
 
-    // Create a timestamp for the filename
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const filename = `webhook-order-${orderData.id || 'unknown'}-${timestamp}.json`;
+    // Save order to database
+    try {
+      console.log('💾 Saving order to database...');
+      const result = await createOrderFromWebhook(orderData, configurations);
 
-    // Save to root directory
-    const rootDir = process.cwd();
-    const filePath = path.join(rootDir, filename);
+      console.log('✅ Order saved to database:', result.orderId);
+      console.log('📋 WooCommerce Order ID:', orderData.id);
 
-    // Prepare data to save (including headers for debugging)
-    const dataToSave = {
-      timestamp: new Date().toISOString(),
-      headers: {
-        signature: signature,
-        contentType: request.headers.get('content-type'),
-        userAgent: request.headers.get('user-agent'),
-      },
-      orderData: orderData,
-      bookConfigurations: configurations,
-    };
+      return NextResponse.json({
+        success: true,
+        message: 'Webhook received and saved to database',
+        orderId: result.orderId,
+        woocommerceOrderId: orderData.id,
+        configurationsFound: configurations.length,
+      });
+    } catch (dbError) {
+      console.error('❌ Failed to save order to database:', dbError);
 
-    // Write to file
-    fs.writeFileSync(filePath, JSON.stringify(dataToSave, null, 2), 'utf-8');
-
-    console.log('✅ Webhook data saved to:', filename);
-    console.log('📁 Full path:', filePath);
-
-    return NextResponse.json({
-      success: true,
-      message: 'Webhook received and saved to file',
-      filename: filename,
-      configurationsFound: configurations.length,
-    });
+      // Return error response
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Failed to save order to database',
+          details: dbError instanceof Error ? dbError.message : 'Unknown error',
+          woocommerceOrderId: orderData.id,
+        },
+        { status: 500 }
+      );
+    }
 
   } catch (error) {
     console.error('❌ Error processing webhook:', error);

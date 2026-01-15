@@ -25,21 +25,21 @@ export default async function DashboardPage() {
   }
 
   return (
-    <div className="space-y-8 animate-fade-in">
+    <div className="space-y-4 animate-fade-in">
       {/* Welcome Card */}
-      <div className="bg-white rounded-3xl shadow-warm p-10 border border-purple-100">
-        <div className="flex items-start justify-between gap-6">
+      <div className="bg-white rounded-2xl shadow-warm p-5 border border-purple-100">
+        <div className="flex items-start justify-between gap-4">
           <div className="flex-1">
-            <h2 className="text-4xl font-bold text-purple-900 mb-4 tracking-tight">
+            <h2 className="text-2xl font-bold text-purple-900 mb-2 tracking-tight">
               {user.role === 'admin' ? 'Табло за управление' : 'Добре дошли'}
             </h2>
-            <p className="text-lg text-neutral-600 leading-relaxed">
+            <p className="text-base text-neutral-600 leading-relaxed">
               Здравейте,{' '}
               <span className="font-bold text-purple-900">
                 {user.name || user.email}
               </span>
               ! Влезли сте като{' '}
-              <span className="inline-flex items-center px-4 py-1.5 rounded-full text-sm font-bold bg-purple-600 text-white shadow-warm">
+              <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-purple-600 text-white shadow-warm">
                 {user.role === 'admin'
                   ? 'администратор'
                   : user.role === 'viewer'
@@ -48,9 +48,9 @@ export default async function DashboardPage() {
               </span>
             </p>
           </div>
-          <div className="w-20 h-20 bg-purple-600 rounded-3xl flex items-center justify-center shadow-warm flex-shrink-0 transform hover:scale-105 transition-transform duration-300">
+          <div className="w-14 h-14 bg-purple-600 rounded-2xl flex items-center justify-center shadow-warm flex-shrink-0 transform hover:scale-105 transition-transform duration-300">
             <svg
-              className="w-11 h-11 text-white"
+              className="w-8 h-8 text-white"
               fill="none"
               stroke="currentColor"
               viewBox="0 0 24 24"
@@ -68,11 +68,11 @@ export default async function DashboardPage() {
 
       {/* Content Section */}
       {user.role === 'admin' ? (
-        <div className="bg-white rounded-3xl shadow-warm p-10 border border-purple-100">
-          <div className="flex items-center gap-3 mb-8">
-            <div className="w-10 h-10 bg-purple-600 rounded-2xl flex items-center justify-center shadow-warm">
+        <div className="bg-white rounded-2xl shadow-warm p-5 border border-purple-100">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-8 h-8 bg-purple-600 rounded-xl flex items-center justify-center shadow-warm">
               <svg
-                className="w-6 h-6 text-white"
+                className="w-5 h-5 text-white"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -91,22 +91,68 @@ export default async function DashboardPage() {
                 />
               </svg>
             </div>
-            <h3 className="text-2xl font-bold text-purple-900">
+            <h3 className="text-xl font-bold text-purple-900">
               Администраторски действия
             </h3>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Link
+              href="/orders"
+              className="group relative overflow-hidden bg-purple-50 border-2 border-purple-200 rounded-2xl p-5 hover:border-purple-400 hover:shadow-warm-lg transition-all duration-300"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-10 h-10 bg-purple-600 rounded-xl flex items-center justify-center shadow-warm group-hover:scale-110 transition-transform duration-300">
+                      <svg
+                        className="w-6 h-6 text-white"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                        />
+                      </svg>
+                    </div>
+                    <h4 className="text-lg font-bold text-purple-900">
+                      Управление на поръчки
+                    </h4>
+                  </div>
+                  <p className="text-neutral-600 leading-relaxed text-sm">
+                    Преглед, филтриране и управление на статуса на поръчките
+                  </p>
+                </div>
+                <svg
+                  className="w-6 h-6 text-purple-600 group-hover:translate-x-1 transition-transform duration-300 flex-shrink-0"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={3}
+                    d="M9 5l7 7-7 7"
+                  />
+                </svg>
+              </div>
+            </Link>
+
             <Link
               href="/dashboard/admin/users"
-              className="group relative overflow-hidden bg-purple-50 border-2 border-purple-200 rounded-3xl p-8 hover:border-purple-400 hover:shadow-warm-lg transition-all duration-300"
+              className="group relative overflow-hidden bg-purple-50 border-2 border-purple-200 rounded-2xl p-5 hover:border-purple-400 hover:shadow-warm-lg transition-all duration-300"
             >
-              <div className="flex items-start justify-between gap-4">
+              <div className="flex items-start justify-between gap-3">
                 <div className="flex-1">
-                  <div className="flex items-center gap-4 mb-4">
-                    <div className="w-14 h-14 bg-purple-600 rounded-2xl flex items-center justify-center shadow-warm group-hover:scale-110 transition-transform duration-300">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-10 h-10 bg-purple-600 rounded-xl flex items-center justify-center shadow-warm group-hover:scale-110 transition-transform duration-300">
                       <svg
-                        className="w-8 h-8 text-white"
+                        className="w-6 h-6 text-white"
                         fill="none"
                         stroke="currentColor"
                         viewBox="0 0 24 24"
@@ -119,16 +165,16 @@ export default async function DashboardPage() {
                         />
                       </svg>
                     </div>
-                    <h4 className="text-xl font-bold text-purple-900">
+                    <h4 className="text-lg font-bold text-purple-900">
                       Управление на потребители
                     </h4>
                   </div>
-                  <p className="text-neutral-600 leading-relaxed">
+                  <p className="text-neutral-600 leading-relaxed text-sm">
                     Преглед и управление на потребителски роли и разрешения
                   </p>
                 </div>
                 <svg
-                  className="w-7 h-7 text-purple-600 group-hover:translate-x-1 transition-transform duration-300 flex-shrink-0"
+                  className="w-6 h-6 text-purple-600 group-hover:translate-x-1 transition-transform duration-300 flex-shrink-0"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -145,11 +191,11 @@ export default async function DashboardPage() {
           </div>
         </div>
       ) : (
-        <div className="bg-white rounded-3xl shadow-warm p-10 border-2 border-purple-200">
-          <div className="flex items-start gap-6">
-            <div className="w-16 h-16 bg-purple-600 rounded-3xl flex items-center justify-center shadow-warm flex-shrink-0">
+        <div className="bg-white rounded-2xl shadow-warm p-5 border border-purple-100">
+          <div className="flex items-center gap-2 mb-4">
+            <div className="w-8 h-8 bg-purple-600 rounded-xl flex items-center justify-center shadow-warm">
               <svg
-                className="w-9 h-9 text-white"
+                className="w-5 h-5 text-white"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -158,19 +204,67 @@ export default async function DashboardPage() {
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   strokeWidth={2}
-                  d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                  d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
+                />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"
                 />
               </svg>
             </div>
-            <div>
-              <h3 className="text-2xl font-bold text-purple-900 mb-3">
-                Добре дошли в таблото за управление
-              </h3>
-              <p className="text-neutral-600 text-lg leading-relaxed">
-                Имате достъп за наблюдение. Свържете се с администратор, ако се
-                нуждаете от допълнителни разрешения.
-              </p>
-            </div>
+            <h3 className="text-xl font-bold text-purple-900">
+              Вашите действия
+            </h3>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4">
+            <Link
+              href="/orders"
+              className="group relative overflow-hidden bg-purple-50 border-2 border-purple-200 rounded-2xl p-5 hover:border-purple-400 hover:shadow-warm-lg transition-all duration-300"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1">
+                  <div className="flex items-center gap-3 mb-2">
+                    <div className="w-10 h-10 bg-purple-600 rounded-xl flex items-center justify-center shadow-warm group-hover:scale-110 transition-transform duration-300">
+                      <svg
+                        className="w-6 h-6 text-white"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                        />
+                      </svg>
+                    </div>
+                    <h4 className="text-lg font-bold text-purple-900">
+                      Поръчки
+                    </h4>
+                  </div>
+                  <p className="text-neutral-600 leading-relaxed text-sm">
+                    Преглед на поръчките
+                  </p>
+                </div>
+                <svg
+                  className="w-6 h-6 text-purple-600 group-hover:translate-x-1 transition-transform duration-300 flex-shrink-0"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={3}
+                    d="M9 5l7 7-7 7"
+                  />
+                </svg>
+              </div>
+            </Link>
           </div>
         </div>
       )}
