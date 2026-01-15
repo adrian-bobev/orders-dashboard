@@ -1,379 +1,247 @@
-# Order Dashboard - Next.js + Convex + Clerk RBAC
+# Order Dashboard
 
-A production-ready Next.js application with role-based access control (RBAC) using Convex as the backend and Clerk for authentication.
+Role-based order management dashboard built with Next.js 15 and Supabase.
 
 ## Features
 
-- **Authentication**: Secure authentication via Clerk
-- **Role-Based Access Control**: Admin and viewer roles with extensible design
-- **Real-time Updates**: Instant UI updates using Convex subscriptions
-- **Soft Delete**: User removal preserves data integrity
-- **VPS & Serverless Ready**: Deploy to VPS or serverless platforms
-- **Webhook Support**: Handle long-running operations (1-2+ minutes)
-- **Type-Safe**: End-to-end TypeScript with auto-generated Convex types
+- 🔐 **Authentication**: Supabase Auth with email/password
+- 👥 **User Management**: Admin can manage users and roles
+- 🎨 **Bulgarian Localization**: Full Bulgarian language support
+- 📱 **Responsive Design**: Works on desktop, tablet, and mobile
+- 🚀 **Server-Side Rendering**: Fast page loads with Next.js 15
+- 💾 **PostgreSQL Database**: Reliable and scalable with Supabase
+- 🔒 **Row Level Security**: Database-level authorization
+- 📦 **WooCommerce Integration**: Webhook support for orders
 
 ## Tech Stack
 
-- **Frontend**: Next.js 15 (App Router), React, Tailwind CSS
-- **Backend**: Convex (real-time database + serverless functions)
-- **Authentication**: Clerk
-- **Language**: TypeScript
+- **Framework**: Next.js 15 (App Router)
+- **Database**: Supabase (PostgreSQL)
+- **Auth**: Supabase Auth
+- **Styling**: Tailwind CSS 4
+- **TypeScript**: Full type safety
 
-## Prerequisites
+## Quick Start
 
-Before you begin, ensure you have:
+### Prerequisites
 
-- Node.js 18+ installed
-- npm or yarn package manager
-- A Clerk account (free tier available)
-- A Convex account (free tier available)
+- Node.js 20+
+- Docker (for local Supabase)
+- Supabase CLI: `brew install supabase/tap/supabase`
 
-## Local Development Setup
+### Local Development
 
-### 1. Clone and Install Dependencies
+1. **Clone and install**:
+   ```bash
+   git clone <your-repo>
+   cd order-dashboard-2
+   npm install
+   ```
 
-```bash
-# Navigate to the project directory
-cd order-dashboard-2
+2. **Start Supabase**:
+   ```bash
+   supabase start
+   ```
 
-# Install dependencies
-npm install
-```
+   Note the API URL and keys from the output.
 
-### 2. Set Up Clerk
+3. **Configure environment**:
+   ```bash
+   cp .env.local.example .env.local
+   ```
 
-1. Go to [https://dashboard.clerk.com/](https://dashboard.clerk.com/)
-2. Create a new application (or use an existing one)
-3. Choose "Next.js" as your framework
-4. Copy your API keys from the dashboard
+   Update `.env.local` with the keys from `supabase start`.
 
-5. **IMPORTANT: Create Convex JWT Template**:
-   - Navigate to **Configure** → **JWT Templates**
-   - Click **"New template"**
-   - Select **"Convex"** from the list
-   - Click **"Apply changes"**
-   - Note the **Issuer** URL (e.g., `https://alive-mammoth-58.clerk.accounts.dev`)
+4. **Apply migrations**:
+   ```bash
+   supabase db reset
+   supabase gen types typescript --local > lib/database.types.ts
+   ```
 
-### 3. Set Up Convex
+5. **Start development server**:
+   ```bash
+   npm run dev
+   ```
 
-1. Run Convex development server:
+6. **Visit** `http://localhost:3000`
 
-```bash
-npx convex dev
-```
+### First Time Setup
 
-2. Follow the prompts to:
-   - Log in to Convex (or create an account)
-   - Create a new project or select an existing one
-3. The command will output your `CONVEX_URL` - copy this
-
-### 4. Configure Environment Variables
-
-Update `.env.local` with your actual keys:
-
-```bash
-# Clerk Authentication
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_xxxxx  # From Clerk Dashboard
-CLERK_SECRET_KEY=sk_test_xxxxx                   # From Clerk Dashboard
-
-# Convex Backend
-NEXT_PUBLIC_CONVEX_URL=https://your-project.convex.cloud  # From npx convex dev
-CONVEX_DEPLOYMENT=dev:your-project-xxx                     # From npx convex dev
-```
-
-### 5. Configure Clerk Redirect URLs
-
-In your Clerk Dashboard:
-
-1. Go to **Configure** → **Paths**
-2. Set the following paths:
-   - **Sign-in URL**: `/sign-in`
-   - **Sign-up URL**: `/sign-in`
-   - **After sign-in URL**: `/dashboard`
-   - **After sign-up URL**: `/dashboard`
-
-### 6. Start the Development Server
-
-In a new terminal (keep `npx convex dev` running):
-
-```bash
-npm run dev
-```
-
-Visit [http://localhost:3000](http://localhost:3000)
-
-## First-Time Setup
-
-1. **Create Admin User**: The first user to sign up automatically becomes an admin
-2. **Create Test Users**: Sign up with additional email addresses to test viewer role
-3. **Test Admin Functions**: Log in as admin and visit `/dashboard/admin/users`
+1. Sign up - first user becomes admin automatically
+2. Sign in with your credentials
+3. Access the dashboard
+4. Admin can manage users at `/dashboard/admin/users`
 
 ## Project Structure
 
 ```
-order-dashboard-2/
+.
 ├── app/
-│   ├── (auth)/                    # Auth pages (sign-in)
-│   ├── (dashboard)/               # Protected dashboard pages
-│   │   ├── admin/users/           # Admin user management
-│   │   ├── layout.tsx             # Dashboard layout
-│   │   └── page.tsx               # Dashboard home
-│   ├── api/webhooks/              # Webhook endpoints (future)
-│   ├── layout.tsx                 # Root layout with providers
-│   └── page.tsx                   # Landing page (redirect)
+│   ├── dashboard/           # Protected dashboard pages
+│   │   ├── admin/users/    # User management (admin only)
+│   │   └── page.tsx        # Dashboard home
+│   ├── sign-in/            # Sign in page
+│   ├── sign-up/            # Sign up page
+│   └── api/webhooks/       # WooCommerce webhook
 ├── components/
-│   ├── providers/                 # Convex + Clerk providers
-│   ├── admin/                     # Admin components
-│   └── user-sync.tsx              # User sync component
-├── convex/
-│   ├── auth.config.ts             # Clerk authentication config
-│   ├── schema.ts                  # Database schema
-│   ├── users.ts                   # User management functions
-│   ├── actions.ts                 # Long-running actions
-│   └── lib/authorization.ts       # Auth helpers
-├── .env.local                     # Local environment variables
-└── .env.example                   # Environment template
+│   ├── admin/              # Admin components
+│   └── auth/               # Auth components
+├── lib/
+│   ├── services/           # Business logic
+│   ├── supabase/           # Supabase clients
+│   └── database.types.ts   # Auto-generated types
+├── supabase/
+│   └── migrations/         # Database migrations
+├── ecosystem.config.js     # PM2 configuration
+├── nginx.conf.example      # Nginx configuration
+└── deploy.sh              # Deployment script
 ```
 
-## How It Works
+## Database Schema
 
-### Authentication Flow
+### users table
 
-1. User visits the app → middleware checks authentication
-2. If not authenticated → redirect to `/sign-in`
-3. User signs in via Clerk → `UserSync` component syncs to Convex
-4. First user gets `admin` role, subsequent users get `viewer` role
-5. User is redirected to `/dashboard`
+| Column | Type | Description |
+|--------|------|-------------|
+| id | UUID | Primary key (matches auth.users.id) |
+| email | TEXT | User email |
+| name | TEXT | User name (optional) |
+| image_url | TEXT | Profile image URL (optional) |
+| role | TEXT | User role: 'admin' or 'viewer' |
+| is_active | BOOLEAN | Active status (soft delete) |
+| created_at | TIMESTAMPTZ | Creation timestamp |
+| updated_at | TIMESTAMPTZ | Last update timestamp |
 
-### Authorization Flow
+## User Roles
 
-1. User action triggers Convex mutation
-2. Mutation calls `requireAuth()` or `requireAdmin()` helper
-3. Helper validates JWT and checks user role in database
-4. If authorized → perform action, else → throw error
-5. Client receives result or error message
+- **Admin**: Full access, can manage users, change roles, activate/deactivate
+- **Viewer**: Read-only access, cannot manage users
 
-### Role-Based Access
+## Development
 
-- **Admin**: Can access all pages, manage users, change roles
-- **Viewer**: Can access dashboard home only
+### Supabase Commands
+
+```bash
+# Start local Supabase
+supabase start
+
+# Stop local Supabase
+supabase stop
+
+# View logs
+supabase logs
+
+# Open Studio (database UI)
+open http://localhost:54323
+
+# Create new migration
+supabase migration new migration_name
+
+# Apply migrations
+supabase db reset
+
+# Generate types
+supabase gen types typescript --local > lib/database.types.ts
+```
+
+### Next.js Commands
+
+```bash
+# Development
+npm run dev
+
+# Build
+npm run build
+
+# Start production
+npm start
+
+# Lint
+npm run lint
+```
 
 ## Deployment
 
-### Option A: Deploy to VPS (Recommended for Webhooks)
+### Deploy to VPS
 
-VPS deployment is ideal if you need to handle long-running webhooks (1-2+ minutes).
+1. Setup VPS (Ubuntu 22.04)
+2. Install Node.js, PM2, Nginx
+3. Clone repository to `/var/www/order-dashboard`
+4. Configure `.env.local` with production credentials
+5. Run `npm install && npm run build`
+6. Start with PM2: `pm2 start ecosystem.config.js`
+7. Configure Nginx with `nginx.conf.example`
+8. Setup SSL with Let's Encrypt
 
-**Requirements**:
-- Node.js 18+
-- Nginx (for reverse proxy)
-- PM2 (for process management)
-
-**Steps**:
-
-1. **Deploy Convex to Production**:
-
+For updates:
 ```bash
-npx convex deploy --prod
+./deploy.sh
 ```
 
-Copy the production `CONVEX_URL`.
+## Environment Variables
 
-2. **Build Next.js**:
-
+### Local Development
 ```bash
-npm run build
+NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<from-supabase-start>
+SUPABASE_SERVICE_ROLE_KEY=<from-supabase-start>
 ```
 
-3. **Copy Files to VPS**:
-
+### Production
 ```bash
-rsync -avz --exclude 'node_modules' ./ user@your-vps:/var/www/app/
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<from-supabase-dashboard>
+SUPABASE_SERVICE_ROLE_KEY=<from-supabase-dashboard>
 ```
 
-4. **On VPS - Install and Start**:
+## WooCommerce Integration
 
-```bash
-cd /var/www/app
-npm ci --production
-pm2 start npm --name "order-dashboard" -- start
-pm2 save
-pm2 startup
-```
+The app supports WooCommerce webhooks for order processing.
 
-5. **Configure Nginx**:
+1. Configure webhook in WooCommerce:
+   - URL: `https://your-domain.com/api/webhooks/woocommerce`
+   - Secret: (generate and add to `.env.local`)
 
-```nginx
-server {
-    listen 80;
-    server_name yourdomain.com;
+2. Add environment variables:
+   ```bash
+   WOOCOMMERCE_STORE_URL=https://your-store.com
+   WOOCOMMERCE_CONSUMER_KEY=ck_xxx
+   WOOCOMMERCE_CONSUMER_SECRET=cs_xxx
+   WOOCOMMERCE_WEBHOOK_SECRET=your-secret
+   ```
 
-    location / {
-        proxy_pass http://localhost:3000;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade $http_upgrade;
-        proxy_set_header Connection 'upgrade';
-        proxy_set_header Host $host;
-        proxy_cache_bypass $http_upgrade;
+## Security
 
-        # For long-running webhooks
-        proxy_read_timeout 300s;
-        proxy_connect_timeout 300s;
-    }
-}
-```
+- Row Level Security (RLS) enabled on all tables
+- Server-side authentication checks
+- Middleware protects routes
+- Admin-only mutations verified at database level
+- Soft delete prevents data loss
 
-6. **Set Production Environment Variables**:
+## Cost
 
-Create `/var/www/app/.env.production`:
-
-```bash
-NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_live_xxxxx
-CLERK_SECRET_KEY=sk_live_xxxxx
-NEXT_PUBLIC_CONVEX_URL=https://your-project.convex.cloud
-NODE_ENV=production
-```
-
-7. **Update Clerk for Production**:
-
-In Clerk Dashboard:
-- Switch to production environment (or create new production app)
-- Update redirect URLs to your production domain
-- Copy production API keys
-
-### Option B: Deploy to Vercel (Simpler, But Limited for Webhooks)
-
-1. **Deploy Convex**:
-
-```bash
-npx convex deploy --prod
-```
-
-2. **Deploy to Vercel**:
-
-```bash
-npm install -g vercel
-vercel
-```
-
-3. **Set Environment Variables in Vercel Dashboard**:
-   - `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
-   - `CLERK_SECRET_KEY`
-   - `NEXT_PUBLIC_CONVEX_URL`
-
-4. **Update Clerk URLs** to match your Vercel domain
-
-**Note**: Vercel has timeout limits (10-900s depending on plan). For 1-2 minute webhooks, use the async pattern with Convex actions or deploy to VPS.
-
-## Adding Webhook Support
-
-To add webhook endpoints that handle long-running operations:
-
-### 1. Create Webhook Route
-
-Create `app/api/webhooks/your-webhook/route.ts`:
-
-```typescript
-import { NextRequest, NextResponse } from "next/server";
-import { ConvexHttpClient } from "convex/browser";
-import { api } from "@/convex/_generated/api";
-
-const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
-
-export async function POST(request: NextRequest) {
-  const payload = await request.json();
-
-  // Validate webhook signature here
-
-  // Schedule async processing
-  await convex.action(api.actions.processLongRunningTask, {
-    taskId: payload.id,
-    data: payload
-  });
-
-  return NextResponse.json({ success: true });
-}
-```
-
-### 2. Implement Processing Logic
-
-Update `convex/actions.ts` with your business logic.
-
-### 3. Monitor Status
-
-Use Convex queries to track processing status and display real-time updates in your UI.
-
-## Extending the Application
-
-### Adding New Roles
-
-1. Update `convex/schema.ts`:
-
-```typescript
-role: v.union(v.literal("admin"), v.literal("editor"), v.literal("viewer"))
-```
-
-2. Run `npx convex dev` to regenerate types
-
-3. Add authorization helpers in `convex/lib/authorization.ts`
-
-4. Update UI to support new role
-
-### Adding New Features
-
-The architecture supports easy feature additions:
-
-- Create new Convex functions for backend logic
-- Add new pages under `app/(dashboard)/`
-- Implement role-based access using authorization helpers
-- Use Convex subscriptions for real-time updates
+- **Supabase Free Tier**: 500MB database, 100K MAU
+- **VPS**: $5-10/month (Hetzner, DigitalOcean)
+- **Total**: ~$5-10/month
 
 ## Troubleshooting
 
-### "Not authenticated" errors
+### Supabase won't start
+```bash
+supabase stop
+docker container prune -f
+supabase start
+```
 
-- Ensure Clerk keys are correct in `.env.local`
-- Check that `CLERK_JWT_ISSUER_DOMAIN` is not needed (it's optional)
-- Verify user is signed in via Clerk
+### Migration errors
+```bash
+supabase db reset
+```
 
-### "User not found in database" errors
-
-- The `UserSync` component might not have run yet
-- Try refreshing the page after sign-in
-- Check Convex dashboard to see if user was created
-
-### Convex functions not working
-
-- Ensure `npx convex dev` is running
-- Check that `NEXT_PUBLIC_CONVEX_URL` is correct
-- Look for errors in the Convex dev terminal
-
-### Build errors
-
-- Run `npx convex dev` first to generate types
-- Ensure all environment variables are set
-- Try deleting `.next` folder and rebuilding
-
-## Testing
-
-### Test Checklist
-
-- [ ] Sign up as first user (should be admin)
-- [ ] Sign up as second user (should be viewer)
-- [ ] Admin can access `/dashboard/admin/users`
-- [ ] Admin can change user roles
-- [ ] Admin can remove users
-- [ ] Viewer cannot access admin pages
-- [ ] Removed users cannot sign in
-- [ ] Real-time updates work (open admin page in two tabs)
-
-## Security Notes
-
-- All authorization is enforced on the backend (Convex functions)
-- Never trust client-side role checks
-- Inactive users are blocked at the database level
-- Clerk JWT tokens are automatically validated by Convex
-- Role changes are logged in Convex dashboard
+### Type errors
+```bash
+supabase gen types typescript --local > lib/database.types.ts
+```
 
 ## License
 
@@ -381,11 +249,7 @@ MIT
 
 ## Support
 
-For issues or questions:
-- Check the [Convex documentation](https://docs.convex.dev/)
-- Check the [Clerk documentation](https://clerk.com/docs)
-- Review the [Next.js documentation](https://nextjs.org/docs)
-
----
-
-Built with Next.js, Convex, and Clerk
+For issues, check:
+- Supabase Studio: `http://localhost:54323`
+- Next.js logs: Terminal output
+- Supabase logs: `supabase logs`

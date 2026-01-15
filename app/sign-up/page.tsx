@@ -1,7 +1,7 @@
-import { SignIn } from "@clerk/nextjs";
-import { clerkAppearance } from "@/lib/clerk-appearance";
+import { SignUpForm } from '@/components/auth/sign-up-form'
+import Link from 'next/link'
 
-export default function SignInPage() {
+export default function SignUpPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-cream p-6">
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
@@ -20,12 +20,18 @@ export default function SignInPage() {
           <h1 className="text-4xl font-bold text-purple-900 mb-3 tracking-tight">
             Табло за поръчки
           </h1>
-          <p className="text-neutral-600 text-lg">Влезте в своя акаунт за да продължите</p>
+          <p className="text-neutral-600 text-lg">Създайте нов акаунт за да започнете</p>
         </div>
-        <div className="animate-slide-up flex justify-center">
-          <SignIn appearance={clerkAppearance} />
+        <div className="animate-slide-up bg-white p-8 rounded-2xl shadow-warm">
+          <SignUpForm />
+          <p className="mt-6 text-center text-sm text-gray-600">
+            Вече имате акаунт?{' '}
+            <Link href="/sign-in" className="text-purple-600 hover:text-purple-700 font-medium hover:underline">
+              Вход
+            </Link>
+          </p>
         </div>
       </div>
     </div>
-  );
+  )
 }

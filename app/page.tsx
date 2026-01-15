@@ -1,14 +1,18 @@
-import { auth } from "@clerk/nextjs/server";
-import { redirect } from "next/navigation";
+import { createClient } from '@/lib/supabase/server'
+import { redirect } from 'next/navigation'
 
 export default async function LandingPage() {
-  const { userId } = await auth();
+  const supabase = await createClient()
 
-  if (userId) {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (user) {
     // User is authenticated, redirect to dashboard
-    redirect("/dashboard");
+    redirect('/dashboard')
   } else {
     // User is not authenticated, redirect to sign-in
-    redirect("/sign-in");
+    redirect('/sign-in')
   }
 }
