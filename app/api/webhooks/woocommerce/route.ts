@@ -3,6 +3,7 @@ import crypto from 'crypto';
 import https from 'https';
 import http from 'http';
 import { createOrderFromWebhook } from '@/lib/services/order-service';
+import { sendOrderNotification } from '@/lib/services/telegram-service';
 
 /**
  * Create HTTPS agent that accepts self-signed certificates for local development
@@ -249,6 +250,23 @@ export async function POST(request: NextRequest) {
 
       console.log('✅ Order saved to database:', result.orderId);
       console.log('📋 WooCommerce Order ID:', orderData.id);
+
+      // Send Telegram notification (non-blocking)
+      try {
+        await sendOrderNotification({
+          orderId: result.orderId,
+          orderNumber: orderData.number,
+          total: orderData.total,
+          currency: orderData.currency || 'EUR',
+          customerName: `${orderData.billing?.first_name || ''} ${orderData.billing?.last_name || ''}`.trim(),
+          paymentMethod: orderData.payment_method_title || orderData.payment_method,
+          woocommerceOrderId: orderData.id,
+        });
+        console.log('📱 Telegram notification sent');
+      } catch (notificationError) {
+        console.error('⚠️  Failed to send Telegram notification (non-critical):', notificationError);
+        // Don't fail the webhook - notification is non-critical
+      }
 
       return NextResponse.json({
         success: true,
