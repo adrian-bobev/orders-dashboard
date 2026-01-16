@@ -24,7 +24,7 @@ export default async function OrdersPage() {
   }
 
   // Fetch orders based on user role
-  const orders = await getOrders(currentUser.role)
+  const orders = await getOrders(currentUser.role as 'admin' | 'viewer')
 
   return (
     <div className="space-y-4 animate-fade-in">

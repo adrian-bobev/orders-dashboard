@@ -4,11 +4,15 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "mv .env.local .env.local.bak 2>/dev/null || true && NODE_ENV=production next build && mv .env.local.bak .env.local 2>/dev/null || true",
+    "build:prod": "NODE_ENV=production next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "sync-images": "node scripts/sync-r2-to-minio.js",
+    "sync-order-images": "node scripts/sync-order-images.js"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.970.0",
     "@supabase/ssr": "^0.8.0",
     "@supabase/supabase-js": "^2.90.1",
     "clsx": "^2.1.1",

@@ -3,6 +3,8 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { Database } from '@/lib/database.types'
+import { SmartImage } from '@/components/SmartImage'
+import { getImageUrl } from '@/lib/r2-client'
 
 type OrderStatus = Database['public']['Enums']['order_status']
 type User = Database['public']['Tables']['users']['Row']
@@ -259,6 +261,9 @@ export function OrderDetail({ order, currentUser }: OrderDetailProps) {
                 <p className="text-sm text-neutral-700">
                   {order.delivery_city_type} {order.delivery_city_name}
                   {order.delivery_city_region && ` (${order.delivery_city_region})`}
+                  {order.delivery_city_id && (
+                    <span className="text-neutral-500"> [{order.delivery_city_id}]</span>
+                  )}
                 </p>
               </div>
             )}
@@ -268,6 +273,9 @@ export function OrderDetail({ order, currentUser }: OrderDetailProps) {
                 <p className="text-sm text-neutral-700">
                   {order.delivery_address_type_prefix}{' '}
                   {order.delivery_address_component_name}
+                  {order.delivery_address_component_id && (
+                    <span className="text-neutral-500"> [{order.delivery_address_component_id}]</span>
+                  )}
                 </p>
               </div>
             )}
@@ -275,7 +283,10 @@ export function OrderDetail({ order, currentUser }: OrderDetailProps) {
               <div className="md:col-span-2">
                 <p className="text-xs font-bold text-purple-900 mb-1">Офис Speedy</p>
                 <p className="text-sm text-neutral-700">
-                  {order.speedy_office_name} (ID: {order.speedy_office_id})
+                  {order.speedy_office_name}
+                  {order.speedy_office_id && (
+                    <span className="text-neutral-500"> [{order.speedy_office_id}]</span>
+                  )}
                 </p>
               </div>
             )}
@@ -360,7 +371,7 @@ export function OrderDetail({ order, currentUser }: OrderDetailProps) {
                       </div>
 
                       {/* Basic Info - Always Visible */}
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
                         <div>
                           <p className="text-xs font-bold text-purple-900">Име</p>
                           <p className="text-sm text-neutral-700">{config.name}</p>
@@ -377,6 +388,12 @@ export function OrderDetail({ order, currentUser }: OrderDetailProps) {
                               : config.gender === 'girl'
                               ? 'Момиче'
                               : config.gender}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-purple-900">Конфигурация ID</p>
+                          <p className="text-xs font-mono text-neutral-700 break-all" title={config.config_id}>
+                            {config.config_id}
                           </p>
                         </div>
                       </div>
@@ -470,20 +487,28 @@ export function OrderDetail({ order, currentUser }: OrderDetailProps) {
                           {/* Images */}
                           {config.images && config.images.length > 0 && (
                             <div>
-                              <p className="text-xs font-bold text-purple-900 mb-1">
+                              <p className="text-xs font-bold text-purple-900 mb-2">
                                 Изображения ({config.images.length})
                               </p>
-                              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                                 {config.images.map((image: any, imgIdx: number) => (
                                   <div
                                     key={imgIdx}
-                                    className="bg-purple-50 p-2 md:p-3 rounded-lg border border-purple-200"
+                                    className="bg-purple-50 p-2 rounded-lg border-2 border-purple-200 space-y-2"
                                   >
-                                    <div className="text-xs text-neutral-600 mb-1">
+                                    <div className="text-xs text-neutral-600 font-bold">
                                       #{imgIdx + 1}
                                     </div>
-                                    <div className="text-xs font-mono text-neutral-700 break-all">
-                                      {image.r2_key || image.key || JSON.stringify(image)}
+                                    <div className="relative aspect-square rounded-lg overflow-hidden bg-purple-100">
+                                      <SmartImage
+                                        src={getImageUrl(image.r2_key || image.key) || ''}
+                                        alt={`Image ${imgIdx + 1}`}
+                                        fill
+                                        className="object-cover"
+                                      />
+                                    </div>
+                                    <div className="text-xs font-mono text-neutral-600 break-all truncate" title={image.r2_key || image.key}>
+                                      {image.r2_key || image.key}
                                     </div>
                                   </div>
                                 ))}
@@ -515,11 +540,11 @@ export function OrderDetail({ order, currentUser }: OrderDetailProps) {
                 className="flex items-center gap-3 pb-3 border-b-2 border-purple-100 last:border-0"
               >
                 <div
-                  className={`w-4 h-4 rounded-full ${STATUS_COLORS[history.status].split(' ')[0]}`}
+                  className={`w-4 h-4 rounded-full ${STATUS_COLORS[history.status as OrderStatus].split(' ')[0]}`}
                 ></div>
                 <div className="flex-1">
                   <p className="font-bold text-purple-900">
-                    {STATUS_LABELS[history.status]}
+                    {STATUS_LABELS[history.status as OrderStatus]}
                   </p>
                   <p className="text-sm text-neutral-600">
                     {new Date(history.changed_at).toLocaleString('bg-BG')}

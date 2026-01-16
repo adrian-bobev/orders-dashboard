@@ -299,7 +299,7 @@ export async function getOrderById(orderId: string): Promise<any> {
     }
 
     // Attach book configs to their respective line items
-    lineItems.forEach((lineItem) => {
+    lineItems.forEach((lineItem: any) => {
       lineItem.book_configurations = bookConfigs?.filter(
         (config) => config.line_item_id === lineItem.id
       )

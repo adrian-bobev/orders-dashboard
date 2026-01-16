@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  # MinIO - S3-compatible object storage for local development
+  minio:
+    image: minio/minio:latest
+    container_name: order-dashboard-minio
+    ports:
+      - "9000:9000"      # API port
+      - "9001:9001"      # Console UI port
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin123
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # MinIO Client - Initialize bucket on startup
+  minio-init:
+    image: minio/mc:latest
+    container_name: order-dashboard-minio-init
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      sleep 5;
+      mc alias set localminio http://minio:9000 minioadmin minioadmin123;
+      mc mb localminio/child-images --ignore-existing;
+      mc anonymous set download localminio/child-images;
+      echo 'MinIO bucket initialized successfully';
+      exit 0;
+      "
+
+volumes:
+  minio_data:
+    driver: local
