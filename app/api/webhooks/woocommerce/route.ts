@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import https from 'https';
 import http from 'http';
+import { spawn } from 'child_process';
 import { createOrderFromWebhook } from '@/lib/services/order-service';
 import { sendOrderNotification } from '@/lib/services/telegram-service';
 
@@ -268,12 +269,30 @@ export async function POST(request: NextRequest) {
         // Don't fail the webhook - notification is non-critical
       }
 
+      // Trigger image sync in background (non-blocking)
+      if (configurations.length > 0) {
+        try {
+          console.log('🖼️  Starting background image sync...');
+          const syncProcess = spawn('node', ['scripts/sync-order-images.js', orderData.id.toString()], {
+            detached: true,
+            stdio: 'ignore',
+            cwd: process.cwd(),
+          });
+          syncProcess.unref();
+          console.log('✅ Image sync started in background');
+        } catch (syncError) {
+          console.error('⚠️  Failed to start image sync (non-critical):', syncError);
+          // Don't fail the webhook - image sync is non-critical
+        }
+      }
+
       return NextResponse.json({
         success: true,
         message: 'Webhook received and saved to database',
         orderId: result.orderId,
         woocommerceOrderId: orderData.id,
         configurationsFound: configurations.length,
+        imageSyncStarted: configurations.length > 0,
       });
     } catch (dbError) {
       console.error('❌ Failed to save order to database:', dbError);

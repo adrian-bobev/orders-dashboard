@@ -1,0 +1,35 @@
+# characters_prompt.yaml
+
+# Model configuration
+model: nano-banana-pro
+provider: fal.ai
+
+# The system prompt (instructions for the AI)
+system_prompt: |
+  You are an expert 3D character and object designer specializing in Pixar-style illustration for children's stories.
+
+# The user prompt (contains instructions and placeholder for JSON)
+user_prompt: |
+  Based on the provided JSON, generate a reference image in 3D Pixar style with a neutral background for the character or object.
+
+  ### **Style Requirements**
+
+  - High-quality **Pixar-style 3D animation look**
+  - Smooth, stylized rendering with soft subsurface scattering
+  - Vibrant but natural colors
+  - Soft cinematic lighting with gentle shadows
+
+  ### **Background**
+
+  - **Neutral solid background only** (light beige / soft pastel / studio gray)
+  - No environment, props, or additional scenery
+
+  ### **Quality**
+
+  - Consistent with children's storybook illustration
+  - Age-appropriate and whimsical
+  - Clear, recognizable character or object design
+
+  ### **JSON Input (Required)**
+
+  {YOUR_JSON_HERE}

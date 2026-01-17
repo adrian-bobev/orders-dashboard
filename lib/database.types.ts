@@ -94,6 +94,331 @@ export type Database = {
           },
         ]
       }
+      book_generations: {
+        Row: {
+          book_config_id: string
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          current_step: number
+          id: string
+          status: string
+          steps_completed: Json | null
+          updated_at: string
+        }
+        Insert: {
+          book_config_id: string
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          current_step?: number
+          id?: string
+          status?: string
+          steps_completed?: Json | null
+          updated_at?: string
+        }
+        Update: {
+          book_config_id?: string
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          current_step?: number
+          id?: string
+          status?: string
+          steps_completed?: Json | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "book_generations_book_config_id_fkey"
+            columns: ["book_config_id"]
+            isOneToOne: false
+            referencedRelation: "book_configurations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      generation_character_images: {
+        Row: {
+          created_at: string
+          crop_data: Json | null
+          generation_id: string
+          id: string
+          is_selected: boolean | null
+          notes: string | null
+          processed_image_key: string | null
+          source_image_key: string
+          version: number
+        }
+        Insert: {
+          created_at?: string
+          crop_data?: Json | null
+          generation_id: string
+          id?: string
+          is_selected?: boolean | null
+          notes?: string | null
+          processed_image_key?: string | null
+          source_image_key: string
+          version?: number
+        }
+        Update: {
+          created_at?: string
+          crop_data?: Json | null
+          generation_id?: string
+          id?: string
+          is_selected?: boolean | null
+          notes?: string | null
+          processed_image_key?: string | null
+          source_image_key?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "generation_character_images_generation_id_fkey"
+            columns: ["generation_id"]
+            isOneToOne: false
+            referencedRelation: "book_generations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      generation_character_list: {
+        Row: {
+          character_name: string
+          character_type: string | null
+          created_at: string
+          description: string | null
+          generation_id: string
+          id: string
+          is_main_character: boolean | null
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          character_name: string
+          character_type?: string | null
+          created_at?: string
+          description?: string | null
+          generation_id: string
+          id?: string
+          is_main_character?: boolean | null
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          character_name?: string
+          character_type?: string | null
+          created_at?: string
+          description?: string | null
+          generation_id?: string
+          id?: string
+          is_main_character?: boolean | null
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "generation_character_list_generation_id_fkey"
+            columns: ["generation_id"]
+            isOneToOne: false
+            referencedRelation: "book_generations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      generation_character_references: {
+        Row: {
+          character_list_id: string
+          created_at: string
+          generation_id: string
+          generation_params: Json | null
+          id: string
+          image_key: string
+          image_prompt: string
+          is_selected: boolean | null
+          model_used: string | null
+          version: number
+        }
+        Insert: {
+          character_list_id: string
+          created_at?: string
+          generation_id: string
+          generation_params?: Json | null
+          id?: string
+          image_key: string
+          image_prompt: string
+          is_selected?: boolean | null
+          model_used?: string | null
+          version?: number
+        }
+        Update: {
+          character_list_id?: string
+          created_at?: string
+          generation_id?: string
+          generation_params?: Json | null
+          id?: string
+          image_key?: string
+          image_prompt?: string
+          is_selected?: boolean | null
+          model_used?: string | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "generation_character_references_character_list_id_fkey"
+            columns: ["character_list_id"]
+            isOneToOne: false
+            referencedRelation: "generation_character_list"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "generation_character_references_generation_id_fkey"
+            columns: ["generation_id"]
+            isOneToOne: false
+            referencedRelation: "book_generations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      generation_corrected_content: {
+        Row: {
+          corrected_content: Json
+          created_at: string
+          generation_id: string
+          id: string
+          model_used: string | null
+          original_content: Json
+          tokens_used: number | null
+        }
+        Insert: {
+          corrected_content: Json
+          created_at?: string
+          generation_id: string
+          id?: string
+          model_used?: string | null
+          original_content: Json
+          tokens_used?: number | null
+        }
+        Update: {
+          corrected_content?: Json
+          created_at?: string
+          generation_id?: string
+          id?: string
+          model_used?: string | null
+          original_content?: Json
+          tokens_used?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "generation_corrected_content_generation_id_fkey"
+            columns: ["generation_id"]
+            isOneToOne: true
+            referencedRelation: "book_generations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      generation_scene_images: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          error_message: string | null
+          generation_id: string
+          generation_params: Json | null
+          generation_status: string
+          id: string
+          image_key: string
+          is_selected: boolean | null
+          model_used: string | null
+          scene_prompt_id: string
+          version: number
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          generation_id: string
+          generation_params?: Json | null
+          generation_status?: string
+          id?: string
+          image_key: string
+          is_selected?: boolean | null
+          model_used?: string | null
+          scene_prompt_id: string
+          version?: number
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          generation_id?: string
+          generation_params?: Json | null
+          generation_status?: string
+          id?: string
+          image_key?: string
+          is_selected?: boolean | null
+          model_used?: string | null
+          scene_prompt_id?: string
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "generation_scene_images_generation_id_fkey"
+            columns: ["generation_id"]
+            isOneToOne: false
+            referencedRelation: "book_generations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "generation_scene_images_scene_prompt_id_fkey"
+            columns: ["scene_prompt_id"]
+            isOneToOne: false
+            referencedRelation: "generation_scene_prompts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      generation_scene_prompts: {
+        Row: {
+          created_at: string
+          generation_id: string
+          id: string
+          image_prompt: string
+          prompt_metadata: Json | null
+          scene_number: number | null
+          scene_type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          generation_id: string
+          id?: string
+          image_prompt: string
+          prompt_metadata?: Json | null
+          scene_number?: number | null
+          scene_type: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          generation_id?: string
+          id?: string
+          image_prompt?: string
+          prompt_metadata?: Json | null
+          scene_number?: number | null
+          scene_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "generation_scene_prompts_generation_id_fkey"
+            columns: ["generation_id"]
+            isOneToOne: false
+            referencedRelation: "book_generations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       line_items: {
         Row: {
           created_at: string

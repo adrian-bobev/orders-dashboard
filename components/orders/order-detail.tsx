@@ -326,15 +326,12 @@ export function OrderDetail({ order, currentUser }: OrderDetailProps) {
                         <h5 className="text-sm font-bold text-purple-900">
                           Персонализация на книгата
                         </h5>
-                        <button
-                          onClick={() =>
-                            setExpandedBookId(expandedBookId === config.id ? null : config.id)
-                          }
-                          className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg transition-all text-xs flex items-center gap-1"
-                        >
-                          {expandedBookId === config.id ? (
-                            <>
-                              <span>Скрий съдържанието</span>
+                        <div className="flex gap-2">
+                          {isAdmin && (
+                            <button
+                              onClick={() => router.push(`/orders/${order.id}/generate?bookConfigId=${config.id}`)}
+                              className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg transition-all text-xs flex items-center gap-1"
+                            >
                               <svg
                                 className="w-3 h-3"
                                 fill="none"
@@ -345,29 +342,55 @@ export function OrderDetail({ order, currentUser }: OrderDetailProps) {
                                   strokeLinecap="round"
                                   strokeLinejoin="round"
                                   strokeWidth={2.5}
-                                  d="M5 15l7-7 7 7"
+                                  d="M13 10V3L4 14h7v7l9-11h-7z"
                                 />
                               </svg>
-                            </>
-                          ) : (
-                            <>
-                              <span>Виж съдържанието</span>
-                              <svg
-                                className="w-3 h-3"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2.5}
-                                  d="M19 9l-7 7-7-7"
-                                />
-                              </svg>
-                            </>
+                              <span>Генерирай книга</span>
+                            </button>
                           )}
-                        </button>
+                          <button
+                            onClick={() =>
+                              setExpandedBookId(expandedBookId === config.id ? null : config.id)
+                            }
+                            className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg transition-all text-xs flex items-center gap-1"
+                          >
+                            {expandedBookId === config.id ? (
+                              <>
+                                <span>Скрий съдържанието</span>
+                                <svg
+                                  className="w-3 h-3"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2.5}
+                                    d="M5 15l7-7 7 7"
+                                  />
+                                </svg>
+                              </>
+                            ) : (
+                              <>
+                                <span>Виж съдържанието</span>
+                                <svg
+                                  className="w-3 h-3"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  viewBox="0 0 24 24"
+                                >
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2.5}
+                                    d="M19 9l-7 7-7-7"
+                                  />
+                                </svg>
+                              </>
+                            )}
+                          </button>
+                        </div>
                       </div>
 
                       {/* Basic Info - Always Visible */}

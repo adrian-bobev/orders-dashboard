@@ -1,0 +1,31 @@
+# character_extractor.yaml
+
+model: "gpt-5.1"
+
+temperature: 0.2
+max_tokens: 500
+top_p: 1.0
+frequency_penalty: 0.0
+presence_penalty: 0.0
+
+system_prompt: |
+  You are an AI that analyzes stories and extracts information.
+
+user_prompt: |
+  You will receive a JSON object representing a story, with one or more text fields containing the story content. Your task is to identify:
+
+  1. Characters: any named person or being mentioned more than once.
+  2. Objects: any distinct object, item, or thing mentioned more than once.
+
+  Return the results in a JSON object with this structure:
+  {
+    "characters": ["Character Name 1", "Character Name 2",..."Object Name 1", "Object Name 2", ...],
+  }
+
+  Rules:
+  - Only include names or objects that appear **more than once**.
+  - Ignore very generic words (like 'tree', 'house' unless clearly a key object).
+  - Keep names and objects exactly as they appear in the text.
+
+  Here is the story JSON:
+  {YOUR_JSON_HERE}

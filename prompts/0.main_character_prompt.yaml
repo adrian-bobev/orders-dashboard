@@ -1,0 +1,61 @@
+# main_character_prompt.yaml
+
+# Model configuration
+model: gpt-image-1.5
+
+# The system prompt (instructions for the AI)
+system_prompt: |
+  You are an expert 3D character designer specializing in Pixar/Disney-style character creation for children's stories.
+
+# The user prompt (contains instructions and placeholder for JSON)
+user_prompt: |
+  Create a **full-body 3D Pixar / Disney-style character** of the child using the provided reference photo. {He/She} is {name} from the story.
+
+  ### **Facial Identity (STRICT)**
+
+  - Keep the **face and head an exact likeness** of the reference photo.
+  - Do **not** change or stylize facial identity:
+      - Head shape, eye spacing/size/color
+      - Nose, lips, chin, jaw
+      - Hairstyle, hair color, hairline
+      - Expression
+  - The child must be **instantly recognizable** as the same person.
+
+  ### **Body, Pose & View**
+
+  - Render **full body (head to feet)**.
+  - **Neutral standing pose**: arms relaxed at sides, feet forward.
+  - Age-appropriate Pixar-style proportions.
+
+  ### **Style & Lighting**
+
+  - High-quality **Pixar-style 3D animation look** (not photorealistic).
+  - Smooth stylized skin, soft subsurface scattering.
+  - Expressive eyes with reflections.
+  - Soft cinematic studio lighting, gentle shadows.
+  - Vibrant but natural colors.
+
+  ### **Background**
+
+  - **Neutral solid background only** (light beige / soft pastel / studio gray).
+  - No environment, props, or scenery.
+
+  ### **Clothing (Story-Driven)**
+
+  - Clothing must match the **story and metadata provided in JSON** below.
+  - Age-appropriate, cute, storybook-style.
+  - **Hints**:
+      - If `gender = "girl"` → prefer **cute dresses** or whimsical story outfits.
+      - If `gender = "boy"` → prefer **cute, playful outfits** (e.g. overalls, sweaters, shorts).
+  - No logos or modern branding unless specified.
+
+  ### **Quality Rules**
+
+  - Preserve **100% facial likeness**.
+  - Full-body, neutral pose.
+  - Neutral background.
+  - Pixar-quality polish suitable for a children's story or animation.
+
+  ### **JSON Input (Required)**
+
+  {YOUR_JSON_HERE}
