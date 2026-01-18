@@ -83,8 +83,14 @@ export class Step1CharacterImageService {
 
     // Fetch the source image from S3
     const storageClient = getStorageClient()
+
+    // Determine which bucket to use based on image key
+    // Uploaded images are in generations bucket and have /uploaded/ in path
+    const isUploadedImage = params.sourceImageKey.includes('/uploaded/')
+    const sourceBucket = isUploadedImage ? generationsBucket : process.env.R2_BUCKET!
+
     const getCommand = new GetObjectCommand({
-      Bucket: process.env.R2_BUCKET!,
+      Bucket: sourceBucket,
       Key: params.sourceImageKey,
     })
 
@@ -272,8 +278,12 @@ export class Step1CharacterImageService {
     // Delete processed image from R2 if it exists
     if (imageRecord?.processed_image_key) {
       try {
+        // Determine bucket - if it's in generations folder, use generations bucket
+        const isInGenerationsBucket = imageRecord.processed_image_key.includes('/character-')
+        const bucket = isInGenerationsBucket ? process.env.R2_GENERATIONS_BUCKET! : process.env.R2_BUCKET!
+
         const deleteCommand = new DeleteObjectCommand({
-          Bucket: process.env.R2_BUCKET!,
+          Bucket: bucket,
           Key: imageRecord.processed_image_key,
         })
 
@@ -288,8 +298,12 @@ export class Step1CharacterImageService {
     // Delete generated image from R2 if it exists
     if (imageRecord?.generated_image_key) {
       try {
+        // Determine bucket - if it's in generations folder, use generations bucket
+        const isInGenerationsBucket = imageRecord.generated_image_key.includes('/character-')
+        const bucket = isInGenerationsBucket ? process.env.R2_GENERATIONS_BUCKET! : process.env.R2_BUCKET!
+
         const deleteCommand = new DeleteObjectCommand({
-          Bucket: process.env.R2_BUCKET!,
+          Bucket: bucket,
           Key: imageRecord.generated_image_key,
         })
 
@@ -300,6 +314,91 @@ export class Step1CharacterImageService {
         // Don't throw - database deletion succeeded, R2 cleanup is best-effort
       }
     }
+  }
+
+  /**
+   * Upload a user-provided Pixar reference image
+   * Creates a new version in generation_character_images with the uploaded image as generated_image_key
+   */
+  async uploadPixarReference(
+    generationId: string,
+    file: Buffer,
+    filename: string
+  ): Promise<any> {
+    const supabase = await createClient()
+
+    // Get generation folder path
+    const folderPath = await getGenerationFolderPath(generationId)
+    const generationsBucket = process.env.R2_GENERATIONS_BUCKET || 'generations'
+
+    // Process image with sharp (convert to JPEG, optimize)
+    const processedImage = await sharp(file)
+      .jpeg({ quality: 90 })
+      .toBuffer()
+
+    // Generate unique key
+    const timestamp = Date.now()
+    const sanitizedFilename = filename.replace(/[^a-zA-Z0-9.-]/g, '_')
+    const imageKey = `${folderPath}/character-uploaded-${timestamp}-${sanitizedFilename}.jpg`
+
+    // Upload to R2
+    const storageClient = getStorageClient()
+    const putCommand = new PutObjectCommand({
+      Bucket: generationsBucket,
+      Key: imageKey,
+      Body: processedImage,
+      ContentType: 'image/jpeg',
+    })
+
+    try {
+      await storageClient.send(putCommand)
+    } catch (error) {
+      console.error('Error uploading Pixar reference:', error)
+      throw new Error('Failed to upload Pixar reference to storage')
+    }
+
+    // Get the next version number
+    const { data: existingImages } = await supabase
+      .from('generation_character_images')
+      .select('version')
+      .eq('generation_id', generationId)
+      .order('version', { ascending: false })
+      .limit(1)
+
+    const nextVersion = (existingImages?.[0]?.version || 0) + 1
+
+    // Deselect all previous versions
+    await supabase
+      .from('generation_character_images')
+      .update({ is_selected: false })
+      .eq('generation_id', generationId)
+
+    // Create a new version with the uploaded Pixar reference
+    const { data: newVersion, error: insertError } = await supabase
+      .from('generation_character_images')
+      .insert({
+        generation_id: generationId,
+        source_image_key: '', // Empty since this is a direct upload, not from original images
+        generated_image_key: imageKey, // Store as generated image
+        version: nextVersion,
+        is_selected: true,
+        notes: JSON.stringify({
+          type: 'user_uploaded',
+          uploadedAt: new Date().toISOString(),
+          originalFilename: filename,
+        }),
+      })
+      .select()
+      .single()
+
+    if (insertError) {
+      console.error('Error creating uploaded Pixar reference version:', insertError)
+      throw new Error('Failed to create Pixar reference version')
+    }
+
+    console.log(`Successfully uploaded Pixar reference v${nextVersion}`)
+
+    return newVersion
   }
 
   /**
@@ -326,8 +425,12 @@ export class Step1CharacterImageService {
 
     for (const imageKey of imageKeys) {
       try {
+        // Determine which bucket to use based on image key
+        const isUploadedImage = imageKey.includes('/uploaded/')
+        const sourceBucket = isUploadedImage ? generationsBucket : process.env.R2_BUCKET!
+
         const getCommand = new GetObjectCommand({
-          Bucket: process.env.R2_BUCKET!,
+          Bucket: sourceBucket,
           Key: imageKey,
         })
 

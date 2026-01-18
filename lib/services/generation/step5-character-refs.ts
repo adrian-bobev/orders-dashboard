@@ -166,7 +166,7 @@ export class Step5CharacterRefsService {
           generationId,
           characterListId: character.id,
           characterName: character.character_name,
-          characterType: character.character_type,
+          characterType: character.character_type ?? undefined,
           description: character.description,
         })
         results.push(ref)

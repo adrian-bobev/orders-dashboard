@@ -5,6 +5,7 @@ import { getImageUrl } from '@/lib/r2-client'
 import { SmartImage } from '@/components/SmartImage'
 import ReactCrop, { type Crop, centerCrop, makeAspectCrop, PixelCrop } from 'react-image-crop'
 import 'react-image-crop/dist/ReactCrop.css'
+import { ImageUploadZone } from './image-upload-zone'
 
 interface Step1CharacterImageProps {
   generationId: string
@@ -571,13 +572,14 @@ export function Step1CharacterImage({
           )}
 
           {/* Pixar AI References */}
-          {characterImages.some((img: any) => img.generated_image_key) && (
-            <div>
-              <h3 className="font-bold text-purple-900 mb-3">
-                🎨 AI Pixar Референции ({characterImages.filter((img: any) => img.generated_image_key).length})
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {characterImages
+          <div>
+            <h3 className="font-bold text-purple-900 mb-3">
+              🎨 AI Pixar Референции ({characterImages.filter((img: any) => img.generated_image_key).length})
+            </h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {characterImages.some((img: any) => img.generated_image_key) &&
+                characterImages
                   .filter((img: any) => img.generated_image_key)
                   .map((charImage: any) => {
                     const isActiveVersion = selectedVersion?.id === charImage.id
@@ -697,9 +699,17 @@ export function Step1CharacterImage({
                       </div>
                     )
                   })}
-              </div>
+
+              {/* Upload Zone */}
+              <ImageUploadZone
+                generationId={generationId}
+                onUploadSuccess={async (characterImage) => {
+                  // Reload character images to show the uploaded one
+                  await loadCharacterImages()
+                }}
+              />
             </div>
-          )}
+          </div>
         </div>
       )}
 
