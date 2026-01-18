@@ -407,7 +407,8 @@ export class Step1CharacterImageService {
   async generateReferenceCharacter(
     generationId: string,
     bookConfig: any,
-    imageKeys: string[]
+    imageKeys: string[],
+    customPrompt?: string // Optional custom prompt override
   ): Promise<any> {
     const supabase = await createClient()
 
@@ -445,23 +446,27 @@ export class Step1CharacterImageService {
 
     console.log(`Generated ${imageUrls.length} presigned URLs for reference images`)
 
-    // Load prompt configuration
-    const promptConfig = promptLoader.loadPrompt('0.main_character_prompt.yaml')
+    // Determine final prompt - use custom prompt if provided, otherwise load from YAML
+    let finalPrompt: string
 
-    // Prepare JSON data for the prompt
-    const characterData = {
-      name: bookConfig.name,
-      age: bookConfig.age,
-      gender: bookConfig.gender,
-      storyDescription: bookConfig.story_description || '',
+    if (customPrompt) {
+      // Use custom prompt directly
+      finalPrompt = customPrompt
+      console.log('Using custom prompt provided by user')
+    } else {
+      // Load prompt configuration from YAML
+      const promptConfig = promptLoader.loadPrompt('0.main_character_prompt.yaml')
+
+      // Prepare JSON data for the prompt - use only book content
+      const characterData = bookConfig.content || {}
+
+      // Replace JSON placeholder
+      const userPrompt = promptLoader.replaceJsonPlaceholder(promptConfig.user_prompt, characterData)
+
+      // Replace gender pronouns
+      const pronoun = bookConfig.gender === 'момиче' || bookConfig.gender === 'girl' ? 'She' : 'He'
+      finalPrompt = userPrompt.replace('{He/She}', pronoun).replace('{name}', bookConfig.name)
     }
-
-    // Replace JSON placeholder
-    const userPrompt = promptLoader.replaceJsonPlaceholder(promptConfig.user_prompt, characterData)
-
-    // Replace gender pronouns
-    const pronoun = bookConfig.gender === 'момиче' || bookConfig.gender === 'girl' ? 'She' : 'He'
-    const finalPrompt = userPrompt.replace('{He/She}', pronoun).replace('{name}', bookConfig.name)
 
     // Note about multiple images
     const multiImageNote =

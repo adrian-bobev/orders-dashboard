@@ -91,9 +91,9 @@ export function Step2Proofread({ generationId, bookConfig, onComplete }: Step2Pr
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-bold text-purple-900 mb-2">Стъпка 2: Коректура</h2>
+        <h2 className="text-xl font-bold text-purple-900 mb-2">Стъпка 2: Корекция на текст</h2>
         <p className="text-neutral-600">
-          Използвайте OpenAI за коректура на граматика, правопис и стил на съдържанието на
+          Използвайте OpenAI за корекция на текст на граматика, правопис и стил на съдържанието на
           книгата.
         </p>
       </div>
@@ -127,7 +127,7 @@ export function Step2Proofread({ generationId, bookConfig, onComplete }: Step2Pr
                 Обработка...
               </span>
             ) : (
-              'Стартирай коректура'
+              'Стартирай корекция на текста'
             )}
           </button>
           <p className="text-sm text-neutral-500 mt-2">
@@ -143,7 +143,7 @@ export function Step2Proofread({ generationId, bookConfig, onComplete }: Step2Pr
         <div className="space-y-4">
           <div className="bg-green-50 rounded-xl p-4 border-2 border-green-200">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="font-bold text-green-900">Коректурата е завършена</h3>
+              <h3 className="font-bold text-green-900">Корекцията на текста е завършена</h3>
               <span className="text-sm text-neutral-600">
                 Модел: {correctedContent.model_used}
               </span>
@@ -166,7 +166,7 @@ export function Step2Proofread({ generationId, bookConfig, onComplete }: Step2Pr
                 disabled={isProofreading}
                 className="px-4 py-2 bg-purple-600 text-white rounded-xl font-bold hover:bg-purple-700 transition-colors disabled:opacity-50"
               >
-                Коректура отново
+                Корекция на текста отново
               </button>
               <button
                 onClick={onComplete}

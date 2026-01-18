@@ -39,6 +39,9 @@ export function Step1CharacterImage({
   const [previewImage, setPreviewImage] = useState<any | null>(null)
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
   const [previewType, setPreviewType] = useState<'original' | 'cropped' | 'ai'>('cropped')
+  const [isPromptEditorOpen, setIsPromptEditorOpen] = useState(false)
+  const [customPrompt, setCustomPrompt] = useState<string>('')
+  const [defaultPrompt, setDefaultPrompt] = useState<string>('')
 
   const uploadedImages = (bookConfig.images as any[]) || []
 
@@ -176,6 +179,7 @@ export function Step1CharacterImage({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           imageKeys: Array.from(selectedImagesForGeneration),
+          customPrompt: customPrompt || undefined, // Send custom prompt if set
         }),
       })
 
@@ -191,6 +195,26 @@ export function Step1CharacterImage({
       console.error('Error generating reference character:', error)
     } finally {
       setIsGeneratingReference(false)
+    }
+  }
+
+  const loadDefaultPrompt = async () => {
+    try {
+      const response = await fetch(`/api/generation/${generationId}/step1/default-prompt`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bookConfig }),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setDefaultPrompt(data.prompt)
+        if (!customPrompt) {
+          setCustomPrompt(data.prompt)
+        }
+      }
+    } catch (error) {
+      console.error('Error loading default prompt:', error)
     }
   }
 
@@ -717,6 +741,20 @@ export function Step1CharacterImage({
       <div className="bg-white rounded-xl p-4 border-2 border-blue-200">
         <div className="flex flex-wrap gap-3 items-center">
           <button
+            onClick={() => {
+              if (!defaultPrompt) {
+                loadDefaultPrompt()
+              }
+              setIsPromptEditorOpen(true)
+            }}
+            className="px-4 py-2 bg-purple-600 text-white rounded-xl font-bold hover:bg-purple-700 transition-colors flex items-center gap-2"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+            Промени промпта
+          </button>
+          <button
             onClick={handleGenerateReference}
             disabled={isGeneratingReference || selectedImagesForGeneration.size === 0}
             className="px-4 py-2 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-2"
@@ -759,6 +797,79 @@ export function Step1CharacterImage({
           </p>
         )}
       </div>
+
+      {/* Prompt Editor Modal */}
+      {isPromptEditorOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="p-6 border-b border-neutral-200 flex justify-between items-center">
+              <div>
+                <h2 className="text-2xl font-bold text-purple-900">Промени промпта за генериране</h2>
+                <p className="text-sm text-neutral-600 mt-1">
+                  Промените са само за текущата генерация. Оригиналният промпт остава непроменен.
+                </p>
+              </div>
+              <button
+                onClick={() => setIsPromptEditorOpen(false)}
+                className="p-2 hover:bg-neutral-100 rounded-full transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 overflow-y-auto flex-1">
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-bold text-neutral-700 mb-2">
+                    Текущ промпт за генериране:
+                  </label>
+                  <textarea
+                    value={customPrompt}
+                    onChange={(e) => setCustomPrompt(e.target.value)}
+                    rows={15}
+                    className="w-full px-4 py-3 border-2 border-neutral-300 rounded-xl focus:border-purple-500 focus:outline-none font-mono text-sm"
+                    placeholder="Промптът ще се зареди..."
+                  />
+                </div>
+
+                {customPrompt !== defaultPrompt && defaultPrompt && (
+                  <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                    <svg className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                    <p className="text-sm text-amber-800">
+                      Промптът е променен спрямо оригиналния от YAML файла.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-6 border-t border-neutral-200 flex gap-3 justify-end">
+              <button
+                onClick={() => {
+                  setCustomPrompt(defaultPrompt)
+                }}
+                className="px-4 py-2 bg-neutral-200 text-neutral-700 rounded-xl font-bold hover:bg-neutral-300 transition-colors"
+                disabled={!defaultPrompt}
+              >
+                Възстанови оригинала
+              </button>
+              <button
+                onClick={() => setIsPromptEditorOpen(false)}
+                className="px-4 py-2 bg-purple-600 text-white rounded-xl font-bold hover:bg-purple-700 transition-colors"
+              >
+                Запази промените
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

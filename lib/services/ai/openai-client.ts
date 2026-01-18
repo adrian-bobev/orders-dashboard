@@ -146,8 +146,8 @@ export class OpenAIClient {
           imagePrompt:
             'A magical book cover featuring a young child protagonist surrounded by sparkles and magical creatures, enchanted forest background with glowing mushrooms and fairy lights, 3D Disney-Pixar style, vibrant colors, soft shading, whimsical atmosphere, kid-safe, no text in image',
         },
-        shortDescription: 'Едно вълшебно пътешествие',
-        motivationEnd: 'И така всички живяха щастливо',
+        shortDescription: 'Приключенията на главния герой са наистина вълшебни! Следвайте го в едно невероятно пътешествие, пълно с магия и приятели.',
+        motivationEnd: 'Винаги помни, че можеш да постигнеш всичко, което си пожелаеш. Бъди смел/а, любопитен/а и добър/а!',
         canon: {
           characters: [
             { name: 'Баба' },
@@ -161,6 +161,7 @@ export class OpenAIClient {
         },
         scenes: Array.from({ length: sceneCount }, (_, i) => ({
           sceneNumber: i + 1,
+          text: `Една сутрин, героят се събуди с невероятно вълнение. ${i === 0 ? 'Днес щеше да бъде специален ден, пълен с магия и приключения!' : i < sceneCount - 1 ? `В сцена ${i + 1}, той/тя откри нещо невероятно и срещна нови приятели.` : 'И така завърши прекрасният ден. Историята ще бъде разказвана дълги години напред.'}`,
           characters: [{ name: 'Баба' }, { name: 'Дядо' }],
           imagePrompt: `Scene ${i + 1}: A young child in a magical setting, vibrant enchanted forest with colorful flowers and friendly woodland creatures, warm sunlight filtering through trees, medium shot at eye-level, 3D Disney-Pixar style with soft shading and vibrant colors, whimsical atmosphere, kid-safe, no text in image, original characters`,
         })),

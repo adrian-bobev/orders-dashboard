@@ -15,7 +15,7 @@ export async function POST(
 
     const { generationId } = await params
     const body = await request.json()
-    const { imageKeys } = body
+    const { imageKeys, customPrompt } = body
 
     if (!imageKeys || !Array.isArray(imageKeys) || imageKeys.length === 0) {
       return NextResponse.json(
@@ -34,7 +34,8 @@ export async function POST(
     const result = await step1Service.generateReferenceCharacter(
       generationId,
       generation.book_configurations,
-      imageKeys
+      imageKeys,
+      customPrompt // Pass custom prompt if provided
     )
 
     return NextResponse.json({
