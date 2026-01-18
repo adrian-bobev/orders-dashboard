@@ -1,8 +1,10 @@
 import { createClient } from '@/lib/supabase/server'
 import { getStorageClient } from '@/lib/r2-client'
 import { GetObjectCommand, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import sharp from 'sharp'
 import { openai } from '@/lib/services/ai/openai-client'
+import { falClient } from '@/lib/services/ai/fal-client'
 import { promptLoader } from '@/lib/services/ai/prompt-loader'
 
 export interface CropData {
@@ -333,37 +335,27 @@ export class Step1CharacterImageService {
 
     const bookConfigId = generation.book_config_id
 
-    // For now, we'll use the first image as the primary reference
-    // In a real implementation with GPT-4 Vision, you could analyze all images
-    const primaryImageKey = imageKeys[0]
-
-    // Fetch the primary image from S3
+    // Generate presigned URLs for all selected images
     const storageClient = getStorageClient()
-    const getCommand = new GetObjectCommand({
-      Bucket: process.env.R2_BUCKET!,
-      Key: primaryImageKey,
-    })
+    const imageUrls: string[] = []
 
-    let imageBuffer: Buffer
-    try {
-      const response = await storageClient.send(getCommand)
-      const chunks: Uint8Array[] = []
-      if (response.Body) {
-        for await (const chunk of response.Body as any) {
-          chunks.push(chunk)
-        }
-        imageBuffer = Buffer.concat(chunks)
-      } else {
-        throw new Error('Empty response body')
+    for (const imageKey of imageKeys) {
+      try {
+        const getCommand = new GetObjectCommand({
+          Bucket: process.env.R2_BUCKET!,
+          Key: imageKey,
+        })
+
+        // Generate presigned URL valid for 1 hour
+        const presignedUrl = await getSignedUrl(storageClient, getCommand, { expiresIn: 3600 })
+        imageUrls.push(presignedUrl)
+      } catch (error) {
+        console.error(`Error generating presigned URL for ${imageKey}:`, error)
+        throw new Error(`Failed to generate presigned URL for image: ${imageKey}`)
       }
-    } catch (error) {
-      console.error('Error fetching image from storage:', error)
-      throw new Error('Failed to fetch reference image from storage')
     }
 
-    // Convert image to base64 for future use (GPT-4 Vision)
-    const base64Image = imageBuffer.toString('base64')
-    const imageDataUrl = `data:image/jpeg;base64,${base64Image}`
+    console.log(`Generated ${imageUrls.length} presigned URLs for reference images`)
 
     // Load prompt configuration
     const promptConfig = promptLoader.loadPrompt('0.main_character_prompt.yaml')
@@ -386,16 +378,21 @@ export class Step1CharacterImageService {
     // Note about multiple images
     const multiImageNote =
       imageKeys.length > 1
-        ? `\n\nReference photos: ${imageKeys.length} photos provided. Use the primary reference for facial likeness.`
-        : '\n\nReference photo provided. Maintain exact facial likeness.'
+        ? `\n\n**Reference photos**: ${imageKeys.length} photos provided. Analyze all reference photos to create the most accurate facial likeness. Pay special attention to consistent facial features across all photos.`
+        : '\n\n**Reference photo**: 1 photo provided. Maintain exact facial likeness from the reference photo.'
 
     const fullPrompt = `${finalPrompt}${multiImageNote}\n\nCreate a full-body 3D Pixar-style character.`
 
-    // Generate the reference character image
-    const imageResult = await openai.generateImage({
+    console.log(`Generating character with ${imageUrls.length} reference image(s)`)
+    console.log('Prompt:', fullPrompt.substring(0, 200) + '...')
+
+    // Generate the reference character image using fal.ai gpt-image-1.5/edit
+    const imageResult = await falClient.generateImage({
+      model: 'fal-ai/gpt-image-1.5/edit',
       prompt: fullPrompt,
-      size: '1024x1024',
-      quality: 'standard',
+      imageUrls: imageUrls,
+      size: '1024x1536', // Vertical format for full-body character
+      numImages: 1,
     })
 
     // Download the generated image
@@ -403,11 +400,20 @@ export class Step1CharacterImageService {
     if (imageResult.url.startsWith('data:')) {
       // Handle data URLs (mock mode)
       const base64Data = imageResult.url.split(',')[1]
-      const svgBuffer = Buffer.from(base64Data, 'base64')
-      generatedImageBuffer = await sharp(svgBuffer).png().toBuffer()
+      const buffer = Buffer.from(base64Data, 'base64')
+
+      // Convert to JPEG if needed (SVG from mock needs conversion)
+      if (imageResult.contentType?.includes('svg')) {
+        generatedImageBuffer = await sharp(buffer).jpeg({ quality: 90 }).toBuffer()
+      } else {
+        generatedImageBuffer = buffer
+      }
     } else {
-      // Handle regular URLs
+      // Handle regular URLs from fal.ai
       const imageResponse = await fetch(imageResult.url)
+      if (!imageResponse.ok) {
+        throw new Error(`Failed to download generated image: ${imageResponse.statusText}`)
+      }
       generatedImageBuffer = Buffer.from(await imageResponse.arrayBuffer())
     }
 
@@ -445,7 +451,7 @@ export class Step1CharacterImageService {
       .from('generation_character_images')
       .insert({
         generation_id: generationId,
-        source_image_key: primaryImageKey, // Keep track of which image was used
+        source_image_key: imageKeys[0], // Keep track of the primary image
         generated_image_key: referenceKey,
         version: nextVersion,
         is_selected: true,
@@ -454,6 +460,8 @@ export class Step1CharacterImageService {
           generatedAt: new Date().toISOString(),
           referenceImageKeys: imageKeys,
           imageCount: imageKeys.length,
+          model: 'gpt-image-1.5',
+          provider: 'fal.ai',
         }),
       })
       .select()
@@ -463,6 +471,8 @@ export class Step1CharacterImageService {
       console.error('Error creating new version:', insertError)
       throw new Error('Failed to create new version')
     }
+
+    console.log(`Successfully generated character reference v${nextVersion} using ${imageKeys.length} image(s)`)
 
     // Return the reference key and new version info
     return {
