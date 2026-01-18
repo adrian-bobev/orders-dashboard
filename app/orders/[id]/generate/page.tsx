@@ -226,7 +226,7 @@ export default async function GeneratePage({
             <h1 className="text-2xl font-bold text-purple-900 mb-2">
               Генериране на книга: {bookConfig.name}
             </h1>
-            <p className="text-neutral-600">Поръчка #{order.woocommerce_order_id}</p>
+            <p className="text-neutral-600">Поръчка #{order.woocommerce_order_id} | Конфигурация #{bookConfig.config_id}</p>
             <div className="mt-3 flex items-center gap-4 text-sm">
               <div>
                 <span className="text-neutral-600">Възраст:</span>{' '}
