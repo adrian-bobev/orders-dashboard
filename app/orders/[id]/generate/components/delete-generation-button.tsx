@@ -34,6 +34,10 @@ export function DeleteGenerationButton({
         throw new Error(error.error || 'Failed to delete generation')
       }
 
+      // Reset state before redirect
+      setIsDeleting(false)
+      setShowConfirm(false)
+
       // Determine redirect based on remaining generations
       // Filter out the current generation being deleted
       const remainingGenerations = allGenerations.filter(g => g.id !== generationId)
