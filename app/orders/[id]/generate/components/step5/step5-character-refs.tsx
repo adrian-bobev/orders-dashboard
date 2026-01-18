@@ -397,7 +397,7 @@ export function Step5CharacterRefs({ generationId, onComplete }: Step5CharacterR
       {entities.length === 0 ? (
         <div className="text-center py-8 text-neutral-500">
           <p>Няма извлечени герои или обекти.</p>
-          <p className="text-sm mt-2">Моля генерирайте промпти за сцени в предишната стъпка.</p>
+          <p className="text-sm mt-2">Моля генерирайте scene prompts в предишната стъпка.</p>
         </div>
       ) : (
         <div className="space-y-6">

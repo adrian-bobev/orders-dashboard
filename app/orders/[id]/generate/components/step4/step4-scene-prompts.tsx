@@ -95,11 +95,10 @@ export function Step4ScenePrompts({ generationId, onComplete }: Step4ScenePrompt
     <div className="space-y-6">
       <div>
         <h2 className="text-xl font-bold text-purple-900 mb-2">
-          Стъпка 4: Генериране на промпти за сцени
+          Стъпка 3: Генериране на Scene Prompts
         </h2>
         <p className="text-neutral-600">
-          Генерирайте детайлни промпти за корицата и всяка сцена. Промптите могат да се
-          редактират след генериране.
+          Генерирайте детайлни prompts за корицата и всяка сцена. Prompts могат да се редактират след генериране.
         </p>
       </div>
 
@@ -132,7 +131,7 @@ export function Step4ScenePrompts({ generationId, onComplete }: Step4ScenePrompt
                 Обработка...
               </span>
             ) : (
-              'Генерирай промпти за сцени'
+              'Генерирай Scene Prompts'
             )}
           </button>
           <p className="text-sm text-neutral-500 mt-2">
