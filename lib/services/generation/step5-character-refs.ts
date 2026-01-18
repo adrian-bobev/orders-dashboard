@@ -18,6 +18,19 @@ export class Step5CharacterRefsService {
   async generateCharacterReference(params: GenerateCharacterReferenceParams): Promise<any> {
     const supabase = await createClient()
 
+    // Get the book_config_id for this generation
+    const { data: generation, error: genError } = await supabase
+      .from('book_generations')
+      .select('book_config_id')
+      .eq('id', params.generationId)
+      .single()
+
+    if (genError || !generation) {
+      throw new Error('Generation not found')
+    }
+
+    const bookConfigId = generation.book_config_id
+
     // Load prompt configuration
     const promptConfig = promptLoader.loadPrompt('4.characters_prompt.yaml')
 
@@ -55,9 +68,9 @@ export class Step5CharacterRefsService {
       imageBuffer = Buffer.from(await imageResponse.arrayBuffer())
     }
 
-    // Generate S3 key
+    // Generate S3 key using book_config_id (same bucket as main character)
     const timestamp = Date.now()
-    const imageKey = `generations/${params.generationId}/character-${params.characterName}-${timestamp}.jpg`
+    const imageKey = `generations/${bookConfigId}/character-${params.characterName}-${timestamp}.jpg`
 
     // Upload to S3
     const storageClient = getStorageClient()

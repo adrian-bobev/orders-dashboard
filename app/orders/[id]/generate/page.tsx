@@ -4,6 +4,7 @@ import { getCurrentUser } from '@/lib/services/user-service'
 import { getOrderById } from '@/lib/services/order-service'
 import { generationService } from '@/lib/services/generation/generation-service'
 import { GenerationWorkflow } from './components/generation-workflow'
+import { DeleteGenerationButton } from './components/delete-generation-button'
 import Link from 'next/link'
 
 // Force dynamic rendering to always fetch fresh data
@@ -134,18 +135,29 @@ export default async function GeneratePage({
 
       {/* Header */}
       <div className="bg-white rounded-2xl shadow-warm p-4 border border-purple-100">
-        <h1 className="text-2xl font-bold text-purple-900 mb-2">
-          Генериране на книга: {bookConfig.name}
-        </h1>
-        <p className="text-neutral-600">Поръчка #{order.woocommerce_order_id}</p>
-        <div className="mt-3 flex items-center gap-4 text-sm">
-          <div>
-            <span className="text-neutral-600">Възраст:</span>{' '}
-            <span className="font-bold text-purple-900">{bookConfig.age}</span>
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1">
+            <h1 className="text-2xl font-bold text-purple-900 mb-2">
+              Генериране на книга: {bookConfig.name}
+            </h1>
+            <p className="text-neutral-600">Поръчка #{order.woocommerce_order_id}</p>
+            <div className="mt-3 flex items-center gap-4 text-sm">
+              <div>
+                <span className="text-neutral-600">Възраст:</span>{' '}
+                <span className="font-bold text-purple-900">{bookConfig.age}</span>
+              </div>
+              <div>
+                <span className="text-neutral-600">Пол:</span>{' '}
+                <span className="font-bold text-purple-900">{bookConfig.gender}</span>
+              </div>
+            </div>
           </div>
           <div>
-            <span className="text-neutral-600">Пол:</span>{' '}
-            <span className="font-bold text-purple-900">{bookConfig.gender}</span>
+            <DeleteGenerationButton
+              generationId={generation.id}
+              orderId={orderId}
+              bookConfigName={bookConfig.name}
+            />
           </div>
         </div>
       </div>

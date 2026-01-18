@@ -22,6 +22,19 @@ export class Step6SceneImagesService {
   async generateSceneImage(params: GenerateSceneImageParams): Promise<any> {
     const supabase = await createClient()
 
+    // Get the book_config_id for this generation
+    const { data: generation, error: genError } = await supabase
+      .from('book_generations')
+      .select('book_config_id')
+      .eq('id', params.generationId)
+      .single()
+
+    if (genError || !generation) {
+      throw new Error('Generation not found')
+    }
+
+    const bookConfigId = generation.book_config_id
+
     // Get the scene prompt details
     const { data: scenePrompt, error: promptError } = await supabase
       .from('generation_scene_prompts')
@@ -62,10 +75,10 @@ export class Step6SceneImagesService {
         imageBuffer = Buffer.from(await imageResponse.arrayBuffer())
       }
 
-      // Generate S3 key
+      // Generate S3 key using book_config_id (same bucket as main character)
       const timestamp = Date.now()
       const sceneType = scenePrompt.scene_type === 'cover' ? 'cover' : `scene-${scenePrompt.scene_number}`
-      const imageKey = `generations/${params.generationId}/${sceneType}-${timestamp}.jpg`
+      const imageKey = `generations/${bookConfigId}/${sceneType}-${timestamp}.jpg`
 
       // Upload to S3
       const storageClient = getStorageClient()
