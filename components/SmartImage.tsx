@@ -11,7 +11,7 @@ import React from 'react';
  * - In development mode, shows placeholders instead of fetching from R2
  */
 export interface SmartImageProps extends Omit<ImageProps, 'src'> {
-  src: string;
+  src: string | undefined;
   imgClassName?: string;
 }
 

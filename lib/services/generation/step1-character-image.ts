@@ -6,6 +6,7 @@ import sharp from 'sharp'
 import { openai } from '@/lib/services/ai/openai-client'
 import { falClient } from '@/lib/services/ai/fal-client'
 import { promptLoader } from '@/lib/services/ai/prompt-loader'
+import { getGenerationFolderPath } from './generation-service'
 
 export interface CropData {
   x: number
@@ -76,16 +77,9 @@ export class Step1CharacterImageService {
   async cropCharacterImage(params: CropImageParams): Promise<any> {
     const supabase = await createClient()
 
-    // Get the book_config_id for the generation
-    const { data: generation, error: genError } = await supabase
-      .from('book_generations')
-      .select('book_config_id')
-      .eq('id', params.generationId)
-      .single()
-
-    if (genError || !generation) {
-      throw new Error('Generation not found')
-    }
+    // Get generation folder path
+    const folderPath = await getGenerationFolderPath(params.generationId)
+    const generationsBucket = process.env.R2_GENERATIONS_BUCKET || 'generations'
 
     // Fetch the source image from S3
     const storageClient = getStorageClient()
@@ -142,13 +136,13 @@ export class Step1CharacterImageService {
       .jpeg({ quality: 90 })
       .toBuffer()
 
-    // Generate new key for cropped image
+    // Generate new key for cropped image using generation_id
     const timestamp = Date.now()
-    const processedImageKey = `generations/${generation.book_config_id}/character-cropped-${timestamp}.jpg`
+    const processedImageKey = `${folderPath}/character-cropped-${timestamp}.jpg`
 
     // Upload cropped image to S3
     const putCommand = new PutObjectCommand({
-      Bucket: process.env.R2_BUCKET!,
+      Bucket: generationsBucket,
       Key: processedImageKey,
       Body: croppedImageBuffer,
       ContentType: 'image/jpeg',
@@ -183,7 +177,7 @@ export class Step1CharacterImageService {
       .insert({
         generation_id: params.generationId,
         source_image_key: params.sourceImageKey,
-        crop_data: params.cropData,
+        crop_data: params.cropData as any,
         processed_image_key: processedImageKey,
         version: nextVersion,
         is_selected: true,
@@ -322,18 +316,9 @@ export class Step1CharacterImageService {
       throw new Error('No images selected for generation. Please select at least one image.')
     }
 
-    // Get the book_config_id for the generation
-    const { data: generation, error: genError } = await supabase
-      .from('book_generations')
-      .select('book_config_id')
-      .eq('id', generationId)
-      .single()
-
-    if (genError || !generation) {
-      throw new Error('Generation not found')
-    }
-
-    const bookConfigId = generation.book_config_id
+    // Get generation folder path
+    const folderPath = await getGenerationFolderPath(generationId)
+    const generationsBucket = process.env.R2_GENERATIONS_BUCKET || 'generations'
 
     // Generate presigned URLs for all selected images
     const storageClient = getStorageClient()
@@ -417,12 +402,12 @@ export class Step1CharacterImageService {
       generatedImageBuffer = Buffer.from(await imageResponse.arrayBuffer())
     }
 
-    // Save the generated reference character using book_config_id
+    // Save the generated reference character using generation_id
     const timestamp = Date.now()
-    const referenceKey = `generations/${bookConfigId}/character-reference-${timestamp}.jpg`
+    const referenceKey = `${folderPath}/character-reference-${timestamp}.jpg`
 
     const putCommand = new PutObjectCommand({
-      Bucket: process.env.R2_BUCKET!,
+      Bucket: generationsBucket,
       Key: referenceKey,
       Body: generatedImageBuffer,
       ContentType: 'image/jpeg',

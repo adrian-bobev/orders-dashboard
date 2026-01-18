@@ -26,15 +26,25 @@ export function getStorageClient(): S3Client {
 
 /**
  * Fetches an image from storage (R2 or MinIO)
+ *
+ * Bucket logic:
+ * - Generation images (format: {orderNumber}-{configNumber}-{generationId}/...) → generations bucket
+ * - Original order images (everything else) → child-images bucket
  */
 export async function fetchImageFromStorage(
   imageKey: string
 ): Promise<{ body: Uint8Array; contentType?: string } | null> {
   const client = getStorageClient();
-  const bucket = process.env.R2_BUCKET;
+
+  // Generation images follow pattern: {number}-{number}-{uuid}/...
+  const isGenerationImage = /^\d+-\d+-[a-f0-9-]+\//.test(imageKey);
+
+  const bucket = isGenerationImage
+    ? (process.env.R2_GENERATIONS_BUCKET || 'generations')
+    : process.env.R2_BUCKET;
 
   if (!bucket) {
-    throw new Error('R2_BUCKET environment variable not configured');
+    throw new Error('Bucket environment variable not configured');
   }
 
   try {

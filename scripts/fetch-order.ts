@@ -183,7 +183,7 @@ async function processOrderConfigurations(orderData: any) {
   for (const item of orderData.line_items || []) {
     // Check if this item has a prikazko wizard config
     const configId = item.meta_data?.find(
-      (m) => m.key === '_prikazko_wizard_config_id'
+      (m: any) => m.key === '_prikazko_wizard_config_id'
     )?.value;
 
     if (!configId) {
@@ -203,7 +203,7 @@ async function processOrderConfigurations(orderData: any) {
 
       // Find the matching configuration by ID
       const matchingConfig = configData.configurations?.find(
-        (c) => c.id === parseInt(configId, 10)
+        (c: any) => c.id === parseInt(configId, 10)
       );
 
       if (!matchingConfig) {
@@ -268,7 +268,7 @@ async function fetchAndSaveOrder(wooOrderId: number) {
     return result.orderId;
 
   } catch (error) {
-    console.error('\n❌ Error fetching order:', error.message);
+    console.error('\n❌ Error fetching order:', error instanceof Error ? error.message : error);
     console.error(error);
     process.exit(1);
   }

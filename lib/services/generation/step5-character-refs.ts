@@ -4,6 +4,7 @@ import { promptLoader } from '@/lib/services/ai/prompt-loader'
 import { getStorageClient } from '@/lib/r2-client'
 import { PutObjectCommand } from '@aws-sdk/client-s3'
 import sharp from 'sharp'
+import { getGenerationFolderPath } from './generation-service'
 
 export interface GenerateCharacterReferenceParams {
   generationId: string
@@ -18,18 +19,9 @@ export class Step5CharacterRefsService {
   async generateCharacterReference(params: GenerateCharacterReferenceParams): Promise<any> {
     const supabase = await createClient()
 
-    // Get the book_config_id for this generation
-    const { data: generation, error: genError } = await supabase
-      .from('book_generations')
-      .select('book_config_id')
-      .eq('id', params.generationId)
-      .single()
-
-    if (genError || !generation) {
-      throw new Error('Generation not found')
-    }
-
-    const bookConfigId = generation.book_config_id
+    // Get generation folder path
+    const folderPath = await getGenerationFolderPath(params.generationId)
+    const generationsBucket = process.env.R2_GENERATIONS_BUCKET || 'generations'
 
     // Load prompt configuration
     const promptConfig = promptLoader.loadPrompt('4.characters_prompt.yaml')
@@ -68,14 +60,14 @@ export class Step5CharacterRefsService {
       imageBuffer = Buffer.from(await imageResponse.arrayBuffer())
     }
 
-    // Generate S3 key using book_config_id (same bucket as main character)
+    // Generate S3 key using generation_id
     const timestamp = Date.now()
-    const imageKey = `generations/${bookConfigId}/character-${params.characterName}-${timestamp}.jpg`
+    const imageKey = `${folderPath}/character-${params.characterName}-${timestamp}.jpg`
 
     // Upload to S3
     const storageClient = getStorageClient()
     const putCommand = new PutObjectCommand({
-      Bucket: process.env.R2_BUCKET!,
+      Bucket: generationsBucket,
       Key: imageKey,
       Body: imageBuffer,
       ContentType: 'image/jpeg',

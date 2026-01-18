@@ -89,6 +89,10 @@ export class OpenAIClient {
       n: 1,
     })
 
+    if (!response.data || response.data.length === 0) {
+      throw new Error('No image generated')
+    }
+
     return {
       url: response.data[0].url!,
       revisedPrompt: response.data[0].revised_prompt,
@@ -239,4 +243,11 @@ export function getOpenAIClient(): OpenAIClient {
   return openaiInstance
 }
 
-export const openai = getOpenAIClient()
+// Lazy getter to avoid instantiation during build
+export const openai = {
+  get instance(): OpenAIClient {
+    return getOpenAIClient()
+  },
+  chat: (params: ChatParams) => getOpenAIClient().chat(params),
+  generateImage: (params: GenerateImageParams) => getOpenAIClient().generateImage(params),
+}

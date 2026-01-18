@@ -1,4 +1,4 @@
-import * as fal from '@fal-ai/client'
+import { fal } from '@fal-ai/client'
 
 export interface FalImageGenerationParams {
   prompt: string
@@ -16,18 +16,16 @@ export interface FalImageGenerationResult {
 
 export class FalClient {
   private useMock: boolean
+  private apiKey: string | undefined
 
   constructor() {
     this.useMock = process.env.USE_MOCK_AI === 'true'
 
     if (!this.useMock) {
-      const apiKey = process.env.FAL_KEY
-      if (!apiKey) {
+      this.apiKey = process.env.FAL_KEY
+      if (!this.apiKey) {
         throw new Error('FAL_KEY environment variable is required when USE_MOCK_AI is not true')
       }
-      fal.config({
-        credentials: apiKey,
-      })
     }
   }
 
@@ -160,4 +158,10 @@ export function getFalClient(): FalClient {
   return falClientInstance
 }
 
-export const falClient = getFalClient()
+// Lazy getter to avoid instantiation during build
+export const falClient = {
+  get instance(): FalClient {
+    return getFalClient()
+  },
+  generateImage: (params: FalImageGenerationParams) => getFalClient().generateImage(params),
+}

@@ -6,6 +6,65 @@ import { DeleteObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3'
 type BookGeneration = any // Will be: Database['public']['Tables']['book_generations']['Row']
 type BookGenerationInsert = any // Will be: Database['public']['Tables']['book_generations']['Insert']
 
+/**
+ * Get the R2 folder path for a generation
+ * Format: {orderNumber}-{configNumber}-{generationId}
+ * Example: 12345-1-abc123-def456-ghi789
+ */
+export async function getGenerationFolderPath(generationId: string): Promise<string> {
+  const supabase = await createClient()
+
+  // Get generation with book_config_id
+  const { data: generation, error: genError } = await supabase
+    .from('book_generations')
+    .select('book_config_id')
+    .eq('id', generationId)
+    .single()
+
+  if (genError || !generation) {
+    throw new Error(`Generation not found: ${generationId}`)
+  }
+
+  // Get book_config with config_id and line_item_id
+  const { data: bookConfig, error: configError } = await supabase
+    .from('book_configurations')
+    .select('config_id, line_item_id')
+    .eq('id', generation.book_config_id)
+    .single()
+
+  if (configError || !bookConfig) {
+    throw new Error(`Book configuration not found: ${generation.book_config_id}`)
+  }
+
+  // Get line_item with order_id
+  const { data: lineItem, error: lineError } = await supabase
+    .from('line_items')
+    .select('order_id')
+    .eq('id', bookConfig.line_item_id)
+    .single()
+
+  if (lineError || !lineItem) {
+    throw new Error(`Line item not found: ${bookConfig.line_item_id}`)
+  }
+
+  // Get order with order_number (or woocommerce_order_id)
+  const { data: order, error: orderError } = await supabase
+    .from('orders')
+    .select('order_number, woocommerce_order_id')
+    .eq('id', lineItem.order_id)
+    .single()
+
+  if (orderError || !order) {
+    throw new Error(`Order not found: ${lineItem.order_id}`)
+  }
+
+  // Use order_number if available, otherwise use woocommerce_order_id
+  const orderNumber = order.order_number || order.woocommerce_order_id
+  const configNumber = bookConfig.config_id
+
+  return `${orderNumber}-${configNumber}-${generationId}`
+}
+
 export class GenerationService {
   /**
    * Create a new generation for a book configuration
@@ -208,7 +267,7 @@ export class GenerationService {
    * - Step 4: Scene prompts (generation_scene_prompts)
    * - Step 5: Character references (generation_character_references)
    * - Step 6: Scene images (generation_scene_images)
-   * - All R2 files associated with the generation
+   * - All R2 files associated with the generation (entire folder)
    * - The generation record itself
    *
    * This method is reusable and can be called from UI buttons or automated cleanup processes
@@ -218,88 +277,26 @@ export class GenerationService {
 
     console.log(`Starting deletion of generation ${generationId}`)
 
-    // 1. Get generation details to find book_config_id
-    const { data: generation, error: fetchError } = await supabase
-      .from('book_generations')
-      .select('book_config_id')
-      .eq('id', generationId)
-      .single()
+    // 1. Get generation folder path
+    const folderPath = await getGenerationFolderPath(generationId)
+    console.log(`Generation folder path: ${folderPath}`)
 
-    if (fetchError) {
-      console.error('Error fetching generation:', fetchError)
-      throw new Error(`Failed to fetch generation: ${fetchError.message}`)
-    }
-
-    if (!generation) {
-      throw new Error('Generation not found')
-    }
-
-    const bookConfigId = generation.book_config_id
-
-    // 2. Collect all R2 image keys to delete
-    const r2KeysToDelete: string[] = []
-
-    // 2a. Get main character images (Step 1)
-    const { data: characterImages } = await supabase
-      .from('generation_character_images')
-      .select('processed_image_key, generated_image_key')
-      .eq('generation_id', generationId)
-
-    if (characterImages && characterImages.length > 0) {
-      for (const image of characterImages) {
-        if (image.processed_image_key) r2KeysToDelete.push(image.processed_image_key)
-        if (image.generated_image_key) r2KeysToDelete.push(image.generated_image_key)
-      }
-    }
-
-    // 2b. Get character reference images (Step 5)
-    // These are linked via character_list, so we need to get them through the character list
-    const { data: characterList } = await supabase
-      .from('generation_character_list')
-      .select('id')
-      .eq('generation_id', generationId)
-
-    if (characterList && characterList.length > 0) {
-      const characterListIds = characterList.map((char) => char.id)
-
-      // Get all character references for these characters
-      const { data: characterRefs } = await supabase
-        .from('generation_character_references')
-        .select('image_key')
-        .in('character_list_id', characterListIds)
-
-      if (characterRefs && characterRefs.length > 0) {
-        for (const ref of characterRefs) {
-          if (ref.image_key) r2KeysToDelete.push(ref.image_key)
-        }
-      }
-    }
-
-    // 2c. Get scene images (Step 6)
-    const { data: sceneImages } = await supabase
-      .from('generation_scene_images')
-      .select('image_key')
-      .eq('generation_id', generationId)
-
-    if (sceneImages && sceneImages.length > 0) {
-      for (const scene of sceneImages) {
-        if (scene.image_key) r2KeysToDelete.push(scene.image_key)
-      }
-    }
-
-    // 2d. List all R2 files in the generation folder (catches any missed files)
+    // 2. Delete all R2 files for this generation (entire folder)
     const storageClient = getStorageClient()
+    const r2KeysToDelete: string[] = []
+    const generationsBucket = process.env.R2_GENERATIONS_BUCKET || 'generations'
+
     try {
       const listCommand = new ListObjectsV2Command({
-        Bucket: process.env.R2_BUCKET!,
-        Prefix: `generations/${bookConfigId}/`,
+        Bucket: generationsBucket,
+        Prefix: `${folderPath}/`,
       })
 
       const listResponse = await storageClient.send(listCommand)
 
       if (listResponse.Contents && listResponse.Contents.length > 0) {
         for (const item of listResponse.Contents) {
-          if (item.Key && !r2KeysToDelete.includes(item.Key)) {
+          if (item.Key) {
             r2KeysToDelete.push(item.Key)
           }
         }
@@ -309,12 +306,12 @@ export class GenerationService {
       // Don't throw - continue with deletion
     }
 
-    // 3. Delete all R2 files
-    console.log(`Deleting ${r2KeysToDelete.length} R2 files`)
+    // Delete all R2 files in parallel
+    console.log(`Deleting ${r2KeysToDelete.length} R2 files from ${generationsBucket} bucket`)
     const deletePromises = r2KeysToDelete.map(async (key) => {
       try {
         const deleteCommand = new DeleteObjectCommand({
-          Bucket: process.env.R2_BUCKET!,
+          Bucket: generationsBucket,
           Key: key,
         })
         await storageClient.send(deleteCommand)

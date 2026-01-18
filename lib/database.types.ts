@@ -142,6 +142,7 @@ export type Database = {
         Row: {
           created_at: string
           crop_data: Json | null
+          generated_image_key: string | null
           generation_id: string
           id: string
           is_selected: boolean | null
@@ -153,6 +154,7 @@ export type Database = {
         Insert: {
           created_at?: string
           crop_data?: Json | null
+          generated_image_key?: string | null
           generation_id: string
           id?: string
           is_selected?: boolean | null
@@ -164,6 +166,7 @@ export type Database = {
         Update: {
           created_at?: string
           crop_data?: Json | null
+          generated_image_key?: string | null
           generation_id?: string
           id?: string
           is_selected?: boolean | null

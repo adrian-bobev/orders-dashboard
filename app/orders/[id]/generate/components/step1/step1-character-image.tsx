@@ -249,7 +249,7 @@ export function Step1CharacterImage({
               </div>
 
               {/* Original Image Preview */}
-              {previewType === 'original' && (
+              {previewType === 'original' && previewImage && typeof previewImage === 'string' && (
                 <div className="mb-6">
                   <SmartImage
                     src={getImageUrl(previewImage)}

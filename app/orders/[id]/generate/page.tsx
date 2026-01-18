@@ -16,7 +16,7 @@ export default async function GeneratePage({
   searchParams,
 }: {
   params: Promise<{ id: string }>
-  searchParams: Promise<{ bookConfigId?: string }>
+  searchParams: Promise<{ bookConfigId?: string; generationId?: string }>
 }) {
   const supabase = await createClient()
   const {
@@ -31,7 +31,7 @@ export default async function GeneratePage({
   }
 
   const { id: orderId } = await params
-  const { bookConfigId } = await searchParams
+  const { bookConfigId, generationId: selectedGenerationId } = await searchParams
   const order = await getOrderById(orderId)
 
   if (!order) {
@@ -39,11 +39,11 @@ export default async function GeneratePage({
   }
 
   // Find all book configurations in the order
-  const allBookConfigs = order.line_items?.flatMap((item) => item.book_configurations || []) || []
+  const allBookConfigs = order.line_items?.flatMap((item: any) => item.book_configurations || []) || []
 
   // If bookConfigId is specified, find that specific config
   // Otherwise, use the first one (backwards compatibility)
-  let bookConfig = allBookConfigs.find((config) => config.id === bookConfigId)
+  let bookConfig = allBookConfigs.find((config: any) => config.id === bookConfigId)
 
   if (!bookConfig && allBookConfigs.length > 0) {
     bookConfig = allBookConfigs[0]
@@ -82,11 +82,21 @@ export default async function GeneratePage({
     )
   }
 
-  // Get or create generation for this book config
-  const generation = await generationService.getOrCreateGeneration(
-    bookConfig.id,
-    currentUser.id
-  )
+  // Get all generations for this book config
+  const allGenerations = await generationService.getGenerationsByBookConfigId(bookConfig.id)
+
+  // Determine which generation to show
+  let generation = allGenerations.find((g) => g.id === selectedGenerationId)
+
+  // If no generation selected or not found, use most recent or create new one
+  if (!generation) {
+    if (allGenerations.length > 0) {
+      generation = allGenerations[0] // Most recent (ordered by created_at desc)
+    } else {
+      // Create first generation if none exist
+      generation = await generationService.createGeneration(bookConfig.id, currentUser.id)
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -116,7 +126,7 @@ export default async function GeneratePage({
         <div className="bg-white rounded-2xl shadow-warm p-4 border border-purple-100">
           <h2 className="text-sm font-bold text-purple-900 mb-3">Избери книга:</h2>
           <div className="flex flex-wrap gap-2">
-            {allBookConfigs.map((config) => (
+            {allBookConfigs.map((config: any) => (
               <Link
                 key={config.id}
                 href={`/orders/${orderId}/generate?bookConfigId=${config.id}`}
@@ -132,6 +142,82 @@ export default async function GeneratePage({
           </div>
         </div>
       )}
+
+      {/* Generation Selector */}
+      <div className="bg-white rounded-2xl shadow-warm p-4 border border-purple-100">
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-bold text-purple-900">Генерации:</h2>
+          <Link
+            href={`/api/generation/create?bookConfigId=${bookConfig.id}&orderId=${orderId}`}
+            className="px-3 py-1.5 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700 transition-colors text-sm flex items-center gap-1.5"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2.5}
+                d="M12 4v16m8-8H4"
+              />
+            </svg>
+            Нова генерация
+          </Link>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {allGenerations.map((gen, index) => {
+            const generationNumber = allGenerations.length - index
+            const statusColors = {
+              in_progress: 'bg-blue-100 text-blue-900 border-blue-200',
+              completed: 'bg-green-100 text-green-900 border-green-200',
+              failed: 'bg-red-100 text-red-900 border-red-200',
+            }
+            const isActive = gen.id === generation.id
+
+            return (
+              <Link
+                key={gen.id}
+                href={`/orders/${orderId}/generate?bookConfigId=${bookConfig.id}&generationId=${gen.id}`}
+                className={`px-4 py-2 rounded-xl font-bold transition-colors border-2 ${
+                  isActive
+                    ? 'bg-purple-600 text-white border-purple-600'
+                    : statusColors[gen.status as keyof typeof statusColors] ||
+                      'bg-neutral-100 text-neutral-900 border-neutral-200 hover:bg-neutral-200'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <span>Генерация #{generationNumber}</span>
+                  {gen.status === 'completed' && (
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                      <path
+                        fillRule="evenodd"
+                        d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  )}
+                  {gen.status === 'failed' && (
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                      <path
+                        fillRule="evenodd"
+                        d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
+                        clipRule="evenodd"
+                      />
+                    </svg>
+                  )}
+                </div>
+                <div className="text-xs mt-1 opacity-80">
+                  {new Date(gen.created_at).toLocaleDateString('bg-BG', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </div>
+              </Link>
+            )
+          })}
+        </div>
+      </div>
 
       {/* Header */}
       <div className="bg-white rounded-2xl shadow-warm p-4 border border-purple-100">
