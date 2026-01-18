@@ -242,7 +242,9 @@ export default async function GeneratePage({
             <DeleteGenerationButton
               generationId={generation.id}
               orderId={orderId}
+              bookConfigId={bookConfig.id}
               bookConfigName={bookConfig.name}
+              allGenerations={allGenerations}
             />
           </div>
         </div>

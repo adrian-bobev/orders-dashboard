@@ -6,13 +6,17 @@ import { useRouter } from 'next/navigation'
 interface DeleteGenerationButtonProps {
   generationId: string
   orderId: string
+  bookConfigId: string
   bookConfigName: string
+  allGenerations: any[]
 }
 
 export function DeleteGenerationButton({
   generationId,
   orderId,
+  bookConfigId,
   bookConfigName,
+  allGenerations,
 }: DeleteGenerationButtonProps) {
   const [isDeleting, setIsDeleting] = useState(false)
   const [showConfirm, setShowConfirm] = useState(false)
@@ -30,8 +34,19 @@ export function DeleteGenerationButton({
         throw new Error(error.error || 'Failed to delete generation')
       }
 
-      // Redirect back to order page after successful deletion
-      router.push(`/orders/${orderId}`)
+      // Determine redirect based on remaining generations
+      // Filter out the current generation being deleted
+      const remainingGenerations = allGenerations.filter(g => g.id !== generationId)
+
+      if (remainingGenerations.length > 0) {
+        // Stay on generation page with next generation (most recent)
+        const nextGeneration = remainingGenerations[0]
+        router.push(`/orders/${orderId}/generate?bookConfigId=${bookConfigId}&generationId=${nextGeneration.id}`)
+      } else {
+        // No more generations, go to order details
+        router.push(`/orders/${orderId}`)
+      }
+
       router.refresh()
     } catch (error) {
       console.error('Error deleting generation:', error)
