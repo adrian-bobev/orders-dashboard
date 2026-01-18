@@ -72,10 +72,8 @@ export function Step5CharacterRefs({ generationId, onComplete }: Step5CharacterR
       }
 
       await loadReferences()
-      alert('Референциите са генерирани успешно!')
     } catch (error) {
       console.error('Error generating references:', error)
-      alert(error instanceof Error ? error.message : 'Грешка при генериране на референции')
     } finally {
       setIsGenerating(false)
     }
@@ -113,7 +111,6 @@ export function Step5CharacterRefs({ generationId, onComplete }: Step5CharacterR
       }
     } catch (error) {
       console.error('Error generating reference:', error)
-      alert('Грешка при генериране на референция')
     } finally {
       setGeneratingCharacter(null)
     }
@@ -134,7 +131,6 @@ export function Step5CharacterRefs({ generationId, onComplete }: Step5CharacterR
       await loadReferences()
     } catch (error) {
       console.error('Error selecting version:', error)
-      alert('Грешка при избор на версия')
     }
   }
 

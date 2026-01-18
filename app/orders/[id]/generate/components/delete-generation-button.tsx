@@ -54,7 +54,6 @@ export function DeleteGenerationButton({
       router.refresh()
     } catch (error) {
       console.error('Error deleting generation:', error)
-      alert(`Грешка при изтриване: ${error instanceof Error ? error.message : 'Неизвестна грешка'}`)
       setIsDeleting(false)
       setShowConfirm(false)
     }

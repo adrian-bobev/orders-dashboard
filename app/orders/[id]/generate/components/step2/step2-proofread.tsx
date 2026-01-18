@@ -47,10 +47,8 @@ export function Step2Proofread({ generationId, bookConfig, onComplete }: Step2Pr
 
       const data = await response.json()
       setCorrectedContent(data.correctedContent)
-      alert('Коректурата е завършена успешно!')
     } catch (error) {
       console.error('Error proofreading content:', error)
-      alert('Грешка при коректура на съдържанието')
     } finally {
       setIsProofreading(false)
     }
@@ -78,10 +76,8 @@ export function Step2Proofread({ generationId, bookConfig, onComplete }: Step2Pr
       const data = await response.json()
       setCorrectedContent(data.correctedContent)
       setIsEditing(false)
-      alert('Промените са запазени!')
     } catch (error) {
       console.error('Error saving edits:', error)
-      alert('Грешка при запазване на промените. Уверете се, че JSON форматът е валиден.')
     }
   }
 

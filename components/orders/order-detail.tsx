@@ -71,8 +71,7 @@ export function OrderDetail({ order, currentUser, generationCounts = {} }: Order
       setCurrentStatus(newStatus)
       router.refresh()
     } catch (error) {
-      alert('Грешка при промяна на статуса')
-      console.error(error)
+      console.error('Error updating status:', error)
     } finally {
       setIsUpdatingStatus(false)
     }

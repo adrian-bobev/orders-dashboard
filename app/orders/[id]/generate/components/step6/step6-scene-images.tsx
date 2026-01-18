@@ -72,7 +72,6 @@ export function Step6SceneImages({ generationId, onComplete }: Step6SceneImagesP
 
   const handleBatchGenerate = async () => {
     if (selectedScenes.size === 0) {
-      alert('Моля, изберете поне една сцена')
       return
     }
 
@@ -93,10 +92,8 @@ export function Step6SceneImages({ generationId, onComplete }: Step6SceneImagesP
       }
 
       await loadData()
-      alert(`Генерирани ${selectedScenes.size} сцени успешно!`)
     } catch (error) {
       console.error('Error generating scenes:', error)
-      alert('Грешка при генериране на сцени')
     } finally {
       setIsGenerating(false)
     }
@@ -121,7 +118,6 @@ export function Step6SceneImages({ generationId, onComplete }: Step6SceneImagesP
       await loadData()
     } catch (error) {
       console.error('Error generating scene:', error)
-      alert('Грешка при генериране на сцена')
     } finally {
       setGeneratingScene(null)
     }

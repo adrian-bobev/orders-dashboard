@@ -54,11 +54,8 @@ export function Step4ScenePrompts({ generationId, onComplete }: Step4ScenePrompt
 
       // Reload to get entities count
       await loadPrompts()
-
-      alert('Промптите за сцени са генерирани успешно!')
     } catch (error) {
       console.error('Error generating scene prompts:', error)
-      alert(error instanceof Error ? error.message : 'Грешка при генериране на промпти')
     } finally {
       setIsGenerating(false)
     }
@@ -88,7 +85,6 @@ export function Step4ScenePrompts({ generationId, onComplete }: Step4ScenePrompt
       await loadPrompts()
     } catch (error) {
       console.error('Error updating prompt:', error)
-      alert('Грешка при обновяване на промпт')
     }
   }
 
