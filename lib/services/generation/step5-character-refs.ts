@@ -249,6 +249,99 @@ export class Step5CharacterRefsService {
       throw new Error('Failed to delete character reference')
     }
   }
+
+  /**
+   * Upload a user-provided reference image for a character/object
+   */
+  async uploadCharacterReference(
+    generationId: string,
+    characterListId: string,
+    characterName: string,
+    characterType: string,
+    imageBuffer: Buffer,
+    originalFilename: string
+  ): Promise<any> {
+    const supabase = await createClient()
+
+    // Get generation folder path
+    const folderPath = await getGenerationFolderPath(generationId)
+    const generationsBucket = process.env.R2_GENERATIONS_BUCKET || 'generations'
+
+    // Process image: convert to JPEG and optimize
+    const processedBuffer = await sharp(imageBuffer)
+      .jpeg({ quality: 90 })
+      .toBuffer()
+
+    // Generate S3 key
+    const timestamp = Date.now()
+    const prefix = characterType === 'object' ? 'object' : 'character'
+    const imageKey = `${folderPath}/${prefix}-${characterName}-uploaded-${timestamp}.jpg`
+
+    // Upload to S3
+    const storageClient = getStorageClient()
+    const putCommand = new PutObjectCommand({
+      Bucket: generationsBucket,
+      Key: imageKey,
+      Body: processedBuffer,
+      ContentType: 'image/jpeg',
+    })
+
+    await storageClient.send(putCommand)
+
+    // Get the next version number
+    const { data: existingRefs } = await supabase
+      .from('generation_character_references')
+      .select('version')
+      .eq('character_list_id', characterListId)
+      .order('version', { ascending: false })
+      .limit(1)
+
+    const nextVersion = (existingRefs?.[0]?.version || 0) + 1
+
+    // Deselect all previous versions for this character
+    await supabase
+      .from('generation_character_references')
+      .update({ is_selected: false })
+      .eq('character_list_id', characterListId)
+
+    // Save to database
+    const { data, error } = await supabase
+      .from('generation_character_references')
+      .insert({
+        generation_id: generationId,
+        character_list_id: characterListId,
+        image_key: imageKey,
+        image_prompt: null,
+        version: nextVersion,
+        is_selected: true,
+        model_used: null,
+        generation_params: null,
+        notes: JSON.stringify({
+          type: 'user_uploaded',
+          originalFilename,
+          uploadedAt: new Date().toISOString(),
+        }),
+      })
+      .select(
+        `
+        *,
+        generation_character_list (
+          id,
+          character_name,
+          character_type,
+          description
+        )
+      `
+      )
+      .single()
+
+    if (error) {
+      console.error('Error saving uploaded character reference:', error)
+      throw new Error(`Failed to save uploaded character reference: ${error.message}`)
+    }
+
+    return data
+  }
 }
 
 // Singleton instance

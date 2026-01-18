@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { getImageUrl } from '@/lib/r2-client'
 import { SmartImage } from '@/components/SmartImage'
+import { useDropzone } from 'react-dropzone'
 
 interface Step5CharacterRefsProps {
   generationId: string
@@ -14,6 +15,24 @@ interface Entity {
   character_name: string
   character_type: string
   description: string | null
+  is_custom?: boolean
+}
+
+interface UploadProgress {
+  [entityId: string]: {
+    [fileId: string]: {
+      progress: number
+      status: 'uploading' | 'success' | 'error'
+      error?: string
+    }
+  }
+}
+
+const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
+const acceptedFileTypes = {
+  'image/jpeg': ['.jpg', '.jpeg'],
+  'image/png': ['.png'],
+  'image/webp': ['.webp'],
 }
 
 export function Step5CharacterRefs({ generationId, onComplete }: Step5CharacterRefsProps) {
@@ -24,6 +43,12 @@ export function Step5CharacterRefs({ generationId, onComplete }: Step5CharacterR
   const [expandedEntity, setExpandedEntity] = useState<string | null>(null)
   const [editingPrompt, setEditingPrompt] = useState<string | null>(null)
   const [customPrompts, setCustomPrompts] = useState<Record<string, string>>({})
+  const [showAddForm, setShowAddForm] = useState<'character' | 'object' | null>(null)
+  const [newEntityName, setNewEntityName] = useState('')
+  const [newEntityDescription, setNewEntityDescription] = useState('')
+  const [isCreatingEntity, setIsCreatingEntity] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState<UploadProgress>({})
+  const [uploadingEntity, setUploadingEntity] = useState<string | null>(null)
 
   useEffect(() => {
     loadData()
@@ -134,6 +159,160 @@ export function Step5CharacterRefs({ generationId, onComplete }: Step5CharacterR
     }
   }
 
+  const handleCreateEntity = async () => {
+    if (!newEntityName.trim() || !showAddForm) return
+
+    setIsCreatingEntity(true)
+    try {
+      const response = await fetch(`/api/generation/${generationId}/entities`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          characterName: newEntityName.trim(),
+          characterType: showAddForm,
+          description: newEntityDescription.trim() || undefined,
+        }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to create entity')
+      }
+
+      await loadEntities()
+      setNewEntityName('')
+      setNewEntityDescription('')
+      setShowAddForm(null)
+    } catch (error) {
+      console.error('Error creating entity:', error)
+      alert(error instanceof Error ? error.message : 'Failed to create entity')
+    } finally {
+      setIsCreatingEntity(false)
+    }
+  }
+
+  const handleDeleteEntity = async (entity: Entity) => {
+    if (!entity.is_custom) {
+      alert('Only custom entities can be deleted')
+      return
+    }
+
+    if (!confirm(`Are you sure you want to delete "${entity.character_name}"?`)) {
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/generation/${generationId}/entities?entityId=${entity.id}`, {
+        method: 'DELETE',
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to delete entity')
+      }
+
+      await loadData()
+    } catch (error) {
+      console.error('Error deleting entity:', error)
+      alert(error instanceof Error ? error.message : 'Failed to delete entity')
+    }
+  }
+
+  const uploadFile = async (entity: Entity, file: File) => {
+    const fileId = `${file.name}-${Date.now()}`
+
+    if (!uploadProgress[entity.id]) {
+      setUploadProgress(prev => ({
+        ...prev,
+        [entity.id]: {},
+      }))
+    }
+
+    setUploadProgress(prev => ({
+      ...prev,
+      [entity.id]: {
+        ...prev[entity.id],
+        [fileId]: { progress: 0, status: 'uploading' },
+      },
+    }))
+
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      formData.append('characterListId', entity.id)
+      formData.append('characterName', entity.character_name)
+      formData.append('characterType', entity.character_type)
+
+      const xhr = new XMLHttpRequest()
+
+      // Track upload progress
+      xhr.upload.addEventListener('progress', (e) => {
+        if (e.lengthComputable) {
+          const percent = Math.round((e.loaded / e.total) * 100)
+          setUploadProgress(prev => ({
+            ...prev,
+            [entity.id]: {
+              ...prev[entity.id],
+              [fileId]: { ...prev[entity.id][fileId], progress: percent },
+            },
+          }))
+        }
+      })
+
+      // Handle completion
+      await new Promise<void>((resolve, reject) => {
+        xhr.addEventListener('load', () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            setUploadProgress(prev => ({
+              ...prev,
+              [entity.id]: {
+                ...prev[entity.id],
+                [fileId]: { progress: 100, status: 'success' },
+              },
+            }))
+            loadReferences()
+            resolve()
+          } else {
+            const error = JSON.parse(xhr.responseText).error || 'Upload failed'
+            setUploadProgress(prev => ({
+              ...prev,
+              [entity.id]: {
+                ...prev[entity.id],
+                [fileId]: { progress: 0, status: 'error', error },
+              },
+            }))
+            reject(new Error(error))
+          }
+        })
+
+        xhr.addEventListener('error', () => {
+          const error = 'Upload failed. Please check your connection and try again.'
+          setUploadProgress(prev => ({
+            ...prev,
+            [entity.id]: {
+              ...prev[entity.id],
+              [fileId]: { progress: 0, status: 'error', error },
+            },
+          }))
+          reject(new Error(error))
+        })
+
+        xhr.open('POST', `/api/generation/${generationId}/step5/upload-character-ref`)
+        xhr.send(formData)
+      })
+    } catch (error) {
+      console.error('Upload error:', error)
+    }
+  }
+
+  const onDropForEntity = (entity: Entity) => async (acceptedFiles: File[]) => {
+    setUploadingEntity(entity.id)
+    for (const file of acceptedFiles) {
+      await uploadFile(entity, file)
+    }
+    setUploadingEntity(null)
+  }
+
   // Group references by entity
   const groupedReferences: Record<string, any[]> = {}
   references.forEach((ref) => {
@@ -162,6 +341,8 @@ export function Step5CharacterRefs({ generationId, onComplete }: Step5CharacterR
     const hasRefs = entityRefs.length > 0
     const isEditingPromptForThis = editingPrompt === entity.id
     const customPrompt = customPrompts[entity.id]
+    const entityUploadProgress = uploadProgress[entity.id] || {}
+    const hasActiveUploads = Object.keys(entityUploadProgress).length > 0
 
     return (
       <div key={entity.id} className={`bg-white rounded-lg p-3 border-2 border-${bgColor}-200 hover:border-${bgColor}-300 transition-colors`}>
@@ -185,6 +366,11 @@ export function Step5CharacterRefs({ generationId, onComplete }: Step5CharacterR
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <h4 className={`font-bold text-${bgColor}-900 truncate`}>{entity.character_name}</h4>
+              {entity.is_custom && (
+                <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-xs font-bold rounded-full flex-shrink-0">
+                  Персонализиран
+                </span>
+              )}
               {hasRefs && (
                 <span className="px-1.5 py-0.5 bg-green-100 text-green-700 text-xs font-bold rounded-full flex-shrink-0">
                   {entityRefs.length}
@@ -225,6 +411,7 @@ export function Step5CharacterRefs({ generationId, onComplete }: Step5CharacterR
                 </svg>
               </button>
             )}
+            <UploadButton entity={entity} bgColor={bgColor} onDrop={onDropForEntity(entity)} isUploading={uploadingEntity === entity.id} />
             <button
               onClick={() => handleGenerateSingle(entity)}
               disabled={generatingCharacter === entity.id}
@@ -245,8 +432,46 @@ export function Step5CharacterRefs({ generationId, onComplete }: Step5CharacterR
                 </svg>
               )}
             </button>
+            {entity.is_custom && (
+              <button
+                onClick={() => handleDeleteEntity(entity)}
+                className="px-2 py-1 bg-red-600 text-white text-xs font-bold rounded hover:bg-red-700 transition-colors"
+                title="Изтрий"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+            )}
           </div>
         </div>
+
+        {/* Upload Progress */}
+        {hasActiveUploads && (
+          <div className="mt-2 space-y-1">
+            {Object.entries(entityUploadProgress).map(([fileId, progress]) => {
+              const fileName = fileId.split('-')[0]
+              return (
+                <div key={fileId} className="flex items-center gap-2">
+                  <span className="text-xs text-neutral-600 truncate flex-1">{fileName}</span>
+                  {progress.status === 'uploading' && (
+                    <div className="flex-1 bg-neutral-200 rounded-full h-1.5">
+                      <div
+                        className={`bg-${bgColor}-500 h-1.5 rounded-full transition-all`}
+                        style={{ width: `${progress.progress}%` }}
+                      />
+                    </div>
+                  )}
+                  <span className="text-xs text-neutral-500">
+                    {progress.status === 'success' && '✓'}
+                    {progress.status === 'error' && '✗'}
+                    {progress.status === 'uploading' && `${progress.progress}%`}
+                  </span>
+                </div>
+              )
+            })}
+          </div>
+        )}
 
         {/* Custom Prompt Editor */}
         {isEditingPromptForThis && (
@@ -330,6 +555,40 @@ export function Step5CharacterRefs({ generationId, onComplete }: Step5CharacterR
     )
   }
 
+  // Upload Button Component
+  function UploadButton({ entity, bgColor, onDrop, isUploading }: { entity: Entity; bgColor: string; onDrop: (files: File[]) => void; isUploading: boolean }) {
+    const { getRootProps, getInputProps, isDragActive } = useDropzone({
+      onDrop,
+      accept: acceptedFileTypes,
+      maxSize: MAX_FILE_SIZE,
+      multiple: false,
+      disabled: isUploading,
+    })
+
+    return (
+      <div {...getRootProps()}>
+        <input {...getInputProps()} />
+        <button
+          type="button"
+          className={`px-2 py-1 bg-${bgColor}-600 text-white text-xs font-bold rounded hover:bg-${bgColor}-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}
+          disabled={isUploading}
+          title="Качи изображение"
+        >
+          {isUploading ? (
+            <svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24">
+              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+            </svg>
+          ) : (
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+            </svg>
+          )}
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -402,34 +661,138 @@ export function Step5CharacterRefs({ generationId, onComplete }: Step5CharacterR
       ) : (
         <div className="space-y-6">
           {/* Characters Section */}
-          {characters.length > 0 && (
-            <div>
-              <h3 className="text-lg font-bold text-purple-900 mb-3 flex items-center gap-2">
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-bold text-purple-900 flex items-center gap-2">
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
                 </svg>
                 Герои ({characters.length})
               </h3>
-              <div className="space-y-2">
-                {characters.map((entity) => renderEntityCard(entity, 'purple', 'purple'))}
-              </div>
+              <button
+                onClick={() => setShowAddForm(showAddForm === 'character' ? null : 'character')}
+                className="px-3 py-1.5 bg-purple-600 text-white text-sm font-bold rounded hover:bg-purple-700 transition-colors flex items-center gap-1"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Добави Герой
+              </button>
             </div>
-          )}
+
+            {/* Add Character Form */}
+            {showAddForm === 'character' && (
+              <div className="bg-purple-50 rounded-lg p-4 mb-3 border-2 border-purple-200">
+                <h4 className="font-bold text-purple-900 mb-2">Нов Герой</h4>
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    value={newEntityName}
+                    onChange={(e) => setNewEntityName(e.target.value)}
+                    placeholder="Име на героя..."
+                    className="w-full px-3 py-2 border-2 border-purple-200 rounded text-sm focus:border-purple-400 focus:ring-2 focus:ring-purple-200 outline-none"
+                  />
+                  <textarea
+                    value={newEntityDescription}
+                    onChange={(e) => setNewEntityDescription(e.target.value)}
+                    placeholder="Описание (опционално)..."
+                    className="w-full px-3 py-2 border-2 border-purple-200 rounded text-sm focus:border-purple-400 focus:ring-2 focus:ring-purple-200 outline-none"
+                    rows={2}
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleCreateEntity}
+                      disabled={!newEntityName.trim() || isCreatingEntity}
+                      className="px-4 py-2 bg-purple-600 text-white text-sm font-bold rounded hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isCreatingEntity ? 'Създаване...' : 'Създай'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowAddForm(null)
+                        setNewEntityName('')
+                        setNewEntityDescription('')
+                      }}
+                      className="px-4 py-2 bg-neutral-200 text-neutral-700 text-sm font-bold rounded hover:bg-neutral-300 transition-colors"
+                    >
+                      Отказ
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              {characters.map((entity) => renderEntityCard(entity, 'purple', 'purple'))}
+            </div>
+          </div>
 
           {/* Objects Section */}
-          {objects.length > 0 && (
-            <div>
-              <h3 className="text-lg font-bold text-emerald-900 mb-3 flex items-center gap-2">
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-bold text-emerald-900 flex items-center gap-2">
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                   <path d="M10 3.5a1.5 1.5 0 013 0V4a1 1 0 001 1h3a1 1 0 011 1v3a1 1 0 01-1 1h-.5a1.5 1.5 0 000 3h.5a1 1 0 011 1v3a1 1 0 01-1 1h-3a1 1 0 01-1-1v-.5a1.5 1.5 0 00-3 0v.5a1 1 0 01-1 1H6a1 1 0 01-1-1v-3a1 1 0 00-1-1h-.5a1.5 1.5 0 010-3H4a1 1 0 001-1V6a1 1 0 011-1h3a1 1 0 001-1v-.5z" />
                 </svg>
                 Обекти ({objects.length})
               </h3>
-              <div className="space-y-2">
-                {objects.map((entity) => renderEntityCard(entity, 'emerald', 'emerald'))}
-              </div>
+              <button
+                onClick={() => setShowAddForm(showAddForm === 'object' ? null : 'object')}
+                className="px-3 py-1.5 bg-emerald-600 text-white text-sm font-bold rounded hover:bg-emerald-700 transition-colors flex items-center gap-1"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Добави Обект
+              </button>
             </div>
-          )}
+
+            {/* Add Object Form */}
+            {showAddForm === 'object' && (
+              <div className="bg-emerald-50 rounded-lg p-4 mb-3 border-2 border-emerald-200">
+                <h4 className="font-bold text-emerald-900 mb-2">Нов Обект</h4>
+                <div className="space-y-2">
+                  <input
+                    type="text"
+                    value={newEntityName}
+                    onChange={(e) => setNewEntityName(e.target.value)}
+                    placeholder="Име на обекта..."
+                    className="w-full px-3 py-2 border-2 border-emerald-200 rounded text-sm focus:border-emerald-400 focus:ring-2 focus:ring-emerald-200 outline-none"
+                  />
+                  <textarea
+                    value={newEntityDescription}
+                    onChange={(e) => setNewEntityDescription(e.target.value)}
+                    placeholder="Описание (опционално)..."
+                    className="w-full px-3 py-2 border-2 border-emerald-200 rounded text-sm focus:border-emerald-400 focus:ring-2 focus:ring-emerald-200 outline-none"
+                    rows={2}
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleCreateEntity}
+                      disabled={!newEntityName.trim() || isCreatingEntity}
+                      className="px-4 py-2 bg-emerald-600 text-white text-sm font-bold rounded hover:bg-emerald-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {isCreatingEntity ? 'Създаване...' : 'Създай'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowAddForm(null)
+                        setNewEntityName('')
+                        setNewEntityDescription('')
+                      }}
+                      className="px-4 py-2 bg-neutral-200 text-neutral-700 text-sm font-bold rounded hover:bg-neutral-300 transition-colors"
+                    >
+                      Отказ
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="space-y-2">
+              {objects.map((entity) => renderEntityCard(entity, 'emerald', 'emerald'))}
+            </div>
+          </div>
         </div>
       )}
     </div>
