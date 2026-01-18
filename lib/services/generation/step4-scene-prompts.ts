@@ -5,6 +5,7 @@ import { promptLoader } from '@/lib/services/ai/prompt-loader'
 export interface GenerateScenePromptsParams {
   generationId: string
   correctedContent: any
+  mainCharacterName?: string
 }
 
 export class Step4ScenePromptsService {
@@ -94,7 +95,108 @@ export class Step4ScenePromptsService {
       throw new Error(`Failed to save scene prompts: ${error.message}`)
     }
 
+    // Extract and save characters and objects from canon
+    if (sceneData.canon) {
+      await this.extractAndSaveCharactersFromPrompts(
+        params.generationId,
+        sceneData.canon,
+        params.mainCharacterName
+      )
+    }
+
     return data || []
+  }
+
+  /**
+   * Extract and save characters and objects from scene prompts canon
+   */
+  async extractAndSaveCharactersFromPrompts(
+    generationId: string,
+    canon: any,
+    mainCharacterName?: string
+  ): Promise<void> {
+    const supabase = await createClient()
+
+    // Delete existing character list entries for this generation
+    await supabase
+      .from('generation_character_list')
+      .delete()
+      .eq('generation_id', generationId)
+      .eq('is_main_character', false)
+
+    const entitiesToInsert: any[] = []
+    let sortOrder = 0
+
+    // Extract characters
+    if (canon.characters && Array.isArray(canon.characters)) {
+      for (const character of canon.characters) {
+        const characterName = character.name?.trim()
+
+        if (!characterName) continue
+
+        // Skip the main character
+        if (
+          mainCharacterName &&
+          characterName.toLowerCase() === mainCharacterName.toLowerCase()
+        ) {
+          continue
+        }
+
+        // Check for duplicates (case-insensitive)
+        const isDuplicate = entitiesToInsert.some(
+          (entity) => entity.character_name.toLowerCase() === characterName.toLowerCase()
+        )
+
+        if (!isDuplicate) {
+          entitiesToInsert.push({
+            generation_id: generationId,
+            character_name: characterName,
+            character_type: 'character',
+            description: null,
+            is_main_character: false,
+            sort_order: sortOrder++,
+          })
+        }
+      }
+    }
+
+    // Extract objects
+    if (canon.objects && Array.isArray(canon.objects)) {
+      for (const object of canon.objects) {
+        const objectName = object.name?.trim()
+        const objectDescription = object.description?.trim() || null
+
+        if (!objectName) continue
+
+        // Check for duplicates (case-insensitive)
+        const isDuplicate = entitiesToInsert.some(
+          (entity) => entity.character_name.toLowerCase() === objectName.toLowerCase()
+        )
+
+        if (!isDuplicate) {
+          entitiesToInsert.push({
+            generation_id: generationId,
+            character_name: objectName,
+            character_type: 'object',
+            description: objectDescription,
+            is_main_character: false,
+            sort_order: sortOrder++,
+          })
+        }
+      }
+    }
+
+    // Insert all entities
+    if (entitiesToInsert.length > 0) {
+      const { error } = await supabase
+        .from('generation_character_list')
+        .insert(entitiesToInsert)
+
+      if (error) {
+        console.error('Error saving characters/objects:', error)
+        throw new Error(`Failed to save characters/objects: ${error.message}`)
+      }
+    }
   }
 
   /**
@@ -115,6 +217,46 @@ export class Step4ScenePromptsService {
     }
 
     return data || []
+  }
+
+  /**
+   * Get extracted characters and objects count
+   */
+  async getExtractedEntitiesCount(generationId: string): Promise<{
+    charactersCount: number
+    objectsCount: number
+    totalCount: number
+  }> {
+    const supabase = await createClient()
+
+    // Get characters count
+    const { count: charactersCount, error: charError } = await supabase
+      .from('generation_character_list')
+      .select('*', { count: 'exact', head: true })
+      .eq('generation_id', generationId)
+      .eq('character_type', 'character')
+      .eq('is_main_character', false)
+
+    // Get objects count
+    const { count: objectsCount, error: objError } = await supabase
+      .from('generation_character_list')
+      .select('*', { count: 'exact', head: true })
+      .eq('generation_id', generationId)
+      .eq('character_type', 'object')
+      .eq('is_main_character', false)
+
+    if (charError || objError) {
+      console.error('Error fetching entities count:', charError || objError)
+      return { charactersCount: 0, objectsCount: 0, totalCount: 0 }
+    }
+
+    const total = (charactersCount || 0) + (objectsCount || 0)
+
+    return {
+      charactersCount: charactersCount || 0,
+      objectsCount: objectsCount || 0,
+      totalCount: total,
+    }
   }
 
   /**

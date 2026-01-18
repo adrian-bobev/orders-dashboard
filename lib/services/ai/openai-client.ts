@@ -149,11 +149,19 @@ export class OpenAIClient {
         shortDescription: 'Едно вълшебно пътешествие',
         motivationEnd: 'И така всички живяха щастливо',
         canon: {
-          characters: [{ name: 'Главен герой' }],
+          characters: [
+            { name: 'Баба' },
+            { name: 'Дядо' },
+            { name: 'Магическият заек' }
+          ],
+          objects: [
+            { name: 'Магическа книга', description: 'Ancient leather-bound book with glowing golden runes and magical sparkles emanating from its pages' },
+            { name: 'Златен ключ', description: 'Ornate golden key with intricate Celtic patterns and a glowing crystal at its head' }
+          ]
         },
         scenes: Array.from({ length: sceneCount }, (_, i) => ({
           sceneNumber: i + 1,
-          characters: [{ name: 'Главен герой' }],
+          characters: [{ name: 'Баба' }, { name: 'Дядо' }],
           imagePrompt: `Scene ${i + 1}: A young child in a magical setting, vibrant enchanted forest with colorful flowers and friendly woodland creatures, warm sunlight filtering through trees, medium shot at eye-level, 3D Disney-Pixar style with soft shading and vibrant colors, whimsical atmosphere, kid-safe, no text in image, original characters`,
         })),
       })

@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import { GenerationStepper } from './generation-stepper'
 import { Step1CharacterImage } from './step1/step1-character-image'
 import { Step2Proofread } from './step2/step2-proofread'
-import { Step3CharacterList } from './step3/step3-character-list'
 import { Step4ScenePrompts } from './step4/step4-scene-prompts'
 import { Step5CharacterRefs } from './step5/step5-character-refs'
 import { Step6SceneImages } from './step6/step6-scene-images'
@@ -30,7 +29,6 @@ export function GenerationWorkflow({
       step3: false,
       step4: false,
       step5: false,
-      step6: false,
     }
   )
 
@@ -43,7 +41,7 @@ export function GenerationWorkflow({
     setStepsCompleted(updatedSteps)
 
     // Move to next step if not already there
-    if (currentStep === stepNumber && stepNumber < 6) {
+    if (currentStep === stepNumber && stepNumber < 5) {
       setCurrentStep(stepNumber + 1)
     }
 
@@ -53,7 +51,7 @@ export function GenerationWorkflow({
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          currentStep: stepNumber < 6 ? stepNumber + 1 : stepNumber,
+          currentStep: stepNumber < 5 ? stepNumber + 1 : stepNumber,
           stepsCompleted: updatedSteps,
         }),
       })
@@ -91,27 +89,21 @@ export function GenerationWorkflow({
           />
         )}
         {currentStep === 3 && (
-          <Step3CharacterList
+          <Step4ScenePrompts
             generationId={generation.id}
             onComplete={() => handleStepComplete(3)}
           />
         )}
         {currentStep === 4 && (
-          <Step4ScenePrompts
+          <Step5CharacterRefs
             generationId={generation.id}
             onComplete={() => handleStepComplete(4)}
           />
         )}
         {currentStep === 5 && (
-          <Step5CharacterRefs
-            generationId={generation.id}
-            onComplete={() => handleStepComplete(5)}
-          />
-        )}
-        {currentStep === 6 && (
           <Step6SceneImages
             generationId={generation.id}
-            onComplete={() => handleStepComplete(6)}
+            onComplete={() => handleStepComplete(5)}
           />
         )}
       </div>

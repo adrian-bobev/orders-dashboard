@@ -17,7 +17,10 @@ user_prompt: |
 
   ## Task
 
-  1. **Extract canon**: list of characters (name, age/type, key features), initial clothing and colors, props, pets, repeating motifs/symbols. If a detail is missing (e.g., t-shirt color), **assume a logical, unobtrusive detail** and fix it as canon to maintain consistency.
+  1. **Extract canon**:
+     - **Characters**: list of all characters (name, age/type, key features)
+     - **Recurring Objects**: identify props, items, symbols, or pets that appear in **2 or more scenes**. Focus on story-significant objects, not generic background elements (e.g., "magical wand", "red backpack", "golden key", but NOT "tree", "door", "table" unless uniquely described).
+     - For all canon elements: note initial clothing and colors, key features. If a detail is missing (e.g., t-shirt color), **assume a logical, unobtrusive detail** and fix it as canon to maintain consistency.
   2. **Track changes** between scenes (example: "red shirt → blue shirt", "day → evening", "inside → outside") and **implement the result of the change** in each subsequent scene.
   3. For **each scene** create a *self-contained* description that includes:
       - characters (name, age/type, **exact clothing and colors at this moment**, hairstyles/ears/tails/accessories)
@@ -47,6 +50,12 @@ user_prompt: |
       "characters": [
         {
           "name": "<string>"
+        }
+      ],
+      "objects": [
+        {
+          "name": "<string>",
+          "description": "<brief description for visual consistency>"
         }
       ]
     },

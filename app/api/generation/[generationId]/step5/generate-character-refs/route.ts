@@ -22,6 +22,8 @@ export async function POST(
         generationId,
         characterListId: body.characterListId,
         characterName: body.characterName,
+        characterType: body.characterType,
+        description: body.description,
       })
 
       return NextResponse.json({ reference: ref })

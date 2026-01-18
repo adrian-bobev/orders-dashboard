@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/services/user-service'
 import { step4Service } from '@/lib/services/generation/step4-scene-prompts'
 import { step2Service } from '@/lib/services/generation/step2-proofread'
+import { generationService } from '@/lib/services/generation/generation-service'
 
 export async function POST(
   request: NextRequest,
@@ -14,6 +15,12 @@ export async function POST(
     }
 
     const { generationId } = await params
+
+    // Get generation with book configuration
+    const generation = await generationService.getGenerationById(generationId)
+    if (!generation) {
+      return NextResponse.json({ error: 'Generation not found' }, { status: 404 })
+    }
 
     // Get corrected content from Step 2
     const correctedContent = await step2Service.getCorrectedContent(generationId)
@@ -28,6 +35,7 @@ export async function POST(
     const prompts = await step4Service.generateScenePrompts({
       generationId,
       correctedContent: correctedContent.corrected_content,
+      mainCharacterName: generation.book_configurations.name,
     })
 
     return NextResponse.json({ prompts })
@@ -53,8 +61,9 @@ export async function GET(
     const { generationId } = await params
 
     const prompts = await step4Service.getScenePrompts(generationId)
+    const entitiesCount = await step4Service.getExtractedEntitiesCount(generationId)
 
-    return NextResponse.json({ prompts })
+    return NextResponse.json({ prompts, entitiesCount })
   } catch (error) {
     console.error('Error fetching scene prompts:', error)
     return NextResponse.json(

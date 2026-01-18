@@ -10,6 +10,8 @@ export interface GenerateCharacterReferenceParams {
   generationId: string
   characterListId: string
   characterName: string
+  characterType?: string
+  description?: string | null
 }
 
 export class Step5CharacterRefsService {
@@ -26,17 +28,23 @@ export class Step5CharacterRefsService {
     // Load prompt configuration
     const promptConfig = promptLoader.loadPrompt('4.characters_prompt.yaml')
 
-    // Create JSON for the character
-    const characterJson = {
+    // Create JSON for the character or object
+    const isObject = params.characterType === 'object'
+    const entityJson = {
       name: params.characterName,
-      description: `Generate a reference image for character: ${params.characterName}`,
+      type: params.characterType || 'character',
+      description: params.description
+        ? params.description
+        : isObject
+        ? `Generate a reference image for object: ${params.characterName}`
+        : `Generate a reference image for character: ${params.characterName}`,
       style: '3D Pixar style, neutral background',
     }
 
     // Replace JSON placeholder
     const userPrompt = promptLoader.replaceJsonPlaceholder(
       promptConfig.user_prompt,
-      characterJson
+      entityJson
     )
 
     // Generate image using OpenAI
@@ -62,7 +70,8 @@ export class Step5CharacterRefsService {
 
     // Generate S3 key using generation_id
     const timestamp = Date.now()
-    const imageKey = `${folderPath}/character-${params.characterName}-${timestamp}.jpg`
+    const prefix = params.characterType === 'object' ? 'object' : 'character'
+    const imageKey = `${folderPath}/${prefix}-${params.characterName}-${timestamp}.jpg`
 
     // Upload to S3
     const storageClient = getStorageClient()
@@ -157,6 +166,8 @@ export class Step5CharacterRefsService {
           generationId,
           characterListId: character.id,
           characterName: character.character_name,
+          characterType: character.character_type,
+          description: character.description,
         })
         results.push(ref)
       } catch (error) {

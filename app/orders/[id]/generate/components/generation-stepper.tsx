@@ -9,10 +9,9 @@ interface GenerationStepperProps {
 const STEPS = [
   { number: 1, label: 'Главен герой' },
   { number: 2, label: 'Коректура' },
-  { number: 3, label: 'Герои' },
-  { number: 4, label: 'Промпти за сцени' },
-  { number: 5, label: 'Референции' },
-  { number: 6, label: 'Сцени' },
+  { number: 3, label: 'Промпти за сцени' },
+  { number: 4, label: 'Референции' },
+  { number: 5, label: 'Сцени' },
 ]
 
 export function GenerationStepper({
