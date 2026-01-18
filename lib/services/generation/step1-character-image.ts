@@ -449,7 +449,12 @@ export class Step1CharacterImageService {
         generated_image_key: referenceKey,
         version: nextVersion,
         is_selected: true,
-        notes: `Generated Pixar-style reference at ${new Date().toISOString()} using ${imageKeys.length} image(s)`,
+        notes: JSON.stringify({
+          type: 'pixar_reference',
+          generatedAt: new Date().toISOString(),
+          referenceImageKeys: imageKeys,
+          imageCount: imageKeys.length,
+        }),
       })
       .select()
       .single()

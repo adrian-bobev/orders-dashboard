@@ -1,9 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { getImageUrl } from '@/lib/r2-client'
 import { SmartImage } from '@/components/SmartImage'
-import ReactCrop, { type Crop } from 'react-image-crop'
+import ReactCrop, { type Crop, centerCrop, makeAspectCrop, PixelCrop } from 'react-image-crop'
 import 'react-image-crop/dist/ReactCrop.css'
 
 interface Step1CharacterImageProps {
@@ -26,6 +26,8 @@ export function Step1CharacterImage({
     width: 80,
     height: 80,
   })
+  const [completedCrop, setCompletedCrop] = useState<PixelCrop | null>(null)
+  const imgRef = useRef<HTMLImageElement>(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [characterImages, setCharacterImages] = useState<any[]>([])
   const [selectedVersion, setSelectedVersion] = useState<any | null>(null)
@@ -33,6 +35,9 @@ export function Step1CharacterImage({
   const [selectedImagesForGeneration, setSelectedImagesForGeneration] = useState<Set<string>>(
     new Set()
   )
+  const [previewImage, setPreviewImage] = useState<any | null>(null)
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false)
+  const [previewType, setPreviewType] = useState<'original' | 'cropped' | 'ai'>('cropped')
 
   const uploadedImages = (bookConfig.images as any[]) || []
 
@@ -105,10 +110,34 @@ export function Step1CharacterImage({
   }
 
   const handleCropImage = async () => {
-    if (!selectedImageKey || !crop) return
+    if (!selectedImageKey || !completedCrop || !imgRef.current) return
 
     setIsProcessing(true)
     try {
+      // Get the natural dimensions of the image
+      const image = imgRef.current
+      const naturalWidth = image.naturalWidth
+      const naturalHeight = image.naturalHeight
+
+      // Calculate the scale between displayed and natural size
+      const scaleX = naturalWidth / image.width
+      const scaleY = naturalHeight / image.height
+
+      // Convert the displayed pixel crop to natural image pixels
+      const cropData = {
+        x: Math.round(completedCrop.x * scaleX),
+        y: Math.round(completedCrop.y * scaleY),
+        width: Math.round(completedCrop.width * scaleX),
+        height: Math.round(completedCrop.height * scaleY),
+        unit: 'px' as const,
+      }
+
+      console.log('Displayed image size:', image.width, 'x', image.height)
+      console.log('Natural image size:', naturalWidth, 'x', naturalHeight)
+      console.log('Scale:', scaleX, 'x', scaleY)
+      console.log('Crop on display:', completedCrop)
+      console.log('Crop on natural image:', cropData)
+
       // The crop-image endpoint handles everything - it creates a new version
       // with crop data directly from the source image key
       const response = await fetch(`/api/generation/${generationId}/step1/crop-image`, {
@@ -116,13 +145,7 @@ export function Step1CharacterImage({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           sourceImageKey: selectedImageKey,
-          cropData: {
-            x: crop.x,
-            y: crop.y,
-            width: crop.width,
-            height: crop.height,
-            unit: crop.unit,
-          },
+          cropData,
         }),
       })
 
@@ -131,6 +154,7 @@ export function Step1CharacterImage({
       }
 
       setIsCropping(false)
+      setCompletedCrop(null)
       await loadCharacterImages()
     } catch (error) {
       console.error('Error cropping image:', error)
@@ -203,6 +227,126 @@ export function Step1CharacterImage({
 
   return (
     <div className="space-y-6">
+      {/* Preview Dialog */}
+      {isPreviewOpen && previewImage && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4" onClick={() => setIsPreviewOpen(false)}>
+          <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="p-6">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-2xl font-bold text-purple-900">
+                  {previewType === 'original' && 'Преглед на оригинално изображение'}
+                  {previewType === 'cropped' && `Преглед на версия ${previewImage.version}`}
+                  {previewType === 'ai' && `Преглед на AI Pixar версия ${previewImage.version}`}
+                </h3>
+                <button
+                  onClick={() => setIsPreviewOpen(false)}
+                  className="text-neutral-500 hover:text-neutral-700 transition-colors"
+                >
+                  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Original Image Preview */}
+              {previewType === 'original' && (
+                <div className="mb-6">
+                  <SmartImage
+                    src={getImageUrl(previewImage)}
+                    alt="Original"
+                    className="w-full h-auto rounded-lg border-2 border-neutral-200 max-h-[70vh] object-contain"
+                  />
+                </div>
+              )}
+
+              {/* Cropped Image Preview */}
+              {previewType === 'cropped' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                  <div>
+                    <p className="text-sm font-bold text-neutral-600 mb-2">Оригинално изображение:</p>
+                    <SmartImage
+                      src={getImageUrl(previewImage.source_image_key)}
+                      alt="Original"
+                      className="w-full h-auto rounded-lg border-2 border-neutral-200"
+                    />
+                  </div>
+                  <div>
+                    <p className="text-sm font-bold text-neutral-600 mb-2">Изрязано изображение:</p>
+                    <SmartImage
+                      src={getImageUrl(previewImage.processed_image_key)}
+                      alt="Cropped"
+                      className="w-full h-auto rounded-lg border-2 border-purple-300"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* AI Generated Preview */}
+              {previewType === 'ai' && (
+                <div className="mb-6">
+                  <div className="mb-4">
+                    <p className="text-sm font-bold text-neutral-600 mb-2">AI Pixar генериран герой:</p>
+                    <SmartImage
+                      src={getImageUrl(previewImage.generated_image_key)}
+                      alt="AI Generated"
+                      className="w-full h-auto rounded-lg border-2 border-blue-300 max-h-[50vh] object-contain"
+                    />
+                  </div>
+                  {(() => {
+                    let referenceImageKeys: string[] = []
+                    try {
+                      if (previewImage.notes) {
+                        const notesData = JSON.parse(previewImage.notes)
+                        if (notesData.referenceImageKeys) {
+                          referenceImageKeys = notesData.referenceImageKeys
+                        }
+                      }
+                    } catch (e) {}
+
+                    if (referenceImageKeys.length > 0) {
+                      return (
+                        <div>
+                          <p className="text-sm font-bold text-neutral-600 mb-2">
+                            Използвани референции ({referenceImageKeys.length}):
+                          </p>
+                          <div className="grid grid-cols-3 md:grid-cols-4 gap-3">
+                            {referenceImageKeys.map((imgKey: string, idx: number) => (
+                              <div key={idx} className="relative rounded-lg overflow-hidden border-2 border-blue-200">
+                                <SmartImage
+                                  src={getImageUrl(imgKey)}
+                                  alt={`Reference ${idx + 1}`}
+                                  className="w-full h-24 object-cover"
+                                />
+                                {idx === 0 && (
+                                  <div className="absolute top-0 right-0 bg-yellow-500 text-white text-[10px] px-1 rounded-bl">
+                                    Основна
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )
+                    }
+                    return null
+                  })()}
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => setIsPreviewOpen(false)}
+                  className="px-6 py-3 bg-purple-600 text-white rounded-xl font-bold hover:bg-purple-700 transition-colors"
+                >
+                  Затвори
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div>
         <h2 className="text-xl font-bold text-purple-900 mb-2">
           Стъпка 1: Избор на главен герой
@@ -213,55 +357,26 @@ export function Step1CharacterImage({
         </p>
       </div>
 
-      {/* Selected Image Display */}
-      {(selectedVersion || selectedImageKey) && (
-        <div className="bg-purple-50 rounded-xl p-4 border-2 border-purple-200">
-          <h3 className="font-bold text-purple-900 mb-3">Избрано изображение</h3>
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1">
-              <p className="text-sm text-neutral-600 mb-2">
-                {selectedVersion ? 'Оригинално:' : 'Избрано от качени:'}
-              </p>
-              <SmartImage
-                src={getImageUrl(selectedVersion?.source_image_key || selectedImageKey)}
-                alt="Selected character"
-                className="w-full h-64 object-contain rounded-lg bg-white"
-              />
-            </div>
-            {selectedVersion?.processed_image_key && (
-              <div className="flex-1">
-                <p className="text-sm text-neutral-600 mb-2">Изрязано:</p>
-                <SmartImage
-                  src={getImageUrl(selectedVersion.processed_image_key)}
-                  alt="Cropped character"
-                  className="w-full h-64 object-contain rounded-lg bg-white"
-                />
-              </div>
-            )}
-            {selectedVersion?.generated_image_key && (
-              <div className="flex-1">
-                <p className="text-sm text-neutral-600 mb-2">Pixar Референция:</p>
-                <SmartImage
-                  src={getImageUrl(selectedVersion.generated_image_key)}
-                  alt="Generated Pixar character"
-                  className="w-full h-64 object-contain rounded-lg bg-white border-4 border-green-500"
-                />
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
       {/* Crop Interface */}
       {isCropping && selectedImageKey && (
         <div className="bg-white rounded-xl p-4 border-2 border-purple-300">
           <h3 className="font-bold text-purple-900 mb-3">Изрежи изображението</h3>
           <div className="max-w-2xl mx-auto">
-            <ReactCrop crop={crop} onChange={(c) => setCrop(c)}>
-              <SmartImage
+            <ReactCrop
+              crop={crop}
+              onChange={(c) => setCrop(c)}
+              onComplete={(c) => setCompletedCrop(c)}
+            >
+              <img
+                ref={imgRef}
                 src={getImageUrl(selectedImageKey)}
                 alt="Crop preview"
                 className="max-w-full h-auto"
+                onLoad={(e) => {
+                  const img = e.currentTarget
+                  console.log('Image loaded - Natural size:', img.naturalWidth, 'x', img.naturalHeight)
+                  console.log('Image loaded - Display size:', img.width, 'x', img.height)
+                }}
               />
             </ReactCrop>
           </div>
@@ -271,6 +386,7 @@ export function Step1CharacterImage({
                 setIsCropping(false)
                 setSelectedImageKey(null)
                 setSelectedVersion(null)
+                setCompletedCrop(null)
               }}
               className="px-4 py-2 bg-neutral-300 text-neutral-700 rounded-xl font-bold hover:bg-neutral-400 transition-colors"
             >
@@ -278,7 +394,7 @@ export function Step1CharacterImage({
             </button>
             <button
               onClick={handleCropImage}
-              disabled={isProcessing}
+              disabled={isProcessing || !completedCrop}
               className="px-4 py-2 bg-purple-600 text-white rounded-xl font-bold hover:bg-purple-700 transition-colors disabled:opacity-50"
             >
               {isProcessing ? 'Обработка...' : 'Запази изрязването'}
@@ -290,109 +406,10 @@ export function Step1CharacterImage({
       {/* Image Selection Grid */}
       {!isCropping && (
         <div className="space-y-6">
-          {/* Character Image Versions (Cropped) */}
-          {characterImages.length > 0 && (
-            <div>
-              <h3 className="font-bold text-purple-900 mb-3">
-                Обработени версии ({characterImages.filter((img: any) => img.processed_image_key || img.generated_image_key).length})
-              </h3>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {characterImages
-                  .filter((img: any) => img.processed_image_key || img.generated_image_key) // Show images that are cropped or generated
-                  .map((charImage: any) => {
-                    // Display generated image if available, otherwise show processed/cropped
-                    const displayKey = charImage.generated_image_key || charImage.processed_image_key
-                    const isActiveVersion = selectedVersion?.id === charImage.id
-                    const isSelectedForGen = selectedImagesForGeneration.has(displayKey)
-                    const isGeneratedReference = !!charImage.generated_image_key
-
-                    return (
-                      <div key={charImage.id} className="relative">
-                        <button
-                          onClick={() => handleSelectImage(charImage.id, false, isActiveVersion)}
-                          disabled={isProcessing}
-                          className={`relative group rounded-xl overflow-hidden border-4 transition-all w-full ${
-                            isActiveVersion
-                              ? 'border-green-600 ring-4 ring-green-200'
-                              : isGeneratedReference
-                                ? 'border-blue-300 hover:border-blue-500'
-                                : 'border-neutral-200 hover:border-purple-300'
-                          } disabled:opacity-50`}
-                        >
-                          <SmartImage
-                            src={getImageUrl(displayKey)}
-                            alt={`Version ${charImage.version}`}
-                            className="w-full h-48 object-cover"
-                          />
-                          <div className={`absolute top-2 left-2 px-2 py-1 rounded-lg text-xs font-bold ${
-                            isGeneratedReference
-                              ? 'bg-blue-600 text-white'
-                              : 'bg-white text-purple-900'
-                          }`}>
-                            v{charImage.version} {isGeneratedReference ? '(AI Pixar)' : '(изрязана)'}
-                          </div>
-                          {isActiveVersion && (
-                            <div className="absolute top-2 right-2 bg-green-600 text-white rounded-full p-1">
-                              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                                <path
-                                  fillRule="evenodd"
-                                  d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                  clipRule="evenodd"
-                                />
-                              </svg>
-                            </div>
-                          )}
-                          <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all flex items-center justify-center">
-                            <span className="text-white font-bold opacity-0 group-hover:opacity-100 transition-opacity">
-                              {isActiveVersion ? 'Деактивирай' : 'Активирай'}
-                            </span>
-                          </div>
-                        </button>
-
-                        {/* Checkbox for generation selection - only for non-generated images */}
-                        {!isGeneratedReference && (
-                          <div className="absolute bottom-2 left-2 z-10">
-                            <label
-                              className="flex items-center gap-1 bg-white px-2 py-1 rounded-lg shadow-lg cursor-pointer"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <input
-                                type="checkbox"
-                                checked={isSelectedForGen}
-                                onChange={() => toggleImageSelection(displayKey)}
-                                className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-200"
-                              />
-                              <span className="text-xs font-bold text-purple-900">За AI</span>
-                            </label>
-                          </div>
-                        )}
-
-                        {/* Delete button */}
-                        <button
-                          onClick={() => handleDeleteVersion(charImage.id)}
-                          disabled={isProcessing}
-                          className="absolute bottom-2 right-2 z-10 bg-red-600 hover:bg-red-700 text-white rounded-full p-1.5 shadow-lg transition-colors disabled:opacity-50"
-                          title="Изтрий версия"
-                        >
-                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                            <path
-                              fillRule="evenodd"
-                              d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
-                              clipRule="evenodd"
-                            />
-                          </svg>
-                        </button>
-                      </div>
-                    )
-                  })}
-              </div>
-            </div>
-          )}
-
           {/* Original Uploaded Images */}
           <div>
             <h3 className="font-bold text-purple-900 mb-3">
-              Оригинални качени изображения ({uploadedImages.length})
+              📸 Оригинални качени изображения ({uploadedImages.length})
             </h3>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
               {uploadedImages.map((image: any, index: number) => {
@@ -434,6 +451,23 @@ export function Step1CharacterImage({
                       </div>
                     </button>
 
+                    {/* Preview button */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setPreviewImage(imageKey)
+                        setPreviewType('original')
+                        setIsPreviewOpen(true)
+                      }}
+                      className="absolute top-2 right-2 z-10 bg-white hover:bg-neutral-100 text-purple-900 rounded-full p-2 shadow-lg transition-colors"
+                      title="Преглед"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                    </button>
+
                     {/* Checkbox for generation selection */}
                     <div className="absolute bottom-2 left-2 z-10">
                       <label
@@ -454,6 +488,218 @@ export function Step1CharacterImage({
               })}
             </div>
           </div>
+
+          {/* Character Image Versions (Cropped only) */}
+          {characterImages.some((img: any) => img.processed_image_key && !img.generated_image_key) && (
+            <div>
+              <h3 className="font-bold text-purple-900 mb-3">
+                ✂️ Изрязани версии ({characterImages.filter((img: any) => img.processed_image_key && !img.generated_image_key).length})
+              </h3>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {characterImages
+                  .filter((img: any) => img.processed_image_key && !img.generated_image_key)
+                  .map((charImage: any) => {
+                    const displayKey = charImage.processed_image_key
+                    const isSelectedForGen = selectedImagesForGeneration.has(displayKey)
+
+                    return (
+                      <div key={charImage.id} className="relative">
+                        <div className="relative rounded-xl overflow-hidden border-4 border-neutral-200">
+                          <SmartImage
+                            src={getImageUrl(displayKey)}
+                            alt={`Version ${charImage.version}`}
+                            className="w-full h-48 object-cover"
+                          />
+                          <div className="absolute top-2 left-2 px-2 py-1 bg-white text-purple-900 rounded-lg text-xs font-bold">
+                            v{charImage.version}
+                          </div>
+                        </div>
+
+                        {/* Preview button */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setPreviewImage(charImage)
+                            setPreviewType('cropped')
+                            setIsPreviewOpen(true)
+                          }}
+                          className="absolute top-2 right-2 z-10 bg-white hover:bg-neutral-100 text-purple-900 rounded-full p-2 shadow-lg transition-colors"
+                          title="Преглед"
+                        >
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                          </svg>
+                        </button>
+
+                        {/* Checkbox for generation selection */}
+                        <div className="absolute bottom-2 left-2 z-10">
+                          <label
+                            className="flex items-center gap-1 bg-white px-2 py-1 rounded-lg shadow-lg cursor-pointer"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isSelectedForGen}
+                              onChange={() => toggleImageSelection(displayKey)}
+                              className="w-4 h-4 text-blue-600 rounded focus:ring-2 focus:ring-blue-200"
+                            />
+                            <span className="text-xs font-bold text-purple-900">За AI</span>
+                          </label>
+                        </div>
+
+                        {/* Delete button */}
+                        <button
+                          onClick={() => handleDeleteVersion(charImage.id)}
+                          disabled={isProcessing}
+                          className="absolute bottom-2 right-2 z-10 bg-red-600 hover:bg-red-700 text-white rounded-full p-1.5 shadow-lg transition-colors disabled:opacity-50"
+                          title="Изтрий версия"
+                        >
+                          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                            <path
+                              fillRule="evenodd"
+                              d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
+                              clipRule="evenodd"
+                            />
+                          </svg>
+                        </button>
+                      </div>
+                    )
+                  })}
+              </div>
+            </div>
+          )}
+
+          {/* Pixar AI References */}
+          {characterImages.some((img: any) => img.generated_image_key) && (
+            <div>
+              <h3 className="font-bold text-purple-900 mb-3">
+                🎨 AI Pixar Референции ({characterImages.filter((img: any) => img.generated_image_key).length})
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {characterImages
+                  .filter((img: any) => img.generated_image_key)
+                  .map((charImage: any) => {
+                    const isActiveVersion = selectedVersion?.id === charImage.id
+
+                    // Parse notes to get reference images
+                    let referenceImageKeys: string[] = []
+                    try {
+                      if (charImage.notes) {
+                        const notesData = JSON.parse(charImage.notes)
+                        if (notesData.referenceImageKeys) {
+                          referenceImageKeys = notesData.referenceImageKeys
+                        }
+                      }
+                    } catch (e) {
+                      // Old format or invalid JSON, ignore
+                    }
+
+                    return (
+                      <div key={charImage.id} className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-xl p-4 border-2 border-blue-300">
+                        <div className="relative">
+                          <button
+                            onClick={() => handleSelectImage(charImage.id, false, isActiveVersion)}
+                            disabled={isProcessing}
+                            className={`relative group rounded-xl overflow-hidden border-4 transition-all w-full ${
+                              isActiveVersion
+                                ? 'border-green-600 ring-4 ring-green-200'
+                                : 'border-blue-400 hover:border-blue-600'
+                            } disabled:opacity-50`}
+                          >
+                            <SmartImage
+                              src={getImageUrl(charImage.generated_image_key)}
+                              alt={`Pixar Reference v${charImage.version}`}
+                              className="w-full h-64 object-cover"
+                            />
+                            <div className="absolute bottom-2 left-2 px-2 py-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg text-xs font-bold shadow-lg">
+                              v{charImage.version} (AI Pixar)
+                            </div>
+                            {isActiveVersion && (
+                              <div className="absolute top-2 right-2 bg-green-600 text-white rounded-full p-1">
+                                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                  <path
+                                    fillRule="evenodd"
+                                    d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
+                                    clipRule="evenodd"
+                                  />
+                                </svg>
+                              </div>
+                            )}
+                            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all flex items-center justify-center">
+                              <span className="text-white font-bold opacity-0 group-hover:opacity-100 transition-opacity">
+                                {isActiveVersion ? 'Деактивирай' : 'Активирай'}
+                              </span>
+                            </div>
+                          </button>
+
+                          {/* Preview button */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setPreviewImage(charImage)
+                              setPreviewType('ai')
+                              setIsPreviewOpen(true)
+                            }}
+                            className="absolute top-2 left-2 z-10 bg-white hover:bg-neutral-100 text-purple-900 rounded-full p-2 shadow-lg transition-colors"
+                            title="Преглед"
+                          >
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
+                          </button>
+
+                          {/* Delete button */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleDeleteVersion(charImage.id)
+                            }}
+                            disabled={isProcessing}
+                            className="absolute bottom-2 right-2 z-10 bg-red-600 hover:bg-red-700 text-white rounded-full p-1.5 shadow-lg transition-colors disabled:opacity-50"
+                            title="Изтрий версия"
+                          >
+                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                              <path
+                                fillRule="evenodd"
+                                d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
+                                clipRule="evenodd"
+                              />
+                            </svg>
+                          </button>
+                        </div>
+
+                        {/* Reference images used */}
+                        {referenceImageKeys.length > 0 && (
+                          <div className="mt-3">
+                            <p className="text-xs font-bold text-purple-900 mb-2">
+                              Използвани референции ({referenceImageKeys.length}):
+                            </p>
+                            <div className="grid grid-cols-3 gap-2">
+                              {referenceImageKeys.map((imgKey: string, idx: number) => (
+                                <div key={idx} className="relative rounded-lg overflow-hidden border-2 border-blue-200">
+                                  <SmartImage
+                                    src={getImageUrl(imgKey)}
+                                    alt={`Reference ${idx + 1}`}
+                                    className="w-full h-16 object-cover"
+                                  />
+                                  {idx === 0 && (
+                                    <div className="absolute top-0 right-0 bg-yellow-500 text-white text-[10px] px-1 rounded-bl">
+                                      Основна
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
