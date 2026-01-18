@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 import { getCurrentUser } from '@/lib/services/user-service'
 import { getOrderById } from '@/lib/services/order-service'
+import { generationService } from '@/lib/services/generation/generation-service'
 import { OrderDetail } from '@/components/orders/order-detail'
 import Link from 'next/link'
 
@@ -42,6 +43,16 @@ export default async function OrderDetailPage({
     redirect('/orders')
   }
 
+  // Fetch generation counts for each book configuration
+  const generationCounts: Record<string, number> = {}
+  if (currentUser.role === 'admin') {
+    const allBookConfigs = order.line_items?.flatMap((item: any) => item.book_configurations || []) || []
+    for (const config of allBookConfigs) {
+      const generations = await generationService.getGenerationsByBookConfigId(config.id)
+      generationCounts[config.id] = generations.length
+    }
+  }
+
   return (
     <div className="space-y-4">
       {/* Back Button */}
@@ -66,7 +77,7 @@ export default async function OrderDetailPage({
       </Link>
 
       {/* Order Details */}
-      <OrderDetail order={order} currentUser={currentUser} />
+      <OrderDetail order={order} currentUser={currentUser} generationCounts={generationCounts} />
     </div>
   )
 }

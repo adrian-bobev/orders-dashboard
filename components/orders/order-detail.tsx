@@ -12,6 +12,7 @@ type User = Database['public']['Tables']['users']['Row']
 interface OrderDetailProps {
   order: any
   currentUser: User
+  generationCounts?: Record<string, number>
 }
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
@@ -32,7 +33,7 @@ const STATUS_COLORS: Record<OrderStatus, string> = {
   COMPLETED: 'bg-green-100 text-green-800 border-green-200',
 }
 
-export function OrderDetail({ order, currentUser }: OrderDetailProps) {
+export function OrderDetail({ order, currentUser, generationCounts = {} }: OrderDetailProps) {
   const router = useRouter()
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
   const [currentStatus, setCurrentStatus] = useState<OrderStatus>(order.status)
@@ -323,9 +324,16 @@ export function OrderDetail({ order, currentUser }: OrderDetailProps) {
                   {item.book_configurations.map((config: any) => (
                     <div key={config.id} className="bg-white rounded-xl p-3 border-2 border-purple-200">
                       <div className="flex items-center justify-between mb-3">
-                        <h5 className="text-sm font-bold text-purple-900">
-                          Персонализация на книгата
-                        </h5>
+                        <div>
+                          <h5 className="text-sm font-bold text-purple-900">
+                            Персонализация на книгата
+                          </h5>
+                          {generationCounts[config.id] !== undefined && generationCounts[config.id] > 0 && (
+                            <p className="text-xs text-neutral-600 mt-1">
+                              {generationCounts[config.id]} {generationCounts[config.id] === 1 ? 'генерация' : 'генерации'}
+                            </p>
+                          )}
+                        </div>
                         <div className="flex gap-2">
                           {isAdmin && (
                             <button
@@ -345,7 +353,7 @@ export function OrderDetail({ order, currentUser }: OrderDetailProps) {
                                   d="M13 10V3L4 14h7v7l9-11h-7z"
                                 />
                               </svg>
-                              <span>Генерирай книга</span>
+                              <span>Генерации {generationCounts[config.id] > 0 && `(${generationCounts[config.id]})`}</span>
                             </button>
                           )}
                           <button
