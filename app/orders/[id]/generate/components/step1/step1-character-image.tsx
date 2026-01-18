@@ -616,7 +616,7 @@ export function Step1CharacterImage({
                               v{charImage.version} (AI Pixar)
                             </div>
                             {isActiveVersion && (
-                              <div className="absolute top-2 right-2 bg-green-600 text-white rounded-full p-1">
+                              <div className="absolute top-2 left-2 bg-green-600 text-white rounded-full p-1">
                                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                                   <path
                                     fillRule="evenodd"
@@ -641,7 +641,7 @@ export function Step1CharacterImage({
                               setPreviewType('ai')
                               setIsPreviewOpen(true)
                             }}
-                            className="absolute top-2 left-2 z-10 bg-white hover:bg-neutral-100 text-purple-900 rounded-full p-2 shadow-lg transition-colors"
+                            className="absolute top-2 right-2 z-10 bg-white hover:bg-neutral-100 text-purple-900 rounded-full p-2 shadow-lg transition-colors"
                             title="Преглед"
                           >
                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
