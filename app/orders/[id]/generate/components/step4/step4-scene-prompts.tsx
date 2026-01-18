@@ -47,7 +47,6 @@ export function Step4ScenePrompts({ generationId, onComplete }: Step4ScenePrompt
       if (!response.ok) {
         const error = await response.json()
         console.error('API Error:', error)
-        alert(`Error: ${error.error || 'Failed to generate scene prompts'}`)
         throw new Error(error.error || 'Failed to generate scene prompts')
       }
 
@@ -58,7 +57,6 @@ export function Step4ScenePrompts({ generationId, onComplete }: Step4ScenePrompt
       await loadPrompts()
     } catch (error) {
       console.error('Error generating scene prompts:', error)
-      alert(`Failed to generate: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
       setIsGenerating(false)
     }

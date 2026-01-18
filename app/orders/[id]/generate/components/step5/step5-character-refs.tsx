@@ -185,7 +185,6 @@ export function Step5CharacterRefs({ generationId, onComplete }: Step5CharacterR
       setShowAddForm(null)
     } catch (error) {
       console.error('Error creating entity:', error)
-      alert(error instanceof Error ? error.message : 'Failed to create entity')
     } finally {
       setIsCreatingEntity(false)
     }
@@ -193,11 +192,7 @@ export function Step5CharacterRefs({ generationId, onComplete }: Step5CharacterR
 
   const handleDeleteEntity = async (entity: Entity) => {
     if (!entity.is_custom) {
-      alert('Only custom entities can be deleted')
-      return
-    }
-
-    if (!confirm(`Are you sure you want to delete "${entity.character_name}"?`)) {
+      console.warn('Only custom entities can be deleted')
       return
     }
 
@@ -214,7 +209,6 @@ export function Step5CharacterRefs({ generationId, onComplete }: Step5CharacterR
       await loadData()
     } catch (error) {
       console.error('Error deleting entity:', error)
-      alert(error instanceof Error ? error.message : 'Failed to delete entity')
     }
   }
 

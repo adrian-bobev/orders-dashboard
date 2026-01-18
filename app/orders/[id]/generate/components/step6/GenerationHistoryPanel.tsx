@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { getImageUrl } from '@/lib/r2-client'
 import { SmartImage } from '@/components/SmartImage'
 
@@ -17,23 +17,45 @@ interface GenerationHistoryItem {
   completed_at: string | null
 }
 
+interface CharacterReference {
+  id: string
+  image_key: string
+  character_list_id: string
+  generation_character_list: {
+    character_name: string
+    character_type: string
+  }
+}
+
 interface GenerationHistoryPanelProps {
   scenePromptId: string
   generationId: string
   onLoad?: (history: GenerationHistoryItem[]) => void
+  refreshTrigger?: number // Add this to trigger refresh from parent
 }
 
 export function GenerationHistoryPanel({
   scenePromptId,
   generationId,
   onLoad,
+  refreshTrigger,
 }: GenerationHistoryPanelProps) {
   const [isExpanded, setIsExpanded] = useState(false)
   const [history, setHistory] = useState<GenerationHistoryItem[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [characterReferences, setCharacterReferences] = useState<CharacterReference[]>([])
+  const [lastLoadedTrigger, setLastLoadedTrigger] = useState<number | undefined>(undefined)
 
-  const loadHistory = async () => {
-    if (history.length > 0) return // Already loaded
+  // Reload history when refreshTrigger changes and panel is expanded
+  useEffect(() => {
+    if (isExpanded && refreshTrigger !== undefined && refreshTrigger !== lastLoadedTrigger) {
+      loadHistory(true)
+      setLastLoadedTrigger(refreshTrigger)
+    }
+  }, [refreshTrigger, isExpanded])
+
+  const loadHistory = async (forceReload = false) => {
+    if (history.length > 0 && !forceReload) return // Already loaded
 
     setIsLoading(true)
     try {
@@ -53,9 +75,30 @@ export function GenerationHistoryPanel({
     }
   }
 
+  const loadCharacterReferences = async () => {
+    try {
+      const response = await fetch(
+        `/api/generation/${generationId}/step5/generate-character-refs`
+      )
+      if (response.ok) {
+        const data = await response.json()
+        setCharacterReferences(data.references || [])
+      }
+    } catch (error) {
+      console.error('Failed to load character references:', error)
+    }
+  }
+
   const handleToggle = () => {
     if (!isExpanded) {
-      loadHistory()
+      // Check if we need to refresh when opening
+      if (refreshTrigger !== undefined && refreshTrigger !== lastLoadedTrigger) {
+        loadHistory(true)
+        setLastLoadedTrigger(refreshTrigger)
+      } else {
+        loadHistory()
+      }
+      loadCharacterReferences()
     }
     setIsExpanded(!isExpanded)
   }
@@ -186,15 +229,40 @@ export function GenerationHistoryPanel({
                           <span className="font-bold text-neutral-700">
                             Референции ({characterRefIds.length}):
                           </span>
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {characterRefIds.map((refId, index) => (
-                              <span
-                                key={refId}
-                                className="bg-purple-100 text-purple-800 px-2 py-0.5 rounded text-xs"
-                              >
-                                #{index + 1}
-                              </span>
-                            ))}
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {characterRefIds.map((refId) => {
+                              const reference = characterReferences.find((r) => r.id === refId)
+                              if (!reference) {
+                                return (
+                                  <span
+                                    key={refId}
+                                    className="bg-purple-100 text-purple-800 px-2 py-0.5 rounded text-xs"
+                                  >
+                                    ?
+                                  </span>
+                                )
+                              }
+                              return (
+                                <div
+                                  key={refId}
+                                  className="relative group"
+                                  title={reference.generation_character_list.character_name}
+                                >
+                                  <div className="w-12 h-12 rounded overflow-hidden border-2 border-purple-200">
+                                    <SmartImage
+                                      src={getImageUrl(reference.image_key)}
+                                      alt={reference.generation_character_list.character_name}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  </div>
+                                  <div className="absolute -bottom-1 -right-1 bg-purple-600 text-white text-[10px] px-1 rounded-full font-bold">
+                                    {reference.generation_character_list.character_type === 'character'
+                                      ? 'Г'
+                                      : 'О'}
+                                  </div>
+                                </div>
+                              )
+                            })}
                           </div>
                         </div>
                       )}

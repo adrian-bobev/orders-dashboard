@@ -244,6 +244,23 @@ export function Step6SceneImages({ generationId, onComplete }: Step6SceneImagesP
     }
   }
 
+  const handleDeleteVersion = async (imageId: string) => {
+    try {
+      const response = await fetch(
+        `/api/generation/${generationId}/step6/generate-scenes?imageId=${imageId}`,
+        {
+          method: 'DELETE',
+        }
+      )
+
+      if (response.ok) {
+        await loadImages()
+      }
+    } catch (error) {
+      console.error('Error deleting version:', error)
+    }
+  }
+
   const toggleSceneSelection = (scenePromptId: string) => {
     const newSelection = new Set(selectedScenes)
     if (newSelection.has(scenePromptId)) {
@@ -370,57 +387,31 @@ export function Step6SceneImages({ generationId, onComplete }: Step6SceneImagesP
 
       {/* Book Cover */}
       {coverPrompt && (
-        <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-xl p-4 border-2 border-purple-300">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-bold text-purple-900 text-lg flex items-center gap-2">
-              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z" />
-              </svg>
-              Корица на книгата
-            </h3>
-            <button
-              onClick={() => handleGenerateSingle(coverPrompt.id, coverPrompt.image_prompt)}
-              disabled={generatingScene === coverPrompt.id}
-              className="px-3 py-1.5 bg-purple-600 text-white rounded-lg font-bold hover:bg-purple-700 transition-colors disabled:opacity-50 text-sm"
-            >
-              {generatingScene === coverPrompt.id ? 'Генериране...' : 'Генерирай'}
-            </button>
-          </div>
-
-          {imagesByPrompt[coverPrompt.id] && imagesByPrompt[coverPrompt.id].length > 0 && (
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {imagesByPrompt[coverPrompt.id].map((img) => (
-                <div
-                  key={img.id}
-                  className={`relative rounded-lg overflow-hidden border-4 transition-all ${
-                    img.is_selected
-                      ? 'border-green-500 ring-4 ring-green-200'
-                      : 'border-neutral-200'
-                  }`}
-                >
-                  <SmartImage
-                    src={getImageUrl(img.image_key)}
-                    alt="Book cover"
-                    className="w-full h-48 object-cover"
-                  />
-                  <div className="absolute top-2 left-2 bg-white px-2 py-1 rounded-lg text-xs font-bold text-purple-900">
-                    v{img.version}
-                  </div>
-                  {img.is_selected && (
-                    <div className="absolute top-2 right-2 bg-green-500 text-white rounded-full p-1">
-                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                        <path
-                          fillRule="evenodd"
-                          d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                          clipRule="evenodd"
-                        />
-                      </svg>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
+        <div className="mb-6">
+          <SceneCard
+            prompt={coverPrompt}
+            images={imagesByPrompt[coverPrompt.id] || []}
+            selectedCharacterIds={
+              (sceneCharacters[coverPrompt.id] || []).filter((id) =>
+                entities.some((e) => e.id === id && e.character_type === 'character')
+              )
+            }
+            selectedObjectIds={
+              (sceneCharacters[coverPrompt.id] || []).filter((id) =>
+                entities.some((e) => e.id === id && e.character_type === 'object')
+              )
+            }
+            entities={entities}
+            references={references}
+            generationId={generationId}
+            isGenerating={generatingScene === coverPrompt.id}
+            onGenerateSingle={handleGenerateSingle}
+            onAddCharacter={handleAddCharacter}
+            onRemoveCharacter={handleRemoveCharacter}
+            onPromptUpdate={handlePromptUpdate}
+            onSelectVersion={handleSelectVersion}
+            onDeleteVersion={handleDeleteVersion}
+          />
         </div>
       )}
 
@@ -454,6 +445,7 @@ export function Step6SceneImages({ generationId, onComplete }: Step6SceneImagesP
                 onRemoveCharacter={handleRemoveCharacter}
                 onPromptUpdate={handlePromptUpdate}
                 onSelectVersion={handleSelectVersion}
+                onDeleteVersion={handleDeleteVersion}
               />
             )
           })}
