@@ -97,6 +97,7 @@ export function GenerationWorkflow({
         {currentStep === 4 && (
           <Step5CharacterRefs
             generationId={generation.id}
+            bookConfig={bookConfig}
             onComplete={() => handleStepComplete(4)}
           />
         )}

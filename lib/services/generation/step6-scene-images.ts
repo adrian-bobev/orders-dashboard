@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server'
 import { openai } from '@/lib/services/ai/openai-client'
-import { getStorageClient } from '@/lib/r2-client'
+import { falClient } from '@/lib/services/ai/fal-client'
+import { getStorageClient, getImageUrl } from '@/lib/r2-client'
 import { PutObjectCommand } from '@aws-sdk/client-s3'
 import sharp from 'sharp'
 import { getGenerationFolderPath } from './generation-service'
@@ -47,11 +48,36 @@ export class Step6SceneImagesService {
       .eq('generation_status', 'pending')
 
     try {
-      // Generate image using OpenAI
-      const imageResult = await openai.generateImage({
+      // Fetch reference image URLs if character references are provided
+      let referenceImageUrls: string[] = []
+      if (params.characterReferenceIds && params.characterReferenceIds.length > 0) {
+        const { data: references } = await supabase
+          .from('generation_character_references')
+          .select('image_key')
+          .in('id', params.characterReferenceIds)
+
+        if (references && references.length > 0) {
+          referenceImageUrls = references.map((ref) => getImageUrl(ref.image_key))
+        }
+      }
+
+      // Seedream v4.5 Edit requires at least one reference image
+      if (referenceImageUrls.length === 0) {
+        throw new Error(
+          'ByteDance Seedream v4.5 Edit model requires at least one reference image. Please add characters or objects to this scene.'
+        )
+      }
+
+      // Generate image using fal.ai ByteDance Seedream v4.5 Edit model
+      const imageResult = await falClient.generateImage({
+        model: 'fal-ai/bytedance/seedream/v4.5/edit',
         prompt: params.imagePrompt,
-        size: '1024x1024',
-        quality: 'standard',
+        imageUrls: referenceImageUrls,
+        size: 'auto_4K',
+        numImages: 1,
+        additionalParams: {
+          enable_safety_checker: true,
+        },
       })
 
       // Download the generated image
@@ -63,7 +89,7 @@ export class Step6SceneImagesService {
         // Convert SVG to PNG using sharp
         imageBuffer = await sharp(svgBuffer).png().toBuffer()
       } else {
-        // Handle regular URLs (real OpenAI images)
+        // Handle regular URLs (real fal.ai images)
         const imageResponse = await fetch(imageResult.url)
         imageBuffer = Buffer.from(await imageResponse.arrayBuffer())
       }
@@ -111,10 +137,10 @@ export class Step6SceneImagesService {
           is_selected: true,
           generation_status: 'completed',
           completed_at: new Date().toISOString(),
-          model_used: 'dall-e-3',
+          model_used: 'fal-ai/bytedance/seedream/v4.5/edit',
           generation_params: {
-            size: '1024x1024',
-            quality: 'standard',
+            size: 'auto_4K',
+            reference_images_count: referenceImageUrls.length,
           },
           image_prompt: params.imagePrompt,
           character_reference_ids: params.characterReferenceIds

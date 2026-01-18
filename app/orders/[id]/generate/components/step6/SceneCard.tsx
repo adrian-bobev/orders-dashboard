@@ -77,7 +77,6 @@ export function SceneCard({
   onDeleteVersion,
 }: SceneCardProps) {
   const [showPrompt, setShowPrompt] = useState(false)
-  const [isEditingPrompt, setIsEditingPrompt] = useState(false)
   const [editedPrompt, setEditedPrompt] = useState(prompt.image_prompt)
   const [previewImage, setPreviewImage] = useState<SceneImage | null>(null)
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
@@ -104,12 +103,18 @@ export function SceneCard({
     if (editedPrompt.trim() !== prompt.image_prompt) {
       await onPromptUpdate(prompt.id, editedPrompt.trim())
     }
-    setIsEditingPrompt(false)
+    setShowPrompt(false)
   }
 
-  const handleCancelEdit = () => {
-    setEditedPrompt(prompt.image_prompt)
-    setIsEditingPrompt(false)
+  const handleOpenPrompt = () => {
+    if (!showPrompt) {
+      // Open directly in edit mode
+      setEditedPrompt(prompt.image_prompt)
+      setShowPrompt(true)
+    } else {
+      // Close if already open
+      setShowPrompt(false)
+    }
   }
 
   const parseCharacterReferenceIds = (jsonString: string | null): string[] => {
@@ -174,7 +179,7 @@ export function SceneCard({
       <div className="mb-3">
         <div className="flex items-center justify-between">
           <button
-            onClick={() => setShowPrompt(!showPrompt)}
+            onClick={handleOpenPrompt}
             className="flex items-center gap-2 text-xs font-bold text-neutral-700 hover:text-purple-700 transition-colors"
           >
             <svg
@@ -190,47 +195,26 @@ export function SceneCard({
             </svg>
             Prompt за генериране
           </button>
-
-          {showPrompt && !isEditingPrompt && (
-            <button
-              onClick={() => setIsEditingPrompt(true)}
-              className="text-xs bg-purple-100 text-purple-700 hover:bg-purple-200 px-2 py-1 rounded font-bold transition-colors"
-            >
-              Редактирай
-            </button>
-          )}
         </div>
 
         {showPrompt && (
           <div className="mt-2">
-            {isEditingPrompt ? (
-              <div className="space-y-2">
-                <textarea
-                  value={editedPrompt}
-                  onChange={(e) => setEditedPrompt(e.target.value)}
-                  className="w-full p-3 bg-white rounded-lg border-2 border-purple-300 text-xs text-neutral-700 focus:outline-none focus:border-purple-500"
-                  rows={4}
-                />
-                <div className="flex gap-2 justify-end">
-                  <button
-                    onClick={handleCancelEdit}
-                    className="px-3 py-1 bg-neutral-200 text-neutral-700 rounded font-bold hover:bg-neutral-300 transition-colors text-xs"
-                  >
-                    Отказ
-                  </button>
-                  <button
-                    onClick={handleSavePrompt}
-                    className="px-3 py-1 bg-purple-600 text-white rounded font-bold hover:bg-purple-700 transition-colors text-xs"
-                  >
-                    Запази
-                  </button>
-                </div>
+            <div className="space-y-2">
+              <textarea
+                value={editedPrompt}
+                onChange={(e) => setEditedPrompt(e.target.value)}
+                className="w-full p-3 bg-white rounded-lg border-2 border-purple-300 text-xs text-neutral-700 focus:outline-none focus:border-purple-500"
+                rows={4}
+              />
+              <div className="flex gap-2 justify-end">
+                <button
+                  onClick={handleSavePrompt}
+                  className="px-3 py-1 bg-purple-600 text-white rounded font-bold hover:bg-purple-700 transition-colors text-xs"
+                >
+                  Запази
+                </button>
               </div>
-            ) : (
-              <div className="p-3 bg-neutral-50 rounded-lg border border-neutral-200">
-                <p className="text-xs text-neutral-700 whitespace-pre-wrap">{prompt.image_prompt}</p>
-              </div>
-            )}
+            </div>
           </div>
         )}
       </div>

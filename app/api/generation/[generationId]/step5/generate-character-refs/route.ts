@@ -24,12 +24,14 @@ export async function POST(
         characterName: body.characterName,
         characterType: body.characterType,
         description: body.description,
+        customPrompt: body.customPrompt,
+        bookConfig: body.bookConfig,
       })
 
       return NextResponse.json({ reference: ref })
     } else {
       // Generate all character references
-      const refs = await step5Service.generateAllCharacterReferences(generationId)
+      const refs = await step5Service.generateAllCharacterReferences(generationId, body.bookConfig)
 
       return NextResponse.json({ references: refs })
     }

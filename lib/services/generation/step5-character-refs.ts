@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { openai } from '@/lib/services/ai/openai-client'
+import { falClient } from '@/lib/services/ai/fal-client'
 import { promptLoader } from '@/lib/services/ai/prompt-loader'
 import { getStorageClient } from '@/lib/r2-client'
 import { PutObjectCommand } from '@aws-sdk/client-s3'
@@ -12,6 +13,8 @@ export interface GenerateCharacterReferenceParams {
   characterName: string
   characterType?: string
   description?: string | null
+  customPrompt?: string
+  bookConfig?: any
 }
 
 export class Step5CharacterRefsService {
@@ -25,33 +28,130 @@ export class Step5CharacterRefsService {
     const folderPath = await getGenerationFolderPath(params.generationId)
     const generationsBucket = process.env.R2_GENERATIONS_BUCKET || 'generations'
 
+    // If custom prompt is provided, use it directly
+    if (params.customPrompt) {
+      // Generate image using fal.ai nano-banana model with custom prompt
+      const imageResult = await falClient.generateImage({
+        model: 'fal-ai/nano-banana',
+        prompt: params.customPrompt,
+        size: '1024x1024',
+        numImages: 1,
+      })
+
+      // Download the generated image
+      let imageBuffer: Buffer
+      if (imageResult.url.startsWith('data:')) {
+        // Handle data URLs (mock mode with SVG)
+        const base64Data = imageResult.url.split(',')[1]
+        const svgBuffer = Buffer.from(base64Data, 'base64')
+        // Convert SVG to PNG using sharp (it handles SVG natively)
+        imageBuffer = await sharp(svgBuffer).png().toBuffer()
+      } else {
+        // Handle regular URLs (real OpenAI images)
+        const imageResponse = await fetch(imageResult.url)
+        imageBuffer = Buffer.from(await imageResponse.arrayBuffer())
+      }
+
+      // Generate S3 key using generation_id
+      const timestamp = Date.now()
+      const prefix = params.characterType === 'object' ? 'object' : 'character'
+      const imageKey = `${folderPath}/${prefix}-${params.characterName}-${timestamp}.jpg`
+
+      // Upload to S3
+      const storageClient = getStorageClient()
+      const putCommand = new PutObjectCommand({
+        Bucket: generationsBucket,
+        Key: imageKey,
+        Body: imageBuffer,
+        ContentType: 'image/jpeg',
+      })
+
+      await storageClient.send(putCommand)
+
+      // Get the next version number
+      const { data: existingRefs } = await supabase
+        .from('generation_character_references')
+        .select('version')
+        .eq('character_list_id', params.characterListId)
+        .order('version', { ascending: false })
+        .limit(1)
+
+      const nextVersion = (existingRefs?.[0]?.version || 0) + 1
+
+      // Deselect all previous versions for this character
+      await supabase
+        .from('generation_character_references')
+        .update({ is_selected: false })
+        .eq('character_list_id', params.characterListId)
+
+      // Save to database
+      const { data, error } = await supabase
+        .from('generation_character_references')
+        .insert({
+          generation_id: params.generationId,
+          character_list_id: params.characterListId,
+          image_key: imageKey,
+          image_prompt: params.customPrompt,
+          version: nextVersion,
+          is_selected: true,
+          model_used: 'nano-banana',
+          generation_params: {
+            size: '1024x1024',
+            model: 'fal-ai/nano-banana',
+            provider: 'fal.ai',
+          },
+        })
+        .select(
+          `
+          *,
+          generation_character_list (
+            id,
+            character_name,
+            character_type,
+            description
+          )
+        `
+        )
+        .single()
+
+      if (error) {
+        console.error('Error saving character reference:', error)
+        throw new Error(`Failed to save character reference: ${error.message}`)
+      }
+
+      return data
+    }
+
     // Load prompt configuration
     const promptConfig = promptLoader.loadPrompt('4.characters_prompt.yaml')
 
-    // Create JSON for the character or object
-    const isObject = params.characterType === 'object'
-    const entityJson = {
-      name: params.characterName,
-      type: params.characterType || 'character',
-      description: params.description
-        ? params.description
-        : isObject
-        ? `Generate a reference image for object: ${params.characterName}`
-        : `Generate a reference image for character: ${params.characterName}`,
+    // Create JSON with only book content and character info
+    const promptJson = {
+      book: params.bookConfig?.content || {},
+      character: {
+        name: params.characterName,
+        type: params.characterType || 'character',
+        description: params.description
+          ? params.description
+          : params.characterType === 'object'
+          ? `Generate a reference image for object: ${params.characterName}`
+          : `Generate a reference image for character: ${params.characterName}`,
+      },
       style: '3D Pixar style, neutral background',
     }
 
     // Replace JSON placeholder
     const userPrompt = promptLoader.replaceJsonPlaceholder(
       promptConfig.user_prompt,
-      entityJson
+      promptJson
     )
 
-    // Generate image using OpenAI
-    const imageResult = await openai.generateImage({
+    // Generate image using fal.ai nano-banana model
+    const imageResult = await falClient.generateImage({
+      model: 'fal-ai/nano-banana',
       prompt: userPrompt,
       size: '1024x1024',
-      quality: 'standard',
+      numImages: 1,
     })
 
     // Download the generated image
@@ -110,10 +210,11 @@ export class Step5CharacterRefsService {
         image_prompt: userPrompt,
         version: nextVersion,
         is_selected: true,
-        model_used: 'dall-e-3',
+        model_used: 'nano-banana',
         generation_params: {
           size: '1024x1024',
-          quality: 'standard',
+          model: 'fal-ai/nano-banana',
+          provider: 'fal.ai',
         },
       })
       .select(
@@ -140,7 +241,7 @@ export class Step5CharacterRefsService {
   /**
    * Generate references for all characters
    */
-  async generateAllCharacterReferences(generationId: string): Promise<any[]> {
+  async generateAllCharacterReferences(generationId: string, bookConfig?: any): Promise<any[]> {
     const supabase = await createClient()
 
     // Get all characters for this generation
@@ -168,6 +269,7 @@ export class Step5CharacterRefsService {
           characterName: character.character_name,
           characterType: character.character_type ?? undefined,
           description: character.description,
+          bookConfig,
         })
         results.push(ref)
       } catch (error) {
@@ -177,6 +279,42 @@ export class Step5CharacterRefsService {
     }
 
     return results
+  }
+
+  /**
+   * Get the default prompt with book content and character info
+   */
+  async getDefaultPrompt(
+    characterName: string,
+    characterType: string,
+    description: string | null,
+    bookConfig: any
+  ): Promise<string> {
+    // Load prompt configuration
+    const promptConfig = promptLoader.loadPrompt('4.characters_prompt.yaml')
+
+    // Create JSON with only book content and character info
+    const promptJson = {
+      book: bookConfig?.content || {},
+      character: {
+        name: characterName,
+        type: characterType,
+        description:
+          description ||
+          (characterType === 'object'
+            ? `Generate a reference image for object: ${characterName}`
+            : `Generate a reference image for character: ${characterName}`),
+      },
+      style: '3D Pixar style, neutral background',
+    }
+
+    // Replace JSON placeholder
+    const userPrompt = promptLoader.replaceJsonPlaceholder(
+      promptConfig.user_prompt,
+      promptJson
+    )
+
+    return userPrompt
   }
 
   /**

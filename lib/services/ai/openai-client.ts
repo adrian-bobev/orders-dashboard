@@ -18,6 +18,8 @@ export interface GenerateImageParams {
   prompt: string
   size?: '1024x1024' | '1792x1024' | '1024x1792'
   quality?: 'standard' | 'hd'
+  referenceImages?: string[] // Array of image URLs or base64 data
+  model?: 'dall-e-3'
 }
 
 export interface GenerateImageResult {

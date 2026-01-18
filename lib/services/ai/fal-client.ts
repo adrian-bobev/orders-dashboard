@@ -3,7 +3,7 @@ import { fal } from '@fal-ai/client'
 export interface FalImageGenerationParams {
   prompt: string
   imageUrls?: string[]
-  model: string // e.g., 'fal-ai/gpt-image-1.5/edit', 'fal-ai/nano-banana', 'fal-ai/seedream-4.5'
+  model: string // e.g., 'fal.ai/gpt-image-1.5/edit', 'fal.ai/nano-banana', 'fal.ai/seedream-4.5'
   size?: 'auto' | '1024x1024' | '1536x1024' | '1024x1536'
   numImages?: number
   additionalParams?: Record<string, any> // For model-specific parameters

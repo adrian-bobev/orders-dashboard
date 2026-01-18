@@ -7,6 +7,7 @@ import { useDropzone } from 'react-dropzone'
 
 interface Step5CharacterRefsProps {
   generationId: string
+  bookConfig: any
   onComplete: () => void
 }
 
@@ -35,7 +36,7 @@ const acceptedFileTypes = {
   'image/webp': ['.webp'],
 }
 
-export function Step5CharacterRefs({ generationId, onComplete }: Step5CharacterRefsProps) {
+export function Step5CharacterRefs({ generationId, bookConfig, onComplete }: Step5CharacterRefsProps) {
   const [isGenerating, setIsGenerating] = useState(false)
   const [references, setReferences] = useState<any[]>([])
   const [entities, setEntities] = useState<Entity[]>([])
@@ -49,6 +50,10 @@ export function Step5CharacterRefs({ generationId, onComplete }: Step5CharacterR
   const [isCreatingEntity, setIsCreatingEntity] = useState(false)
   const [uploadProgress, setUploadProgress] = useState<UploadProgress>({})
   const [uploadingEntity, setUploadingEntity] = useState<string | null>(null)
+  const [previewEntity, setPreviewEntity] = useState<Entity | null>(null)
+  const [previewRef, setPreviewRef] = useState<any | null>(null)
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false)
+  const [defaultPrompts, setDefaultPrompts] = useState<Record<string, string>>({})
 
   useEffect(() => {
     loadData()
@@ -82,13 +87,51 @@ export function Step5CharacterRefs({ generationId, onComplete }: Step5CharacterR
     }
   }
 
+  const loadDefaultPrompt = async (entity: Entity) => {
+    // If we already have the default prompt for this entity, don't reload
+    if (defaultPrompts[entity.id]) {
+      return
+    }
+
+    try {
+      const response = await fetch(`/api/generation/${generationId}/step5/default-prompt`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          characterName: entity.character_name,
+          characterType: entity.character_type,
+          description: entity.description,
+          bookConfig,
+        }),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setDefaultPrompts((prev) => ({
+          ...prev,
+          [entity.id]: data.prompt,
+        }))
+
+        // If no custom prompt exists yet, initialize it with the default
+        if (!customPrompts[entity.id]) {
+          setCustomPrompts((prev) => ({
+            ...prev,
+            [entity.id]: data.prompt,
+          }))
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load default prompt:', error)
+    }
+  }
+
   const handleGenerateAll = async () => {
     setIsGenerating(true)
     try {
       const response = await fetch(`/api/generation/${generationId}/step5/generate-character-refs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({}),
+        body: JSON.stringify({ bookConfig }),
       })
 
       if (!response.ok) {
@@ -115,8 +158,9 @@ export function Step5CharacterRefs({ generationId, onComplete }: Step5CharacterR
           characterListId: entity.id,
           characterName: entity.character_name,
           characterType: entity.character_type,
-          description: customPrompt || entity.description,
+          description: entity.description,
           customPrompt: customPrompt || undefined,
+          bookConfig,
         }),
       })
 
@@ -125,15 +169,7 @@ export function Step5CharacterRefs({ generationId, onComplete }: Step5CharacterR
       }
 
       await loadReferences()
-      // Clear custom prompt after successful generation
-      if (customPrompt) {
-        setCustomPrompts((prev) => {
-          const updated = { ...prev }
-          delete updated[entity.id]
-          return updated
-        })
-        setEditingPrompt(null)
-      }
+      // Don't clear custom prompt after generation - keep it for the next generation
     } catch (error) {
       console.error('Error generating reference:', error)
     } finally {
@@ -381,8 +417,30 @@ export function Step5CharacterRefs({ generationId, onComplete }: Step5CharacterR
 
           {/* Actions */}
           <div className="flex gap-1 flex-shrink-0">
+            {hasRefs && selectedRef && (
+              <button
+                onClick={() => {
+                  setPreviewEntity(entity)
+                  setPreviewRef(selectedRef)
+                  setIsPreviewOpen(true)
+                }}
+                className="px-2 py-1 bg-blue-600 text-white text-xs font-bold rounded hover:bg-blue-700 transition-colors"
+                title="Преглед"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                </svg>
+              </button>
+            )}
             <button
-              onClick={() => setEditingPrompt(isEditingPromptForThis ? null : entity.id)}
+              onClick={async () => {
+                if (!isEditingPromptForThis) {
+                  // Load default prompt when opening editor
+                  await loadDefaultPrompt(entity)
+                }
+                setEditingPrompt(isEditingPromptForThis ? null : entity.id)
+              }}
               className={`px-2 py-1 text-xs font-bold rounded transition-colors ${
                 isEditingPromptForThis || customPrompt
                   ? `bg-${bgColor}-600 text-white hover:bg-${bgColor}-700`
@@ -474,20 +532,23 @@ export function Step5CharacterRefs({ generationId, onComplete }: Step5CharacterR
               Персонализиран промпт за генериране:
             </label>
             <textarea
-              value={customPrompt || entity.description || ''}
+              value={customPrompts[entity.id] || ''}
               onChange={(e) => setCustomPrompts({ ...customPrompts, [entity.id]: e.target.value })}
               className={`w-full px-2 py-1.5 border-2 border-${bgColor}-200 rounded text-xs focus:border-${bgColor}-400 focus:ring-2 focus:ring-${bgColor}-200 outline-none`}
-              rows={3}
-              placeholder={`Напишете персонализиран промпт за ${entity.character_name}...`}
+              rows={6}
+              placeholder={`Зарежда се промпт за ${entity.character_name}...`}
             />
             <div className="flex gap-2 mt-2">
               <button
                 onClick={() => {
-                  setCustomPrompts({ ...customPrompts, [entity.id]: entity.description || '' })
+                  // Reset to default prompt
+                  if (defaultPrompts[entity.id]) {
+                    setCustomPrompts({ ...customPrompts, [entity.id]: defaultPrompts[entity.id] })
+                  }
                 }}
                 className="px-2 py-1 bg-neutral-200 text-neutral-700 text-xs font-bold rounded hover:bg-neutral-300 transition-colors"
               >
-                Нулирай
+                Нулирай до оригинален
               </button>
               <button
                 onClick={() => {
@@ -585,6 +646,99 @@ export function Step5CharacterRefs({ generationId, onComplete }: Step5CharacterR
 
   return (
     <div className="space-y-6">
+      {/* Preview Dialog */}
+      {isPreviewOpen && previewEntity && previewRef && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-75 z-50 flex items-center justify-center p-4"
+          onClick={() => setIsPreviewOpen(false)}
+        >
+          <div
+            className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-6">
+              {/* Header */}
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-2xl font-bold text-purple-900">
+                  Преглед: {previewEntity.character_name} (v{previewRef.version})
+                </h3>
+                <button
+                  onClick={() => setIsPreviewOpen(false)}
+                  className="text-neutral-500 hover:text-neutral-700 transition-colors"
+                >
+                  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Image Preview */}
+              <div className="mb-6">
+                <SmartImage
+                  src={getImageUrl(previewRef.image_key)}
+                  alt={previewEntity.character_name}
+                  className="w-full h-auto rounded-lg border-2 border-neutral-200 max-h-[70vh] object-contain"
+                />
+              </div>
+
+              {/* Details */}
+              <div className="space-y-4">
+                <div>
+                  <h4 className="text-sm font-bold text-neutral-700 mb-1">Име:</h4>
+                  <p className="text-neutral-900">{previewEntity.character_name}</p>
+                </div>
+
+                {previewEntity.description && (
+                  <div>
+                    <h4 className="text-sm font-bold text-neutral-700 mb-1">Описание:</h4>
+                    <p className="text-neutral-900">{previewEntity.description}</p>
+                  </div>
+                )}
+
+                {previewRef.image_prompt && (
+                  <div>
+                    <h4 className="text-sm font-bold text-neutral-700 mb-1">Промпт за генериране:</h4>
+                    <p className="text-neutral-600 text-sm bg-neutral-50 p-3 rounded-lg whitespace-pre-wrap">
+                      {previewRef.image_prompt}
+                    </p>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <h4 className="text-sm font-bold text-neutral-700 mb-1">Версия:</h4>
+                    <p className="text-neutral-900">{previewRef.version}</p>
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-neutral-700 mb-1">Модел:</h4>
+                    <p className="text-neutral-900">{previewRef.model_used || 'N/A'}</p>
+                  </div>
+                </div>
+
+                {previewRef.generation_params && (
+                  <div>
+                    <h4 className="text-sm font-bold text-neutral-700 mb-1">Параметри на генерирането:</h4>
+                    <pre className="text-neutral-600 text-xs bg-neutral-50 p-3 rounded-lg overflow-x-auto">
+                      {JSON.stringify(previewRef.generation_params, null, 2)}
+                    </pre>
+                  </div>
+                )}
+              </div>
+
+              {/* Close button */}
+              <div className="mt-6 flex justify-end">
+                <button
+                  onClick={() => setIsPreviewOpen(false)}
+                  className="px-6 py-2 bg-purple-600 text-white rounded-lg font-bold hover:bg-purple-700 transition-colors"
+                >
+                  Затвори
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div>
         <h2 className="text-xl font-bold text-purple-900 mb-2">
           Стъпка 4: Генериране на референции
@@ -601,7 +755,7 @@ export function Step5CharacterRefs({ generationId, onComplete }: Step5CharacterR
             <p className="text-sm text-neutral-500">
               {process.env.NEXT_PUBLIC_USE_MOCK_AI === 'true' || process.env.USE_MOCK_AI === 'true'
                 ? '(Mock режим - ще върне placeholder изображения)'
-                : '(Ще използва OpenAI DALL-E 3)'}
+                : '(Ще използва fal.ai nano-banana модел)'}
             </p>
           )}
         </div>

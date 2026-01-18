@@ -162,7 +162,8 @@ export function Step6SceneImages({ generationId, onComplete }: Step6SceneImagesP
         throw new Error('Failed to generate scene')
       }
 
-      await loadData()
+      // Only reload images after generation
+      await loadImages()
     } catch (error) {
       console.error('Error generating scene:', error)
     } finally {
