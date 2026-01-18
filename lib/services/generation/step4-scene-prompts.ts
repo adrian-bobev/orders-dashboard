@@ -104,6 +104,9 @@ export class Step4ScenePromptsService {
       )
     }
 
+    // Auto-associate characters with scenes based on prompt_metadata
+    await this.autoAssociateCharactersWithScenes(params.generationId, data || [])
+
     return data || []
   }
 
@@ -294,6 +297,81 @@ export class Step4ScenePromptsService {
     if (error) {
       console.error('Error deleting scene prompt:', error)
       throw new Error(`Failed to delete scene prompt: ${error.message}`)
+    }
+  }
+
+  /**
+   * Auto-associate characters with scenes based on prompt_metadata
+   */
+  async autoAssociateCharactersWithScenes(
+    generationId: string,
+    scenePrompts: any[]
+  ): Promise<void> {
+    const supabase = await createClient()
+
+    // Get all entities (characters and objects) for this generation
+    const { data: entities, error: entitiesError } = await supabase
+      .from('generation_character_list')
+      .select('id, character_name, character_type')
+      .eq('generation_id', generationId)
+
+    if (entitiesError || !entities) {
+      console.error('Error fetching entities:', entitiesError)
+      return
+    }
+
+    // Create a map for quick lookup: name -> entity
+    const entityMap = new Map<string, any>()
+    entities.forEach((entity) => {
+      entityMap.set(entity.character_name.toLowerCase(), entity)
+    })
+
+    // Delete existing scene-character associations for this generation
+    await supabase
+      .from('scene_prompt_characters')
+      .delete()
+      .in(
+        'scene_prompt_id',
+        scenePrompts.map((p) => p.id)
+      )
+
+    // Create associations based on prompt_metadata
+    const associationsToInsert: any[] = []
+    let sortOrder = 0
+
+    for (const scenePrompt of scenePrompts) {
+      // Skip cover prompts
+      if (scenePrompt.scene_type === 'cover') continue
+
+      // Get characters from prompt_metadata
+      const characters = scenePrompt.prompt_metadata?.characters || []
+
+      for (const character of characters) {
+        // Handle both string format and object format { name: 'Name' }
+        const characterName = typeof character === 'string' ? character : character?.name
+
+        if (!characterName) continue
+
+        const entity = entityMap.get(characterName.toLowerCase())
+        if (entity) {
+          associationsToInsert.push({
+            scene_prompt_id: scenePrompt.id,
+            character_list_id: entity.id,
+            sort_order: sortOrder++,
+          })
+        }
+      }
+    }
+
+    // Insert all associations
+    if (associationsToInsert.length > 0) {
+      const { error } = await supabase
+        .from('scene_prompt_characters')
+        .insert(associationsToInsert)
+
+      if (error) {
+        console.error('Error creating scene-character associations:', error)
+      }
     }
   }
 }

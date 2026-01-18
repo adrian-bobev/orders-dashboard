@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/services/user-service'
 import { step6Service } from '@/lib/services/generation/step6-scene-images'
+import { step6SceneCharactersService } from '@/lib/services/generation/step6-scene-characters-service'
 
 export async function POST(
   request: NextRequest,
@@ -13,10 +14,18 @@ export async function POST(
     }
 
     const { generationId, scenePromptId } = await params
-    const { imagePrompt } = await request.json()
+    const { imagePrompt, characterReferenceIds } = await request.json()
 
     if (!imagePrompt) {
       return NextResponse.json({ error: 'imagePrompt is required' }, { status: 400 })
+    }
+
+    // If no character references provided, fetch from scene-character associations
+    let finalCharacterReferenceIds = characterReferenceIds
+    if (!finalCharacterReferenceIds) {
+      finalCharacterReferenceIds = await step6SceneCharactersService.getSceneCharacterReferenceIds(
+        scenePromptId
+      )
     }
 
     // Generate single scene image
@@ -24,6 +33,7 @@ export async function POST(
       generationId,
       scenePromptId,
       imagePrompt,
+      characterReferenceIds: finalCharacterReferenceIds,
     })
 
     return NextResponse.json({ image })

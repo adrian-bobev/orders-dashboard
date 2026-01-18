@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { getImageUrl } from '@/lib/r2-client'
 import { SmartImage } from '@/components/SmartImage'
+import { SceneCard } from './SceneCard'
 
 interface Step6SceneImagesProps {
   generationId: string
@@ -12,6 +13,9 @@ interface Step6SceneImagesProps {
 export function Step6SceneImages({ generationId, onComplete }: Step6SceneImagesProps) {
   const [prompts, setPrompts] = useState<any[]>([])
   const [images, setImages] = useState<any[]>([])
+  const [entities, setEntities] = useState<any[]>([])
+  const [references, setReferences] = useState<any[]>([])
+  const [sceneCharacters, setSceneCharacters] = useState<Record<string, string[]>>({})
   const [isGenerating, setIsGenerating] = useState(false)
   const [generatingScene, setGeneratingScene] = useState<string | null>(null)
   const [showSceneSelector, setShowSceneSelector] = useState(false)
@@ -23,7 +27,14 @@ export function Step6SceneImages({ generationId, onComplete }: Step6SceneImagesP
   }, [generationId])
 
   const loadData = async () => {
-    await Promise.all([loadPrompts(), loadImages(), loadScenesWithoutImages()])
+    await Promise.all([
+      loadPrompts(),
+      loadImages(),
+      loadScenesWithoutImages(),
+      loadEntities(),
+      loadReferences(),
+      loadSceneCharacters(),
+    ])
   }
 
   const loadPrompts = async () => {
@@ -47,6 +58,42 @@ export function Step6SceneImages({ generationId, onComplete }: Step6SceneImagesP
       }
     } catch (error) {
       console.error('Failed to load images:', error)
+    }
+  }
+
+  const loadEntities = async () => {
+    try {
+      const response = await fetch(`/api/generation/${generationId}/entities`)
+      if (response.ok) {
+        const data = await response.json()
+        setEntities(data.entities || [])
+      }
+    } catch (error) {
+      console.error('Failed to load entities:', error)
+    }
+  }
+
+  const loadReferences = async () => {
+    try {
+      const response = await fetch(`/api/generation/${generationId}/step5/generate-character-refs`)
+      if (response.ok) {
+        const data = await response.json()
+        setReferences(data.references || [])
+      }
+    } catch (error) {
+      console.error('Failed to load references:', error)
+    }
+  }
+
+  const loadSceneCharacters = async () => {
+    try {
+      const response = await fetch(`/api/generation/${generationId}/step6/scene-characters`)
+      if (response.ok) {
+        const data = await response.json()
+        setSceneCharacters(data.sceneCharacters || {})
+      }
+    } catch (error) {
+      console.error('Failed to load scene characters:', error)
     }
   }
 
@@ -123,6 +170,80 @@ export function Step6SceneImages({ generationId, onComplete }: Step6SceneImagesP
     }
   }
 
+  const handleAddCharacter = async (sceneId: string, characterId: string) => {
+    try {
+      const response = await fetch(`/api/generation/${generationId}/step6/scene-characters`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          scenePromptId: sceneId,
+          characterListId: characterId,
+        }),
+      })
+
+      if (response.ok) {
+        await loadSceneCharacters()
+      }
+    } catch (error) {
+      console.error('Error adding character to scene:', error)
+    }
+  }
+
+  const handleRemoveCharacter = async (sceneId: string, characterId: string) => {
+    try {
+      const response = await fetch(
+        `/api/generation/${generationId}/step6/scene-characters?scenePromptId=${sceneId}&characterListId=${characterId}`,
+        {
+          method: 'DELETE',
+        }
+      )
+
+      if (response.ok) {
+        await loadSceneCharacters()
+      }
+    } catch (error) {
+      console.error('Error removing character from scene:', error)
+    }
+  }
+
+  const handlePromptUpdate = async (scenePromptId: string, newPrompt: string) => {
+    try {
+      const response = await fetch(`/api/generation/${generationId}/step4/generate-prompts`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          promptId: scenePromptId,
+          imagePrompt: newPrompt,
+        }),
+      })
+
+      if (response.ok) {
+        await loadPrompts()
+      }
+    } catch (error) {
+      console.error('Error updating prompt:', error)
+    }
+  }
+
+  const handleSelectVersion = async (scenePromptId: string, imageId: string) => {
+    try {
+      const response = await fetch(`/api/generation/${generationId}/step6/generate-scenes`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          scenePromptId,
+          imageId,
+        }),
+      })
+
+      if (response.ok) {
+        await loadImages()
+      }
+    } catch (error) {
+      console.error('Error selecting version:', error)
+    }
+  }
+
   const toggleSceneSelection = (scenePromptId: string) => {
     const newSelection = new Set(selectedScenes)
     if (newSelection.has(scenePromptId)) {
@@ -156,7 +277,7 @@ export function Step6SceneImages({ generationId, onComplete }: Step6SceneImagesP
         </h2>
         <p className="text-neutral-600">
           Генерирайте изображения за корицата и всички сцени. Всяка сцена поддържа множество
-          версии.
+          версии. Можете да добавяте герои и обекти към всяка сцена.
         </p>
       </div>
 
@@ -303,69 +424,37 @@ export function Step6SceneImages({ generationId, onComplete }: Step6SceneImagesP
         </div>
       )}
 
-      {/* Scene Images */}
+      {/* Scene Images using SceneCard */}
       <div>
         <h3 className="font-bold text-purple-900 mb-3">Сцени ({scenePrompts.length})</h3>
         <div className="space-y-4">
           {scenePrompts.map((prompt) => {
             const sceneImages = imagesByPrompt[prompt.id] || []
-            const hasImages = sceneImages.length > 0
+            const characterIds = sceneCharacters[prompt.id] || []
+            const selectedCharacters = characterIds.filter((id) =>
+              entities.some((e) => e.id === id && e.character_type === 'character')
+            )
+            const selectedObjects = characterIds.filter((id) =>
+              entities.some((e) => e.id === id && e.character_type === 'object')
+            )
 
             return (
-              <div key={prompt.id} className="bg-white rounded-xl p-4 border-2 border-purple-200">
-                <div className="flex items-center justify-between mb-3">
-                  <h4 className="font-bold text-purple-900 flex items-center gap-2">
-                    <span className="bg-purple-600 text-white px-2 py-0.5 rounded-lg text-sm">
-                      {prompt.scene_number}
-                    </span>
-                    Сцена {prompt.scene_number}
-                  </h4>
-                  <button
-                    onClick={() => handleGenerateSingle(prompt.id, prompt.image_prompt)}
-                    disabled={generatingScene === prompt.id}
-                    className="px-3 py-1.5 bg-purple-600 text-white rounded-lg font-bold hover:bg-purple-700 transition-colors disabled:opacity-50 text-sm"
-                  >
-                    {generatingScene === prompt.id ? 'Генериране...' : hasImages ? 'Нова версия' : 'Генерирай'}
-                  </button>
-                </div>
-
-                {hasImages ? (
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {sceneImages.map((img) => (
-                      <div
-                        key={img.id}
-                        className={`relative rounded-lg overflow-hidden border-4 transition-all ${
-                          img.is_selected
-                            ? 'border-green-500 ring-4 ring-green-200'
-                            : 'border-neutral-200'
-                        }`}
-                      >
-                        <SmartImage
-                          src={getImageUrl(img.image_key)}
-                          alt={`Scene ${prompt.scene_number}`}
-                          className="w-full h-48 object-cover"
-                        />
-                        <div className="absolute top-2 left-2 bg-white px-2 py-1 rounded-lg text-xs font-bold text-purple-900">
-                          v{img.version}
-                        </div>
-                        {img.is_selected && (
-                          <div className="absolute top-2 right-2 bg-green-500 text-white rounded-full p-1">
-                            <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                              <path
-                                fillRule="evenodd"
-                                d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                                clipRule="evenodd"
-                              />
-                            </svg>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-sm text-neutral-500 italic">Няма генерирани изображения</p>
-                )}
-              </div>
+              <SceneCard
+                key={prompt.id}
+                prompt={prompt}
+                images={sceneImages}
+                selectedCharacterIds={selectedCharacters}
+                selectedObjectIds={selectedObjects}
+                entities={entities}
+                references={references}
+                generationId={generationId}
+                isGenerating={generatingScene === prompt.id}
+                onGenerateSingle={handleGenerateSingle}
+                onAddCharacter={handleAddCharacter}
+                onRemoveCharacter={handleRemoveCharacter}
+                onPromptUpdate={handlePromptUpdate}
+                onSelectVersion={handleSelectVersion}
+              />
             )
           })}
         </div>

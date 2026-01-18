@@ -9,6 +9,7 @@ export interface GenerateSceneImageParams {
   generationId: string
   scenePromptId: string
   imagePrompt: string
+  characterReferenceIds?: string[]
 }
 
 export interface BatchGenerateParams {
@@ -115,6 +116,10 @@ export class Step6SceneImagesService {
             size: '1024x1024',
             quality: 'standard',
           },
+          image_prompt: params.imagePrompt,
+          character_reference_ids: params.characterReferenceIds
+            ? JSON.stringify(params.characterReferenceIds)
+            : null,
         })
         .select()
         .single()
@@ -276,6 +281,27 @@ export class Step6SceneImagesService {
 
     // Return prompts without images
     return allPrompts.filter((p) => !promptsWithImages.has(p.id)).map((p) => p.id)
+  }
+
+  /**
+   * Get generation history for a specific scene
+   * Returns all versions with full metadata
+   */
+  async getSceneGenerationHistory(scenePromptId: string): Promise<any[]> {
+    const supabase = await createClient()
+
+    const { data, error } = await supabase
+      .from('generation_scene_images')
+      .select('*')
+      .eq('scene_prompt_id', scenePromptId)
+      .order('version', { ascending: false })
+
+    if (error) {
+      console.error('Error fetching generation history:', error)
+      throw new Error('Failed to fetch generation history')
+    }
+
+    return data || []
   }
 }
 

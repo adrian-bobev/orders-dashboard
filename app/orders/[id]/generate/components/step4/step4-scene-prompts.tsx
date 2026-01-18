@@ -46,16 +46,19 @@ export function Step4ScenePrompts({ generationId, onComplete }: Step4ScenePrompt
 
       if (!response.ok) {
         const error = await response.json()
+        console.error('API Error:', error)
+        alert(`Error: ${error.error || 'Failed to generate scene prompts'}`)
         throw new Error(error.error || 'Failed to generate scene prompts')
       }
 
       const data = await response.json()
-      setPrompts(data.prompts || [])
+      console.log('Generate response:', data)
 
-      // Reload to get entities count
+      // Reload to get fresh data including entities count
       await loadPrompts()
     } catch (error) {
       console.error('Error generating scene prompts:', error)
+      alert(`Failed to generate: ${error instanceof Error ? error.message : 'Unknown error'}`)
     } finally {
       setIsGenerating(false)
     }
