@@ -10,6 +10,12 @@ export interface GenerateScenePromptsParams {
   userPrompt: string
 }
 
+export interface SaveManualSceneDataParams {
+  generationId: string
+  sceneData: any
+  mainCharacterName?: string
+}
+
 export class Step3ScenePromptsService {
   /**
    * Generate scene prompts using OpenAI
@@ -47,11 +53,32 @@ export class Step3ScenePromptsService {
       throw new Error('Failed to parse AI response as JSON')
     }
 
+    return await this.saveSceneDataToDatabase(params.generationId, sceneData, params.mainCharacterName)
+  }
+
+  /**
+   * Save manually pasted scene data (bypassing AI generation)
+   */
+  async saveManualSceneData(params: SaveManualSceneDataParams): Promise<any[]> {
+    // Ensure the main character exists in the character list
+    if (params.mainCharacterName) {
+      await this.ensureMainCharacterExists(params.generationId, params.mainCharacterName)
+    }
+
+    return await this.saveSceneDataToDatabase(params.generationId, params.sceneData, params.mainCharacterName)
+  }
+
+  /**
+   * Save scene data to database (used by both AI generation and manual paste)
+   */
+  private async saveSceneDataToDatabase(generationId: string, sceneData: any, mainCharacterName?: string): Promise<any[]> {
+    const supabase = await createClient()
+
     // Delete existing scene prompts for this generation
     await supabase
       .from('generation_scene_prompts')
       .delete()
-      .eq('generation_id', params.generationId)
+      .eq('generation_id', generationId)
 
     // Prepare prompts to insert
     const promptsToInsert = []
@@ -59,7 +86,7 @@ export class Step3ScenePromptsService {
     // Add book cover prompt
     if (sceneData.bookCover?.imagePrompt) {
       promptsToInsert.push({
-        generation_id: params.generationId,
+        generation_id: generationId,
         scene_type: 'cover',
         scene_number: null,
         image_prompt: sceneData.bookCover.imagePrompt,
@@ -74,7 +101,7 @@ export class Step3ScenePromptsService {
     if (sceneData.scenes && Array.isArray(sceneData.scenes)) {
       sceneData.scenes.forEach((scene: any) => {
         promptsToInsert.push({
-          generation_id: params.generationId,
+          generation_id: generationId,
           scene_type: 'scene',
           scene_number: scene.sceneNumber,
           image_prompt: scene.imagePrompt,
@@ -103,14 +130,14 @@ export class Step3ScenePromptsService {
     // Extract and save characters and objects from canon
     if (sceneData.canon) {
       await this.extractAndSaveCharactersFromPrompts(
-        params.generationId,
+        generationId,
         sceneData.canon,
-        params.mainCharacterName
+        mainCharacterName
       )
     }
 
     // Auto-associate characters with scenes based on prompt_metadata
-    await this.autoAssociateCharactersWithScenes(params.generationId, data || [])
+    await this.autoAssociateCharactersWithScenes(generationId, data || [])
 
     return data || []
   }

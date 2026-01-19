@@ -23,6 +23,8 @@ export function Step3ScenePrompts({ generationId, onComplete }: Step3ScenePrompt
   const [defaultPrompt, setDefaultPrompt] = useState<string>('')
   const [customSystemPrompt, setCustomSystemPrompt] = useState<string>('')
   const [defaultSystemPrompt, setDefaultSystemPrompt] = useState<string>('')
+  const [isManualPasteOpen, setIsManualPasteOpen] = useState(false)
+  const [manualJsonText, setManualJsonText] = useState<string>('')
 
   useEffect(() => {
     loadPrompts()
@@ -124,6 +126,35 @@ export function Step3ScenePrompts({ generationId, onComplete }: Step3ScenePrompt
     }
   }
 
+  const handleManualPaste = async () => {
+    try {
+      const parsed = JSON.parse(manualJsonText)
+
+      // Validate the structure
+      if (!parsed.bookCover && !parsed.scenes) {
+        throw new Error('Invalid JSON: must contain "bookCover" or "scenes" property')
+      }
+
+      const response = await fetch(`/api/generation/${generationId}/step3/manual-paste`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sceneData: parsed }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to save manual data')
+      }
+
+      setIsManualPasteOpen(false)
+      setManualJsonText('')
+      await loadPrompts()
+    } catch (error) {
+      console.error('Error saving manual paste:', error)
+      alert(error instanceof Error ? error.message : 'Failed to save. Please check the JSON format.')
+    }
+  }
+
   const handleEdit = (prompt: any) => {
     setEditingPromptId(prompt.id)
     setEditedPromptText(prompt.image_prompt)
@@ -186,35 +217,46 @@ export function Step3ScenePrompts({ generationId, onComplete }: Step3ScenePrompt
       {/* Generate Button */}
       {prompts.length === 0 && (
         <div className="text-center py-8">
-          <button
-            onClick={handleGenerate}
-            disabled={isGenerating}
-            className="px-6 py-3 bg-purple-600 text-white rounded-xl font-bold text-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isGenerating ? (
-              <span className="flex items-center gap-2">
-                <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                    fill="none"
-                  />
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  />
-                </svg>
-                Обработка...
-              </span>
-            ) : (
-              'Генерирай Scene Prompts'
-            )}
-          </button>
+          <div className="flex flex-col gap-3 items-center">
+            <button
+              onClick={handleGenerate}
+              disabled={isGenerating}
+              className="px-6 py-3 bg-purple-600 text-white rounded-xl font-bold text-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isGenerating ? (
+                <span className="flex items-center gap-2">
+                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                      fill="none"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    />
+                  </svg>
+                  Обработка...
+                </span>
+              ) : (
+                'Генерирай Scene Prompts'
+              )}
+            </button>
+            <button
+              onClick={() => setIsManualPasteOpen(true)}
+              className="px-6 py-3 bg-blue-600 text-white rounded-xl font-bold text-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              Постави JSON ръчно
+            </button>
+          </div>
           <p className="text-sm text-neutral-500 mt-2">
             {process.env.NEXT_PUBLIC_USE_MOCK_AI === 'true'
               ? '(Mock режим - ще върне примерни промпти)'
@@ -502,6 +544,84 @@ export function Step3ScenePrompts({ generationId, onComplete }: Step3ScenePrompt
                 className="px-4 py-2 bg-purple-600 text-white rounded-xl font-bold hover:bg-purple-700 transition-colors"
               >
                 Запази промените
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Manual JSON Paste Modal */}
+      {isManualPasteOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="p-6 border-b border-neutral-200 flex justify-between items-center">
+              <div>
+                <h2 className="text-2xl font-bold text-purple-900">Постави JSON ръчно</h2>
+                <p className="text-sm text-neutral-600 mt-1">
+                  Постави JSON обект със структура: {'{ bookCover: {...}, scenes: [...], canon: {...} }'}
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setIsManualPasteOpen(false)
+                  setManualJsonText('')
+                }}
+                className="p-2 hover:bg-neutral-100 rounded-full transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 overflow-y-auto flex-1">
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-bold text-neutral-700 mb-2">
+                    JSON данни:
+                  </label>
+                  <textarea
+                    value={manualJsonText}
+                    onChange={(e) => setManualJsonText(e.target.value)}
+                    rows={20}
+                    className="w-full px-4 py-3 border-2 border-neutral-300 rounded-xl focus:border-blue-500 focus:outline-none font-mono text-sm"
+                    placeholder='{\n  "bookTitle": "Заглавие",\n  "bookCover": {\n    "imagePrompt": "..."\n  },\n  "scenes": [\n    {\n      "sceneNumber": 1,\n      "imagePrompt": "...",\n      "characters": ["..."] \n    }\n  ],\n  "canon": {\n    "characters": [...],\n    "objects": [...]\n  }\n}'
+                  />
+                </div>
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+                  <h3 className="font-bold text-blue-900 mb-2">Формат на JSON:</h3>
+                  <ul className="text-sm text-blue-800 space-y-1">
+                    <li>• <code>bookTitle</code> - заглавие на книгата (опционално)</li>
+                    <li>• <code>bookCover.imagePrompt</code> - промпт за корица</li>
+                    <li>• <code>scenes[]</code> - масив със сцени</li>
+                    <li>• <code>scenes[].sceneNumber</code> - номер на сцената</li>
+                    <li>• <code>scenes[].imagePrompt</code> - промпт за изображението</li>
+                    <li>• <code>scenes[].characters</code> - масив с имена на герои (опционално)</li>
+                    <li>• <code>canon.characters[]</code> - списък с герои (name, description)</li>
+                    <li>• <code>canon.objects[]</code> - списък с обекти (name, description)</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            {/* Footer */}
+            <div className="p-6 border-t border-neutral-200 flex gap-3 justify-end">
+              <button
+                onClick={() => {
+                  setIsManualPasteOpen(false)
+                  setManualJsonText('')
+                }}
+                className="px-4 py-2 bg-neutral-200 text-neutral-700 rounded-xl font-bold hover:bg-neutral-300 transition-colors"
+              >
+                Отказ
+              </button>
+              <button
+                onClick={handleManualPaste}
+                className="px-4 py-2 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 transition-colors"
+              >
+                Запази
               </button>
             </div>
           </div>
