@@ -309,7 +309,7 @@ export function OrderDetail({ order, currentUser, generationCounts = {} }: Order
               <div className="flex justify-between items-start mb-3">
                 <div>
                   <h4 className="text-base font-bold text-purple-900 mb-1">
-                    {item.product_name}
+                    {item.book_configurations?.[0]?.content?.title || item.book_configurations?.[0]?.name || item.product_name}
                   </h4>
                   <p className="text-sm text-neutral-600">
                     Количество: {item.quantity} | Цена: {order.currency} {item.total}

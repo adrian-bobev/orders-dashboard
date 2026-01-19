@@ -224,10 +224,14 @@ export default async function GeneratePage({
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1">
             <h1 className="text-2xl font-bold text-purple-900 mb-2">
-              Генериране на книга: {bookConfig.name}
+              Генериране на книга: {bookConfig.content?.title || bookConfig.name}
             </h1>
             <p className="text-neutral-600">Поръчка #{order.woocommerce_order_id} | Конфигурация #{bookConfig.config_id}</p>
             <div className="mt-3 flex items-center gap-4 text-sm">
+              <div>
+                <span className="text-neutral-600">Дете:</span>{' '}
+                <span className="font-bold text-purple-900">{bookConfig.name}</span>
+              </div>
               <div>
                 <span className="text-neutral-600">Възраст:</span>{' '}
                 <span className="font-bold text-purple-900">{bookConfig.age}</span>
