@@ -19,10 +19,14 @@ export function Step2Proofread({ generationId, bookConfig, onComplete }: Step2Pr
   const [defaultPrompt, setDefaultPrompt] = useState<string>('')
   const [customSystemPrompt, setCustomSystemPrompt] = useState<string>('')
   const [defaultSystemPrompt, setDefaultSystemPrompt] = useState<string>('')
+  const [originalContent, setOriginalContent] = useState<any>(null)
+  const [manuallyEditedContent, setManuallyEditedContent] = useState<any | null>(null)
 
   useEffect(() => {
+    // Set original content from bookConfig
+    setOriginalContent(bookConfig.content)
     loadCorrectedContent()
-  }, [generationId])
+  }, [generationId, bookConfig])
 
   const loadCorrectedContent = async () => {
     try {
@@ -31,6 +35,10 @@ export function Step2Proofread({ generationId, bookConfig, onComplete }: Step2Pr
         const data = await response.json()
         if (data.correctedContent) {
           setCorrectedContent(data.correctedContent)
+        }
+        // Also load manually edited content if it exists (and no corrected content yet)
+        if (data.manuallyEditedContent && !data.correctedContent) {
+          setManuallyEditedContent(data.manuallyEditedContent)
         }
       }
     } catch (error) {
@@ -70,15 +78,45 @@ export function Step2Proofread({ generationId, bookConfig, onComplete }: Step2Pr
   const handleProofread = async () => {
     setIsProofreading(true)
     try {
+      // Determine what content to use for correction:
+      // 1. If corrected content exists and was potentially edited, use that
+      // 2. Otherwise use manually edited content (if available)
+      // 3. Otherwise use original content
+      let contentToProofread
+      if (correctedContent?.corrected_content) {
+        // Re-running correction - use the latest corrected content
+        contentToProofread = correctedContent.corrected_content
+      } else {
+        // First run - use manually edited or original
+        contentToProofread = manuallyEditedContent || originalContent
+      }
+
+      // If content was manually edited (and no corrected content yet), reload the prompt
+      // If re-running with corrected content, we also need to reload the prompt
       let finalSystemPrompt = customSystemPrompt
       let finalUserPrompt = customPrompt
 
-      // Load default prompts if not already loaded
-      if (!finalSystemPrompt || !finalUserPrompt) {
-        const prompts = await loadDefaultPrompt()
-        if (prompts) {
-          finalSystemPrompt = finalSystemPrompt || prompts.systemPrompt
-          finalUserPrompt = finalUserPrompt || prompts.userPrompt
+      if (manuallyEditedContent || correctedContent) {
+        // Reload the prompt with the content to be corrected
+        const promptResponse = await fetch(`/api/generation/${generationId}/step2/default-prompt`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ content: contentToProofread }),
+        })
+
+        if (promptResponse.ok) {
+          const promptData = await promptResponse.json()
+          finalSystemPrompt = customSystemPrompt || promptData.systemPrompt
+          finalUserPrompt = customPrompt || promptData.userPrompt
+        }
+      } else {
+        // Load default prompts if not already loaded
+        if (!finalSystemPrompt || !finalUserPrompt) {
+          const prompts = await loadDefaultPrompt()
+          if (prompts) {
+            finalSystemPrompt = finalSystemPrompt || prompts.systemPrompt
+            finalUserPrompt = finalUserPrompt || prompts.userPrompt
+          }
         }
       }
 
@@ -92,6 +130,7 @@ export function Step2Proofread({ generationId, bookConfig, onComplete }: Step2Pr
         body: JSON.stringify({
           systemPrompt: finalSystemPrompt,
           userPrompt: finalUserPrompt,
+          contentToCorrect: contentToProofread,
         }),
       })
 
@@ -110,32 +149,81 @@ export function Step2Proofread({ generationId, bookConfig, onComplete }: Step2Pr
 
   const handleEdit = () => {
     setIsEditing(true)
-    setEditedContent(JSON.stringify(correctedContent.corrected_content, null, 2))
+    // If corrected content exists, edit that; otherwise edit original
+    const contentToEdit = correctedContent?.corrected_content || originalContent
+    setEditedContent(JSON.stringify(contentToEdit, null, 2))
+  }
+
+  const handleEditOriginal = () => {
+    setIsEditing(true)
+    // Always edit the original content or the manually edited version
+    const contentToEdit = manuallyEditedContent || originalContent
+    setEditedContent(JSON.stringify(contentToEdit, null, 2))
   }
 
   const handleSaveEdit = async () => {
     try {
       const parsed = JSON.parse(editedContent)
 
-      const response = await fetch(`/api/generation/${generationId}/step2/proofread`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ correctedContent: parsed }),
-      })
+      // Determine if we're editing corrected content or original content
+      if (correctedContent) {
+        // We're editing the corrected content
+        const response = await fetch(`/api/generation/${generationId}/step2/proofread`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ correctedContent: parsed }),
+        })
 
-      if (!response.ok) {
-        throw new Error('Failed to save edits')
+        if (!response.ok) {
+          throw new Error('Failed to save edits')
+        }
+
+        const data = await response.json()
+        setCorrectedContent(data.correctedContent)
+      } else {
+        // We're editing the original content (manual edit before AI correction)
+        // Save it to the database so it persists across page refreshes
+        const response = await fetch(`/api/generation/${generationId}/step2/manual-edit`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ manuallyEditedContent: parsed }),
+        })
+
+        if (!response.ok) {
+          throw new Error('Failed to save manual edits')
+        }
+
+        const data = await response.json()
+        setManuallyEditedContent(data.manuallyEditedContent)
       }
 
-      const data = await response.json()
-      setCorrectedContent(data.correctedContent)
       setIsEditing(false)
     } catch (error) {
       console.error('Error saving edits:', error)
+      alert('Failed to save edits. Please check the JSON format.')
     }
   }
 
-  const originalContent = bookConfig.content
+  const handleSkipCorrection = () => {
+    // Skip AI correction and use original/manually edited content as final
+    const contentToUse = manuallyEditedContent || originalContent
+
+    // Save it as "corrected" content (even though it's not AI-corrected)
+    fetch(`/api/generation/${generationId}/step2/proofread`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ correctedContent: contentToUse }),
+    })
+      .then(response => response.json())
+      .then(data => {
+        setCorrectedContent(data.correctedContent)
+      })
+      .catch(error => {
+        console.error('Error saving skipped content:', error)
+      })
+  }
+
+  const displayOriginalContent = manuallyEditedContent || originalContent
   const corrected = correctedContent?.corrected_content
 
   return (
@@ -151,10 +239,29 @@ export function Step2Proofread({ generationId, bookConfig, onComplete }: Step2Pr
       {/* Prompt Editor Button - Always Visible */}
       <div className="bg-white rounded-xl p-4 border-2 border-purple-200">
         <button
-          onClick={() => {
-            if (!defaultPrompt) {
-              loadDefaultPrompt()
+          onClick={async () => {
+            // Load prompts with manually edited content if available
+            const contentForPrompt = manuallyEditedContent || originalContent
+
+            if (manuallyEditedContent) {
+              // Reload prompt with manually edited content
+              const response = await fetch(`/api/generation/${generationId}/step2/default-prompt`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ content: contentForPrompt }),
+              })
+
+              if (response.ok) {
+                const data = await response.json()
+                setDefaultPrompt(data.userPrompt)
+                setDefaultSystemPrompt(data.systemPrompt)
+                setCustomPrompt(data.userPrompt)
+                setCustomSystemPrompt(data.systemPrompt)
+              }
+            } else if (!defaultPrompt) {
+              await loadDefaultPrompt()
             }
+
             setIsPromptEditorOpen(true)
           }}
           className="px-4 py-2 bg-purple-600 text-white rounded-xl font-bold hover:bg-purple-700 transition-colors flex items-center gap-2"
@@ -166,38 +273,128 @@ export function Step2Proofread({ generationId, bookConfig, onComplete }: Step2Pr
         </button>
       </div>
 
+      {/* Original Content Display - Always Visible (or Edit Mode) */}
+      {originalContent && !correctedContent && (
+        <div className="bg-blue-50 rounded-xl p-4 border-2 border-blue-200">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-bold text-blue-900">
+              {isEditing ? 'Редактиране на оригинално съдържание' : 'Оригинално съдържание'}
+            </h3>
+            {manuallyEditedContent && !isEditing && (
+              <span className="text-xs bg-amber-200 text-amber-900 px-2 py-1 rounded-full font-bold">
+                Ръчно редактирано
+              </span>
+            )}
+          </div>
+
+          {isEditing ? (
+            /* Edit Mode */
+            <>
+              <textarea
+                value={editedContent}
+                onChange={(e) => setEditedContent(e.target.value)}
+                className="w-full h-96 p-3 border-2 border-neutral-200 rounded-xl font-mono text-sm focus:border-purple-400 focus:ring-2 focus:ring-purple-200 outline-none"
+                placeholder="JSON съдържание..."
+              />
+              <div className="mt-4 flex justify-end gap-3">
+                <button
+                  onClick={() => setIsEditing(false)}
+                  className="px-4 py-2 bg-neutral-300 text-neutral-700 rounded-xl font-bold hover:bg-neutral-400 transition-colors"
+                >
+                  Отказ
+                </button>
+                <button
+                  onClick={handleSaveEdit}
+                  className="px-4 py-2 bg-purple-600 text-white rounded-xl font-bold hover:bg-purple-700 transition-colors"
+                >
+                  Запази промените
+                </button>
+              </div>
+            </>
+          ) : (
+            /* Preview Mode */
+            <>
+              <div className="space-y-3 text-sm">
+                <div>
+                  <p className="font-bold text-neutral-700">Заглавие:</p>
+                  <p className="text-neutral-900">{displayOriginalContent.title}</p>
+                </div>
+                <div>
+                  <p className="font-bold text-neutral-700">Кратко описание:</p>
+                  <p className="text-neutral-900">{displayOriginalContent.shortDescription}</p>
+                </div>
+                {displayOriginalContent.motivationEnd && (
+                  <div>
+                    <p className="font-bold text-neutral-700">Мотивационен край:</p>
+                    <p className="text-neutral-900">{displayOriginalContent.motivationEnd}</p>
+                  </div>
+                )}
+                <div>
+                  <p className="font-bold text-neutral-700">Сцени:</p>
+                  <div className="max-h-64 overflow-y-auto space-y-2">
+                    {displayOriginalContent.scenes?.map((scene: any, index: number) => (
+                      <div key={index} className="bg-white p-2 rounded">
+                        <p className="font-bold text-xs text-neutral-600">Сцена {index + 1}</p>
+                        <p className="text-neutral-900">{scene.text}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div className="mt-4 flex gap-3">
+                <button
+                  onClick={handleEditOriginal}
+                  className="px-4 py-2 bg-white text-blue-900 border-2 border-blue-300 rounded-xl font-bold hover:bg-blue-50 transition-colors"
+                >
+                  Редактирай оригинала
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
       {/* Proofread Button */}
       {!correctedContent && (
         <div className="text-center py-8">
-          <button
-            onClick={handleProofread}
-            disabled={isProofreading}
-            className="px-6 py-3 bg-purple-600 text-white rounded-xl font-bold text-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isProofreading ? (
-              <span className="flex items-center gap-2">
-                <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
-                  <circle
-                    className="opacity-25"
-                    cx="12"
-                    cy="12"
-                    r="10"
-                    stroke="currentColor"
-                    strokeWidth="4"
-                    fill="none"
-                  />
-                  <path
-                    className="opacity-75"
-                    fill="currentColor"
-                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                  />
-                </svg>
-                Обработка...
-              </span>
-            ) : (
-              'Стартирай корекция на текста'
-            )}
-          </button>
+          <div className="flex justify-center gap-4">
+            <button
+              onClick={handleProofread}
+              disabled={isProofreading}
+              className="px-6 py-3 bg-purple-600 text-white rounded-xl font-bold text-lg hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isProofreading ? (
+                <span className="flex items-center gap-2">
+                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24">
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                      fill="none"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    />
+                  </svg>
+                  Обработка...
+                </span>
+              ) : (
+                'Стартирай корекция на текста'
+              )}
+            </button>
+            <button
+              onClick={handleSkipCorrection}
+              disabled={isProofreading}
+              className="px-6 py-3 bg-neutral-200 text-neutral-700 rounded-xl font-bold text-lg hover:bg-neutral-300 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              Пропусни корекцията
+            </button>
+          </div>
           <p className="text-sm text-neutral-500 mt-2">
             {process.env.NEXT_PUBLIC_USE_MOCK_AI === 'true'
               ? '(Mock режим - няма реални OpenAI заявки)'
@@ -253,16 +450,22 @@ export function Step2Proofread({ generationId, bookConfig, onComplete }: Step2Pr
                 <div className="space-y-3 text-sm">
                   <div>
                     <p className="font-bold text-neutral-700">Заглавие:</p>
-                    <p className="text-neutral-900">{originalContent.title}</p>
+                    <p className="text-neutral-900">{displayOriginalContent.title}</p>
                   </div>
                   <div>
                     <p className="font-bold text-neutral-700">Кратко описание:</p>
-                    <p className="text-neutral-900">{originalContent.shortDescription}</p>
+                    <p className="text-neutral-900">{displayOriginalContent.shortDescription}</p>
                   </div>
+                  {displayOriginalContent.motivationEnd && (
+                    <div>
+                      <p className="font-bold text-neutral-700">Мотивационен край:</p>
+                      <p className="text-neutral-900">{displayOriginalContent.motivationEnd}</p>
+                    </div>
+                  )}
                   <div>
                     <p className="font-bold text-neutral-700">Сцени:</p>
                     <div className="max-h-64 overflow-y-auto space-y-2">
-                      {originalContent.scenes?.map((scene: any, index: number) => (
+                      {displayOriginalContent.scenes?.map((scene: any, index: number) => (
                         <div key={index} className="bg-white p-2 rounded">
                           <p className="font-bold text-xs text-neutral-600">
                             Сцена {index + 1}
@@ -287,6 +490,12 @@ export function Step2Proofread({ generationId, bookConfig, onComplete }: Step2Pr
                   <p className="font-bold text-neutral-700">Кратко описание:</p>
                   <p className="text-neutral-900">{corrected.shortDescription}</p>
                 </div>
+                {corrected.motivationEnd && (
+                  <div>
+                    <p className="font-bold text-neutral-700">Мотивационен край:</p>
+                    <p className="text-neutral-900">{corrected.motivationEnd}</p>
+                  </div>
+                )}
                 <div>
                   <p className="font-bold text-neutral-700">Сцени:</p>
                   <div className="max-h-64 overflow-y-auto space-y-2">
@@ -304,10 +513,10 @@ export function Step2Proofread({ generationId, bookConfig, onComplete }: Step2Pr
         </div>
       )}
 
-      {/* Edit Mode */}
-      {isEditing && (
+      {/* Edit Mode for Corrected Content */}
+      {correctedContent && isEditing && (
         <div className="bg-white rounded-xl p-4 border-2 border-purple-300">
-          <h3 className="font-bold text-purple-900 mb-3">Редактиране на съдържание</h3>
+          <h3 className="font-bold text-purple-900 mb-3">Редактиране на коригирано съдържание</h3>
           <textarea
             value={editedContent}
             onChange={(e) => setEditedContent(e.target.value)}

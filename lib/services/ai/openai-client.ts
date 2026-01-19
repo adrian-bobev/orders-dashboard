@@ -182,11 +182,28 @@ export class OpenAIClient {
 
         // Mock proofread: Return slightly modified content
         if (params.systemPrompt.includes('proofreader') || params.systemPrompt.includes('grammar')) {
-          return JSON.stringify({
-            ...inputJson,
-            __mocked: true,
-            __note: 'This is mock proofread content',
-          })
+          // Make some visible changes to show the mock is working
+          const modifiedJson = { ...inputJson }
+
+          // Add suffix to title to show it was processed
+          if (modifiedJson.title) {
+            modifiedJson.title = modifiedJson.title + ' ✓'
+          }
+
+          // Add prefix to short description
+          if (modifiedJson.shortDescription) {
+            modifiedJson.shortDescription = '[Коригирано] ' + modifiedJson.shortDescription
+          }
+
+          // Modify scenes slightly
+          if (modifiedJson.scenes && Array.isArray(modifiedJson.scenes)) {
+            modifiedJson.scenes = modifiedJson.scenes.map((scene: any, index: number) => ({
+              ...scene,
+              text: scene.text ? scene.text + ` [Проверено ${index + 1}]` : scene.text
+            }))
+          }
+
+          return JSON.stringify(modifiedJson)
         }
       }
     } catch (e) {

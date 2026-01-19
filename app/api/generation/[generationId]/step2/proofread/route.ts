@@ -15,7 +15,7 @@ export async function POST(
 
     const { generationId } = await params
     const body = await request.json()
-    const { systemPrompt, userPrompt } = body
+    const { systemPrompt, userPrompt, contentToCorrect } = body
 
     if (!systemPrompt || !userPrompt) {
       return NextResponse.json(
@@ -36,10 +36,13 @@ export async function POST(
       return NextResponse.json({ error: 'Book configuration content not found' }, { status: 404 })
     }
 
+    // Use provided content if available, otherwise use original book config content
+    const originalContent = contentToCorrect || bookConfig.content
+
     // Proofread the content with provided prompts
     const correctedContent = await step2Service.proofreadContent({
       generationId,
-      originalContent: bookConfig.content,
+      originalContent,
       systemPrompt,
       userPrompt,
     })
@@ -66,9 +69,16 @@ export async function GET(
 
     const { generationId } = await params
 
-    const correctedContent = await step2Service.getCorrectedContent(generationId)
+    const data = await step2Service.getCorrectedContent(generationId)
 
-    return NextResponse.json({ correctedContent })
+    // Check if corrected_content actually has data (not null and not empty object)
+    const hasCorrectedContent = data?.corrected_content &&
+      Object.keys(data.corrected_content).length > 0
+
+    return NextResponse.json({
+      correctedContent: hasCorrectedContent ? data : null,
+      manuallyEditedContent: data?.manually_edited_content || null,
+    })
   } catch (error) {
     console.error('Error fetching corrected content:', error)
     return NextResponse.json(

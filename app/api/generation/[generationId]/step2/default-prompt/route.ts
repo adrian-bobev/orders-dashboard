@@ -15,19 +15,32 @@ export async function POST(
 
     const { generationId } = await params
 
-    // Get generation with book configuration
-    const generation = await generationService.getGenerationById(generationId)
-
-    if (!generation) {
-      return NextResponse.json({ error: 'Generation not found' }, { status: 404 })
+    // Try to get content from request body (for manually edited content)
+    let contentToUse = null
+    try {
+      const body = await request.json()
+      contentToUse = body.content
+    } catch {
+      // No body provided, will use book config content
     }
 
-    const bookConfig = generation.book_configurations
-    if (!bookConfig || !bookConfig.content) {
-      return NextResponse.json({ error: 'Book configuration content not found' }, { status: 404 })
+    // If no content provided in body, get from book configuration
+    if (!contentToUse) {
+      const generation = await generationService.getGenerationById(generationId)
+
+      if (!generation) {
+        return NextResponse.json({ error: 'Generation not found' }, { status: 404 })
+      }
+
+      const bookConfig = generation.book_configurations
+      if (!bookConfig || !bookConfig.content) {
+        return NextResponse.json({ error: 'Book configuration content not found' }, { status: 404 })
+      }
+
+      contentToUse = bookConfig.content
     }
 
-    const { systemPrompt, userPrompt } = await step2Service.getDefaultPrompt(bookConfig.content)
+    const { systemPrompt, userPrompt } = await step2Service.getDefaultPrompt(contentToUse)
 
     return NextResponse.json({
       systemPrompt,

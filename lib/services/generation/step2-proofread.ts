@@ -126,26 +126,106 @@ export class Step2ProofreadService {
   }
 
   /**
-   * Update corrected content manually (if user edits it)
+   * Save manually edited content (before AI correction)
+   */
+  async saveManuallyEditedContent(generationId: string, manuallyEditedContent: any): Promise<any> {
+    const supabase = await createClient()
+
+    // Check if we already have a record for this generation
+    const { data: existing } = await supabase
+      .from('generation_corrected_content')
+      .select('id')
+      .eq('generation_id', generationId)
+      .maybeSingle()
+
+    if (existing) {
+      // Update existing
+      const { data, error } = await supabase
+        .from('generation_corrected_content')
+        .update({
+          manually_edited_content: manuallyEditedContent,
+        })
+        .eq('generation_id', generationId)
+        .select()
+        .single()
+
+      if (error) {
+        console.error('Error updating manually edited content:', error)
+        throw new Error(`Failed to update manually edited content: ${error.message}`)
+      }
+
+      return data
+    } else {
+      // Insert new record for manually edited content only
+      const { data, error } = await supabase
+        .from('generation_corrected_content')
+        .insert({
+          generation_id: generationId,
+          original_content: {},
+          manually_edited_content: manuallyEditedContent,
+        })
+        .select()
+        .single()
+
+      if (error) {
+        console.error('Error saving manually edited content:', error)
+        throw new Error(`Failed to save manually edited content: ${error.message}`)
+      }
+
+      return data
+    }
+  }
+
+  /**
+   * Update corrected content manually (if user edits it or skips AI correction)
+   * This method handles upsert - creates if doesn't exist, updates if exists
    */
   async updateCorrectedContent(generationId: string, correctedContent: any): Promise<any> {
     const supabase = await createClient()
 
-    const { data, error } = await supabase
+    // Check if record exists
+    const { data: existing } = await supabase
       .from('generation_corrected_content')
-      .update({
-        corrected_content: correctedContent,
-      })
+      .select('id')
       .eq('generation_id', generationId)
-      .select()
-      .single()
+      .maybeSingle()
 
-    if (error) {
-      console.error('Error updating corrected content:', error)
-      throw new Error('Failed to update corrected content')
+    if (existing) {
+      // Update existing record
+      const { data, error } = await supabase
+        .from('generation_corrected_content')
+        .update({
+          corrected_content: correctedContent,
+        })
+        .eq('generation_id', generationId)
+        .select()
+        .single()
+
+      if (error) {
+        console.error('Error updating corrected content:', error)
+        throw new Error('Failed to update corrected content')
+      }
+
+      return data
+    } else {
+      // Insert new record
+      const { data, error } = await supabase
+        .from('generation_corrected_content')
+        .insert({
+          generation_id: generationId,
+          original_content: {},
+          corrected_content: correctedContent,
+        })
+        .select()
+        .single()
+
+      if (error) {
+        console.error('Error inserting corrected content:', error)
+        throw new Error('Failed to insert corrected content')
+      }
+
+      return data
     }
-
-    return data
   }
 
   /**
