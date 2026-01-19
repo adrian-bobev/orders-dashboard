@@ -457,18 +457,18 @@ export class Step4CharacterRefsService {
       .eq('character_list_id', characterListId)
 
     // Save to database
+    // Note: notes field was added via migration but types may be out of date
     const { data, error } = await supabase
       .from('generation_character_references')
       .insert({
         generation_id: generationId,
         character_list_id: characterListId,
         image_key: imageKey,
-        image_prompt: null,
+        image_prompt: 'User uploaded reference',
         version: nextVersion,
         is_selected: true,
-        model_used: null,
-        generation_params: null,
-        notes: JSON.stringify({
+        model_used: 'user_upload',
+        generation_params: JSON.stringify({
           type: 'user_uploaded',
           originalFilename,
           uploadedAt: new Date().toISOString(),

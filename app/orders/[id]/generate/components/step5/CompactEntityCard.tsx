@@ -7,7 +7,6 @@ interface Entity {
   character_type: string
   description: string
   is_main_character: boolean
-  is_custom: boolean
 }
 
 interface Reference {
@@ -77,14 +76,6 @@ export function CompactEntityCard({ entity, reference, bgColor, onRemove }: Comp
         <p className={`text-xs font-bold ${colors.text} truncate leading-tight`} title={entity.character_name}>
           {entity.character_name}
         </p>
-
-        {entity.is_custom && (
-          <div className="flex items-center justify-between gap-1">
-            <span className="text-[10px] bg-neutral-600 text-white px-1 py-0.5 rounded font-bold">
-              Custom
-            </span>
-          </div>
-        )}
 
         <button
           onClick={onRemove}

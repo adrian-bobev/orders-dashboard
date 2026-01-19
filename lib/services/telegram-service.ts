@@ -1,4 +1,4 @@
-import https from 'https';
+import { postJson } from '@/lib/services/http-client'
 
 /**
  * Order notification data structure
@@ -11,58 +11,6 @@ export interface OrderNotificationData {
   customerName: string;
   paymentMethod: string;
   woocommerceOrderId: number;
-}
-
-/**
- * Make HTTPS POST request to Telegram Bot API
- */
-function makeHttpsRequest(
-  url: string,
-  body: object
-): Promise<{ status: number; statusText: string; data: any }> {
-  return new Promise((resolve, reject) => {
-    const urlObj = new URL(url);
-    const bodyString = JSON.stringify(body);
-
-    const requestOptions = {
-      hostname: urlObj.hostname,
-      port: urlObj.port || 443,
-      path: urlObj.pathname + urlObj.search,
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(bodyString),
-      },
-    };
-
-    const req = https.request(requestOptions, (res) => {
-      let data = '';
-
-      res.on('data', (chunk) => {
-        data += chunk;
-      });
-
-      res.on('end', () => {
-        try {
-          const jsonData = data ? JSON.parse(data) : null;
-          resolve({
-            status: res.statusCode || 500,
-            statusText: res.statusMessage || 'Unknown',
-            data: jsonData,
-          });
-        } catch (error) {
-          reject(new Error(`Failed to parse JSON response: ${error}`));
-        }
-      });
-    });
-
-    req.on('error', (error) => {
-      reject(error);
-    });
-
-    req.write(bodyString);
-    req.end();
-  });
 }
 
 /**
@@ -107,7 +55,7 @@ export async function sendOrderNotification(
     console.log('   Dashboard URL:', process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000');
     console.log('   Message preview:', message.substring(0, 100) + '...');
 
-    const response = await makeHttpsRequest(url, {
+    const response = await postJson(url, {
       chat_id: chatId,
       text: message,
       parse_mode: 'HTML',

@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server'
+import { NextResponse } from 'next/server'
 import { Database } from '@/lib/database.types'
 
 type User = Database['public']['Tables']['users']['Row']
@@ -24,6 +25,25 @@ export async function getCurrentUser(): Promise<User | null> {
     .single()
 
   return data
+}
+
+/**
+ * Check if current user is authenticated admin.
+ * Returns the user if authenticated as admin, or a NextResponse error to return from the route handler.
+ *
+ * Usage in API routes:
+ * ```
+ * const authResult = await requireAdmin()
+ * if (authResult instanceof NextResponse) return authResult
+ * const user = authResult
+ * ```
+ */
+export async function requireAdmin(): Promise<User | NextResponse> {
+  const currentUser = await getCurrentUser()
+  if (!currentUser || currentUser.role !== 'admin') {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  }
+  return currentUser
 }
 
 /**

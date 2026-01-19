@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getCurrentUser } from '@/lib/services/user-service'
+import { requireAdmin } from '@/lib/services/user-service'
 import { step1Service } from '@/lib/services/generation/step1-character-image'
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
@@ -10,10 +10,8 @@ export async function POST(
   { params }: { params: Promise<{ generationId: string }> }
 ) {
   try {
-    const currentUser = await getCurrentUser()
-    if (!currentUser || currentUser.role !== 'admin') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const authResult = await requireAdmin()
+    if (authResult instanceof NextResponse) return authResult
 
     const { generationId } = await params
 

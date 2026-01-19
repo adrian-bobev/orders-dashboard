@@ -40,12 +40,36 @@ export class Step5SceneImagesService {
       throw new Error('Scene prompt not found')
     }
 
-    // Update status to generating
-    await supabase
+    // Check if there's already a generation in progress for this scene
+    const { data: existingGenerating } = await supabase
       .from('generation_scene_images')
-      .update({ generation_status: 'generating' })
+      .select('id')
       .eq('scene_prompt_id', params.scenePromptId)
-      .eq('generation_status', 'pending')
+      .eq('generation_status', 'generating')
+      .limit(1)
+
+    if (existingGenerating && existingGenerating.length > 0) {
+      throw new Error('Image generation already in progress for this scene')
+    }
+
+    // Create a new pending record for this generation attempt
+    // This ensures atomic tracking of the generation process
+    const { data: pendingRecord, error: pendingError } = await supabase
+      .from('generation_scene_images')
+      .insert({
+        generation_id: params.generationId,
+        scene_prompt_id: params.scenePromptId,
+        image_key: '', // Placeholder, will be updated on completion
+        version: 0, // Placeholder, will be updated on completion
+        is_selected: false,
+        generation_status: 'generating',
+      })
+      .select()
+      .single()
+
+    if (pendingError || !pendingRecord) {
+      throw new Error('Failed to create generation record')
+    }
 
     try {
       // Fetch reference image URLs if character references are provided
@@ -57,7 +81,9 @@ export class Step5SceneImagesService {
           .in('id', params.characterReferenceIds)
 
         if (references && references.length > 0) {
-          referenceImageUrls = references.map((ref) => getImageUrl(ref.image_key))
+          referenceImageUrls = references
+            .map((ref) => getImageUrl(ref.image_key))
+            .filter((url): url is string => url !== undefined)
         }
       }
 
@@ -110,15 +136,17 @@ export class Step5SceneImagesService {
 
       await storageClient.send(putCommand)
 
-      // Get the next version number
+      // Get the next version number (exclude the current pending record with version 0)
       const { data: existingImages } = await supabase
         .from('generation_scene_images')
         .select('version')
         .eq('scene_prompt_id', params.scenePromptId)
+        .neq('id', pendingRecord.id)
         .order('version', { ascending: false })
         .limit(1)
 
-      const nextVersion = (existingImages?.[0]?.version || 0) + 1
+      // Handle version 0 properly with nullish coalescing
+      const nextVersion = ((existingImages?.[0]?.version ?? -1) + 1) || 1
 
       // Deselect all previous versions for this scene
       await supabase
@@ -126,12 +154,10 @@ export class Step5SceneImagesService {
         .update({ is_selected: false })
         .eq('scene_prompt_id', params.scenePromptId)
 
-      // Save to database
+      // Update the pending record with the final data
       const { data, error } = await supabase
         .from('generation_scene_images')
-        .insert({
-          generation_id: params.generationId,
-          scene_prompt_id: params.scenePromptId,
+        .update({
           image_key: imageKey,
           version: nextVersion,
           is_selected: true,
@@ -147,6 +173,7 @@ export class Step5SceneImagesService {
             ? JSON.stringify(params.characterReferenceIds)
             : null,
         })
+        .eq('id', pendingRecord.id)
         .select()
         .single()
 
@@ -157,15 +184,14 @@ export class Step5SceneImagesService {
 
       return data
     } catch (error) {
-      // Update status to failed
+      // Update status to failed on the specific record we created
       await supabase
         .from('generation_scene_images')
         .update({
           generation_status: 'failed',
           error_message: error instanceof Error ? error.message : 'Unknown error',
         })
-        .eq('scene_prompt_id', params.scenePromptId)
-        .eq('generation_status', 'generating')
+        .eq('id', pendingRecord.id)
 
       throw error
     }

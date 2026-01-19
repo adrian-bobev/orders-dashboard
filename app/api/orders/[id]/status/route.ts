@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
-import { getCurrentUser } from '@/lib/services/user-service'
+import { requireAdmin } from '@/lib/services/user-service'
 import { updateOrderStatus } from '@/lib/services/order-service'
 
 export async function PATCH(
@@ -8,23 +7,8 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const supabase = await createClient()
-
-    // Check authentication
-    const {
-      data: { user: authUser },
-    } = await supabase.auth.getUser()
-
-    if (!authUser) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    // Check if user is admin
-    const currentUser = await getCurrentUser()
-
-    if (!currentUser || currentUser.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
+    const authResult = await requireAdmin()
+    if (authResult instanceof NextResponse) return authResult
 
     // Get order ID
     const { id } = await params

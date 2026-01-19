@@ -1,77 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
-import https from 'https';
-import http from 'http';
 import { spawn } from 'child_process';
 import { createOrderFromWebhook } from '@/lib/services/order-service';
 import { sendOrderNotification } from '@/lib/services/telegram-service';
-
-/**
- * Create HTTPS agent that accepts self-signed certificates for local development
- */
-function createHttpsAgent() {
-  const allowSelfSignedCerts = process.env.ALLOW_SELF_SIGNED_CERTS === 'true';
-
-  if (allowSelfSignedCerts) {
-    return new https.Agent({
-      rejectUnauthorized: false,
-    });
-  }
-
-  return new https.Agent({
-    rejectUnauthorized: true,
-  });
-}
-
-/**
- * Make HTTP/HTTPS request
- */
-function makeRequest(url: string, options: {
-  headers: Record<string, string>;
-  agent?: https.Agent | http.Agent;
-}): Promise<{ status: number; statusText: string; data: any }> {
-  return new Promise((resolve, reject) => {
-    const urlObj = new URL(url);
-    const isHttps = urlObj.protocol === 'https:';
-    const requestModule = isHttps ? https : http;
-
-    const requestOptions = {
-      hostname: urlObj.hostname,
-      port: urlObj.port || (isHttps ? 443 : 80),
-      path: urlObj.pathname + urlObj.search,
-      method: 'GET',
-      headers: options.headers,
-      agent: options.agent,
-    };
-
-    const req = requestModule.request(requestOptions, (res) => {
-      let data = '';
-
-      res.on('data', (chunk) => {
-        data += chunk;
-      });
-
-      res.on('end', () => {
-        try {
-          const jsonData = data ? JSON.parse(data) : null;
-          resolve({
-            status: res.statusCode || 500,
-            statusText: res.statusMessage || 'Unknown',
-            data: jsonData,
-          });
-        } catch (error) {
-          reject(new Error(`Failed to parse JSON response: ${error}`));
-        }
-      });
-    });
-
-    req.on('error', (error) => {
-      reject(error);
-    });
-
-    req.end();
-  });
-}
+import { get } from '@/lib/services/http-client';
 
 /**
  * Fetch order configuration from WooCommerce custom API endpoint
@@ -92,12 +24,19 @@ async function fetchOrderConfiguration(orderId: number): Promise<any | null> {
   const auth = Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64');
 
   try {
-    const response = await makeRequest(url, {
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    const allowSelfSignedCerts = isDevelopment && process.env.ALLOW_SELF_SIGNED_CERTS === 'true';
+
+    if (allowSelfSignedCerts) {
+      console.log('⚠️ Using HTTPS with self-signed cert support (development only)');
+    }
+
+    const response = await get(url, {
       headers: {
         Authorization: `Basic ${auth}`,
         'Content-Type': 'application/json',
       },
-      agent: createHttpsAgent(),
+      allowSelfSignedCerts,
     });
 
     if (response.status === 404) {

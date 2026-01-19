@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getCurrentUser } from '@/lib/services/user-service'
+import { requireAdmin } from '@/lib/services/user-service'
 import { createClient } from '@/lib/supabase/server'
 
 export async function PATCH(
@@ -7,10 +7,8 @@ export async function PATCH(
   { params }: { params: Promise<{ generationId: string }> }
 ) {
   try {
-    const currentUser = await getCurrentUser()
-    if (!currentUser || currentUser.role !== 'admin') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const authResult = await requireAdmin()
+    if (authResult instanceof NextResponse) return authResult
 
     const { generationId } = await params
     const { currentStep, stepsCompleted } = await request.json()

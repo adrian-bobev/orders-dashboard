@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getCurrentUser } from '@/lib/services/user-service'
+import { requireAdmin } from '@/lib/services/user-service'
 import { createClient } from '@/lib/supabase/server'
 
 export async function GET(
@@ -7,10 +7,8 @@ export async function GET(
   { params }: { params: Promise<{ generationId: string }> }
 ) {
   try {
-    const currentUser = await getCurrentUser()
-    if (!currentUser || currentUser.role !== 'admin') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const authResult = await requireAdmin()
+    if (authResult instanceof NextResponse) return authResult
 
     const { generationId } = await params
     const supabase = await createClient()
@@ -46,10 +44,8 @@ export async function POST(
   { params }: { params: Promise<{ generationId: string }> }
 ) {
   try {
-    const currentUser = await getCurrentUser()
-    if (!currentUser || currentUser.role !== 'admin') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const authResult = await requireAdmin()
+    if (authResult instanceof NextResponse) return authResult
 
     const { generationId } = await params
     const body = await request.json()
@@ -94,7 +90,6 @@ export async function POST(
         description: description || `Generate a reference image for ${characterType}: ${characterName}`,
         is_main_character: false,
         sort_order: nextSortOrder,
-        is_custom: true,
       })
       .select()
       .single()
@@ -122,10 +117,8 @@ export async function DELETE(
   { params }: { params: Promise<{ generationId: string }> }
 ) {
   try {
-    const currentUser = await getCurrentUser()
-    if (!currentUser || currentUser.role !== 'admin') {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    const authResult = await requireAdmin()
+    if (authResult instanceof NextResponse) return authResult
 
     const { generationId } = await params
     const { searchParams } = new URL(request.url)
@@ -140,17 +133,17 @@ export async function DELETE(
 
     const supabase = await createClient()
 
-    // Only allow deletion of custom entities
+    // Only allow deletion of non-main characters (custom entities)
     const { data: entity } = await supabase
       .from('generation_character_list')
-      .select('is_custom')
+      .select('is_main_character')
       .eq('id', entityId)
       .eq('generation_id', generationId)
       .single()
 
-    if (!entity?.is_custom) {
+    if (entity?.is_main_character) {
       return NextResponse.json(
-        { error: 'Only custom entities can be deleted' },
+        { error: 'Main character cannot be deleted' },
         { status: 403 }
       )
     }

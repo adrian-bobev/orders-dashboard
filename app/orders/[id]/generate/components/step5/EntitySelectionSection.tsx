@@ -11,7 +11,6 @@ interface Entity {
   character_type: string
   description: string
   is_main_character: boolean
-  is_custom: boolean
 }
 
 interface Reference {
@@ -176,11 +175,6 @@ export function EntitySelectionSection({
                           {entity.is_main_character && (
                             <span className="text-xs bg-purple-600 text-white px-1.5 py-0.5 rounded font-bold">
                               Главен
-                            </span>
-                          )}
-                          {entity.is_custom && (
-                            <span className="text-xs bg-neutral-600 text-white px-1.5 py-0.5 rounded font-bold">
-                              Custom
                             </span>
                           )}
                           {ref && (

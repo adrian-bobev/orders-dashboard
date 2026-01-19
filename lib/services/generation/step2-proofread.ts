@@ -138,13 +138,15 @@ export class Step2ProofreadService {
       .eq('generation_id', generationId)
       .maybeSingle()
 
+    // Note: manually_edited_content was added via migration but types may be out of date
+    // Using type assertion to handle this
     if (existing) {
       // Update existing
       const { data, error } = await supabase
         .from('generation_corrected_content')
         .update({
           manually_edited_content: manuallyEditedContent,
-        })
+        } as any)
         .eq('generation_id', generationId)
         .select()
         .single()
@@ -162,8 +164,9 @@ export class Step2ProofreadService {
         .insert({
           generation_id: generationId,
           original_content: {},
+          corrected_content: {},
           manually_edited_content: manuallyEditedContent,
-        })
+        } as any)
         .select()
         .single()
 

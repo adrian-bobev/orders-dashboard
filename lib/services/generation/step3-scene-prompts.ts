@@ -264,7 +264,6 @@ export class Step3ScenePromptsService {
         character_type: 'character',
         description: 'Main character',
         is_main_character: true,
-        is_custom: false,
         sort_order: -1, // Put main character first
       })
       .select()
@@ -484,7 +483,8 @@ export class Step3ScenePromptsService {
     const mainCharacter = entities.find((entity) => entity.is_main_character)
 
     // Delete existing scene-character associations for this generation
-    await supabase
+    // Note: scene_prompt_characters was added via migration but types may be out of date
+    await (supabase as any)
       .from('scene_prompt_characters')
       .delete()
       .in(
@@ -569,7 +569,7 @@ export class Step3ScenePromptsService {
 
     // Insert all associations
     if (associationsToInsert.length > 0) {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('scene_prompt_characters')
         .insert(associationsToInsert)
 

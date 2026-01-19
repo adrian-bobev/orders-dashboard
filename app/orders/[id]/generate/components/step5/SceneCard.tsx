@@ -31,7 +31,14 @@ interface Entity {
   character_type: string
   description: string
   is_main_character: boolean
-  is_custom: boolean
+}
+
+interface CharacterListInfo {
+  id: string
+  character_name: string
+  character_type: string
+  description: string | null
+  is_main_character: boolean
 }
 
 interface Reference {
@@ -41,6 +48,7 @@ interface Reference {
   version: number
   image_prompt: string | null
   is_selected: boolean
+  generation_character_list: CharacterListInfo
 }
 
 interface SceneCardProps {

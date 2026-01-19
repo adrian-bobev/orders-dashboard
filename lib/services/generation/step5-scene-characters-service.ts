@@ -12,7 +12,6 @@ export interface SceneCharacter {
     character_type: string
     description: string
     is_main_character: boolean
-    is_custom: boolean
   }
 }
 
@@ -33,7 +32,8 @@ export class Step5SceneCharactersService {
   async getSceneCharacters(generationId: string): Promise<Record<string, string[]>> {
     const supabase = await createClient()
 
-    const { data: associations, error } = await supabase
+    // Note: scene_prompt_characters was added via migration but types may be out of date
+    const { data: associations, error } = await (supabase as any)
       .from('scene_prompt_characters')
       .select(
         `
@@ -68,7 +68,7 @@ export class Step5SceneCharactersService {
   async getSceneCharactersWithDetails(scenePromptId: string): Promise<SceneCharacter[]> {
     const supabase = await createClient()
 
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('scene_prompt_characters')
       .select(
         `
@@ -78,8 +78,7 @@ export class Step5SceneCharactersService {
           character_name,
           character_type,
           description,
-          is_main_character,
-          is_custom
+          is_main_character
         )
       `
       )
@@ -102,7 +101,7 @@ export class Step5SceneCharactersService {
   ): Promise<SceneCharacterWithReference[]> {
     const supabase = await createClient()
 
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('scene_prompt_characters')
       .select(
         `
@@ -112,8 +111,7 @@ export class Step5SceneCharactersService {
           character_name,
           character_type,
           description,
-          is_main_character,
-          is_custom
+          is_main_character
         )
       `
       )
@@ -161,7 +159,7 @@ export class Step5SceneCharactersService {
     const supabase = await createClient()
 
     // Get the max sort_order for this scene
-    const { data: existing } = await supabase
+    const { data: existing } = await (supabase as any)
       .from('scene_prompt_characters')
       .select('sort_order')
       .eq('scene_prompt_id', scenePromptId)
@@ -170,7 +168,7 @@ export class Step5SceneCharactersService {
 
     const nextSortOrder = (existing?.[0]?.sort_order || 0) + 1
 
-    const { error } = await supabase.from('scene_prompt_characters').insert({
+    const { error } = await (supabase as any).from('scene_prompt_characters').insert({
       scene_prompt_id: scenePromptId,
       character_list_id: characterListId,
       sort_order: nextSortOrder,
@@ -196,7 +194,7 @@ export class Step5SceneCharactersService {
   ): Promise<void> {
     const supabase = await createClient()
 
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from('scene_prompt_characters')
       .delete()
       .eq('scene_prompt_id', scenePromptId)
@@ -219,7 +217,7 @@ export class Step5SceneCharactersService {
 
     // Update each character's sort_order
     const updates = characterOrders.map(({ characterListId, sortOrder }) =>
-      supabase
+      (supabase as any)
         .from('scene_prompt_characters')
         .update({ sort_order: sortOrder })
         .eq('scene_prompt_id', scenePromptId)

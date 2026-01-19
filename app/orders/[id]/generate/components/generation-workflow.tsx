@@ -8,10 +8,24 @@ import { Step2Proofread } from './step2/step2-proofread'
 import { Step3ScenePrompts } from './step3/step3-scene-prompts'
 import { Step4CharacterRefs } from './step4/step4-character-refs'
 import { Step5SceneImages } from './step5/step5-scene-images'
+import { Tables } from '@/lib/database.types'
+
+// Extended types for the component
+type BookGeneration = Tables<'book_generations'>
+type BookConfiguration = Tables<'book_configurations'>
+
+interface StepsCompleted {
+  step1: boolean
+  step2: boolean
+  step3: boolean
+  step4: boolean
+  step5: boolean
+  [key: string]: boolean  // Index signature for Record<string, boolean> compatibility
+}
 
 interface GenerationWorkflowProps {
-  generation: any
-  bookConfig: any
+  generation: BookGeneration
+  bookConfig: BookConfiguration
   orderId: string
 }
 
@@ -22,14 +36,19 @@ export function GenerationWorkflow({
 }: GenerationWorkflowProps) {
   const router = useRouter()
   const [currentStep, setCurrentStep] = useState(generation.current_step || 1)
-  const [stepsCompleted, setStepsCompleted] = useState(
-    generation.steps_completed || {
-      step1: false,
-      step2: false,
-      step3: false,
-      step4: false,
-      step5: false,
-    }
+
+  const defaultSteps: StepsCompleted = {
+    step1: false,
+    step2: false,
+    step3: false,
+    step4: false,
+    step5: false,
+  }
+
+  const [stepsCompleted, setStepsCompleted] = useState<StepsCompleted>(
+    generation.steps_completed
+      ? (generation.steps_completed as unknown as StepsCompleted)
+      : defaultSteps
   )
 
   const handleStepComplete = async (stepNumber: number) => {
