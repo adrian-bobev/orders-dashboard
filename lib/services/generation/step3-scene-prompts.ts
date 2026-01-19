@@ -484,11 +484,11 @@ export class Step3ScenePromptsService {
           addedEntities.add(mainCharacter.id)
         }
 
-        // Add other characters and objects from canon (limit to top 5 to avoid overcrowding)
+        // Add other characters and objects from canon
         const canon = scenePrompt.prompt_metadata?.canon
         if (canon) {
-          // Add secondary characters (non-main characters)
-          const secondaryCharacters = canon.characters?.slice(0, 3) || []
+          // Add only 2 secondary characters (non-main characters) for the cover
+          const secondaryCharacters = canon.characters?.slice(0, 2) || []
           for (const character of secondaryCharacters) {
             const characterName = character.name?.trim()
             if (!characterName) continue
@@ -504,22 +504,7 @@ export class Step3ScenePromptsService {
             }
           }
 
-          // Add important objects (limit to 2)
-          const importantObjects = canon.objects?.slice(0, 2) || []
-          for (const object of importantObjects) {
-            const objectName = object.name?.trim()
-            if (!objectName) continue
-
-            const entity = entityMap.get(objectName.toLowerCase())
-            if (entity && !addedEntities.has(entity.id)) {
-              associationsToInsert.push({
-                scene_prompt_id: scenePrompt.id,
-                character_list_id: entity.id,
-                sort_order: sortOrder++,
-              })
-              addedEntities.add(entity.id)
-            }
-          }
+          // No objects on the cover
         }
         continue
       }
@@ -527,6 +512,16 @@ export class Step3ScenePromptsService {
       // Get characters from prompt_metadata for regular scenes
       const characters = scenePrompt.prompt_metadata?.characters || []
 
+      // Always add main character first to every scene
+      if (mainCharacter) {
+        associationsToInsert.push({
+          scene_prompt_id: scenePrompt.id,
+          character_list_id: mainCharacter.id,
+          sort_order: sortOrder++,
+        })
+      }
+
+      // Then add other characters from the scene metadata
       for (const character of characters) {
         // Handle both string format and object format { name: 'Name' }
         const characterName = typeof character === 'string' ? character : character?.name
@@ -534,7 +529,8 @@ export class Step3ScenePromptsService {
         if (!characterName) continue
 
         const entity = entityMap.get(characterName.toLowerCase())
-        if (entity) {
+        // Skip if it's the main character (already added) or doesn't exist
+        if (entity && !entity.is_main_character) {
           associationsToInsert.push({
             scene_prompt_id: scenePrompt.id,
             character_list_id: entity.id,

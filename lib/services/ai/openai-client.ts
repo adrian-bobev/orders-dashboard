@@ -142,6 +142,8 @@ export class OpenAIClient {
         // Use default
       }
 
+      // Mock data should only include secondary characters
+      // The main character will be added automatically by the system
       const mockResponse = JSON.stringify({
         bookTitle: 'Магическото приключение',
         bookCover: {

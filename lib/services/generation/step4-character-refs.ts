@@ -345,7 +345,8 @@ export class Step4CharacterRefsService {
           id,
           character_name,
           character_type,
-          description
+          description,
+          is_main_character
         )
       `
       )
