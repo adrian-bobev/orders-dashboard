@@ -10,7 +10,7 @@ export interface GenerateScenePromptsParams {
   userPrompt: string
 }
 
-export class Step4ScenePromptsService {
+export class Step3ScenePromptsService {
   /**
    * Generate scene prompts using OpenAI
    */
@@ -396,13 +396,13 @@ export class Step4ScenePromptsService {
 }
 
 // Singleton instance
-let step4ServiceInstance: Step4ScenePromptsService | null = null
+let step3ServiceInstance: Step3ScenePromptsService | null = null
 
-export function getStep4Service(): Step4ScenePromptsService {
-  if (!step4ServiceInstance) {
-    step4ServiceInstance = new Step4ScenePromptsService()
+export function getStep3Service(): Step3ScenePromptsService {
+  if (!step3ServiceInstance) {
+    step3ServiceInstance = new Step3ScenePromptsService()
   }
-  return step4ServiceInstance
+  return step3ServiceInstance
 }
 
-export const step4Service = getStep4Service()
+export const step3Service = getStep3Service()

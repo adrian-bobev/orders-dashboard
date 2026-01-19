@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/services/user-service'
-import { step4Service } from '@/lib/services/generation/step4-scene-prompts'
+import { step3Service } from '@/lib/services/generation/step3-scene-prompts'
 import { step2Service } from '@/lib/services/generation/step2-proofread'
 import { generationService } from '@/lib/services/generation/generation-service'
 
@@ -41,7 +41,7 @@ export async function POST(
     }
 
     // Generate scene prompts with provided prompts
-    const prompts = await step4Service.generateScenePrompts({
+    const prompts = await step3Service.generateScenePrompts({
       generationId,
       correctedContent: correctedContent.corrected_content,
       mainCharacterName: generation.book_configurations.name,
@@ -71,8 +71,8 @@ export async function GET(
 
     const { generationId } = await params
 
-    const prompts = await step4Service.getScenePrompts(generationId)
-    const entitiesCount = await step4Service.getExtractedEntitiesCount(generationId)
+    const prompts = await step3Service.getScenePrompts(generationId)
+    const entitiesCount = await step3Service.getExtractedEntitiesCount(generationId)
 
     return NextResponse.json({ prompts, entitiesCount })
   } catch (error) {
@@ -103,7 +103,7 @@ export async function PATCH(
       )
     }
 
-    const prompt = await step4Service.updateScenePrompt(promptId, imagePrompt)
+    const prompt = await step3Service.updateScenePrompt(promptId, imagePrompt)
 
     return NextResponse.json({ prompt })
   } catch (error) {

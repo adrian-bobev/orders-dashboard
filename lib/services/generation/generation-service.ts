@@ -190,7 +190,7 @@ export class GenerationService {
 
     // Determine next step
     let nextStep = generation.current_step
-    if (stepNumber === generation.current_step && stepNumber < 6) {
+    if (stepNumber === generation.current_step && stepNumber < 5) {
       nextStep = stepNumber + 1
     }
 
@@ -263,10 +263,9 @@ export class GenerationService {
    * This includes:
    * - Step 1: Main character images (generation_character_images)
    * - Step 2: Corrected content (generation_corrected_content)
-   * - Step 3: Character list (generation_character_list)
-   * - Step 4: Scene prompts (generation_scene_prompts)
-   * - Step 5: Character references (generation_character_references)
-   * - Step 6: Scene images (generation_scene_images)
+   * - Step 3: Scene prompts (generation_scene_prompts)
+   * - Step 4: Character references (generation_character_references)
+   * - Step 5: Scene images (generation_scene_images)
    * - All R2 files associated with the generation (entire folder)
    * - The generation record itself
    *
@@ -328,7 +327,7 @@ export class GenerationService {
     // Note: Most tables have ON DELETE CASCADE from book_generations,
     // but we'll explicitly delete them to ensure cleanup and for logging
 
-    // 4a. Delete scene images (Step 6)
+    // 4a. Delete scene images (Step 5)
     const { error: deleteSceneImagesError } = await supabase
       .from('generation_scene_images')
       .delete()
@@ -340,7 +339,7 @@ export class GenerationService {
       console.log('Deleted scene images records')
     }
 
-    // 4b. Delete scene prompts (Step 4)
+    // 4b. Delete scene prompts (Step 3)
     const { error: deleteScenePromptsError } = await supabase
       .from('generation_scene_prompts')
       .delete()
@@ -352,7 +351,7 @@ export class GenerationService {
       console.log('Deleted scene prompts records')
     }
 
-    // 4c. Delete character references (Step 5)
+    // 4c. Delete character references (Step 4)
     const { error: deleteCharRefsError } = await supabase
       .from('generation_character_references')
       .delete()
@@ -364,7 +363,7 @@ export class GenerationService {
       console.log('Deleted character references records')
     }
 
-    // 4d. Delete character list (Step 3)
+    // 4d. Delete character list (orphaned from old step 3)
     const { error: deleteCharListError } = await supabase
       .from('generation_character_list')
       .delete()
@@ -415,10 +414,9 @@ export class GenerationService {
     console.log(`Successfully deleted generation ${generationId} and all related data:`)
     console.log(`- Main character images (Step 1)`)
     console.log(`- Corrected content (Step 2)`)
-    console.log(`- Character list (Step 3)`)
-    console.log(`- Scene prompts (Step 4)`)
-    console.log(`- Character references (Step 5)`)
-    console.log(`- Scene images (Step 6)`)
+    console.log(`- Scene prompts (Step 3)`)
+    console.log(`- Character references (Step 4)`)
+    console.log(`- Scene images (Step 5)`)
     console.log(`- ${r2KeysToDelete.length} R2 files`)
   }
 }

@@ -55,24 +55,32 @@ export function Step2Proofread({ generationId, bookConfig, onComplete }: Step2Pr
         if (!customSystemPrompt) {
           setCustomSystemPrompt(data.systemPrompt)
         }
+        // Return the prompts for immediate use
+        return {
+          userPrompt: data.userPrompt,
+          systemPrompt: data.systemPrompt,
+        }
       }
     } catch (error) {
       console.error('Error loading default prompt:', error)
     }
+    return null
   }
 
   const handleProofread = async () => {
-    // Load default prompts first if not loaded
-    if (!customPrompt || !customSystemPrompt) {
-      await loadDefaultPrompt()
-      // Wait a bit for state to update
-      await new Promise((resolve) => setTimeout(resolve, 100))
-    }
-
     setIsProofreading(true)
     try {
-      const finalSystemPrompt = customSystemPrompt || defaultSystemPrompt
-      const finalUserPrompt = customPrompt || defaultPrompt
+      let finalSystemPrompt = customSystemPrompt
+      let finalUserPrompt = customPrompt
+
+      // Load default prompts if not already loaded
+      if (!finalSystemPrompt || !finalUserPrompt) {
+        const prompts = await loadDefaultPrompt()
+        if (prompts) {
+          finalSystemPrompt = finalSystemPrompt || prompts.systemPrompt
+          finalUserPrompt = finalUserPrompt || prompts.userPrompt
+        }
+      }
 
       if (!finalSystemPrompt || !finalUserPrompt) {
         throw new Error('Prompts not loaded')
@@ -191,7 +199,7 @@ export function Step2Proofread({ generationId, bookConfig, onComplete }: Step2Pr
             )}
           </button>
           <p className="text-sm text-neutral-500 mt-2">
-            {process.env.NEXT_PUBLIC_USE_MOCK_AI === 'true' || process.env.USE_MOCK_AI === 'true'
+            {process.env.NEXT_PUBLIC_USE_MOCK_AI === 'true'
               ? '(Mock режим - няма реални OpenAI заявки)'
               : '(Ще използва OpenAI API)'}
           </p>

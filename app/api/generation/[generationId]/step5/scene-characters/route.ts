@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/services/user-service'
-import { step6SceneCharactersService } from '@/lib/services/generation/step6-scene-characters-service'
+import { step5SceneCharactersService as sceneCharactersService } from '@/lib/services/generation/step5-scene-characters-service'
 
 export async function GET(
   request: NextRequest,
@@ -18,13 +18,13 @@ export async function GET(
 
     if (scenePromptId) {
       // Get characters for a specific scene with references
-      const characters = await step6SceneCharactersService.getSceneCharactersWithReferences(
+      const characters = await sceneCharactersService.getSceneCharactersWithReferences(
         scenePromptId
       )
       return NextResponse.json({ characters })
     } else {
       // Get all scene-character associations for the generation
-      const sceneCharacters = await step6SceneCharactersService.getSceneCharacters(generationId)
+      const sceneCharacters = await sceneCharactersService.getSceneCharacters(generationId)
       return NextResponse.json({ sceneCharacters })
     }
   } catch (error) {
@@ -55,7 +55,7 @@ export async function POST(
       )
     }
 
-    await step6SceneCharactersService.addCharacterToScene(scenePromptId, characterListId)
+    await sceneCharactersService.addCharacterToScene(scenePromptId, characterListId)
 
     return NextResponse.json({ success: true })
   } catch (error) {
@@ -88,7 +88,7 @@ export async function DELETE(
       )
     }
 
-    await step6SceneCharactersService.removeCharacterFromScene(scenePromptId, characterListId)
+    await sceneCharactersService.removeCharacterFromScene(scenePromptId, characterListId)
 
     return NextResponse.json({ success: true })
   } catch (error) {
@@ -119,7 +119,7 @@ export async function PATCH(
       )
     }
 
-    await step6SceneCharactersService.updateCharacterOrder(scenePromptId, characterOrders)
+    await sceneCharactersService.updateCharacterOrder(scenePromptId, characterOrders)
 
     return NextResponse.json({ success: true })
   } catch (error) {

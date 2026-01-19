@@ -89,7 +89,7 @@ export function SceneCard({
 
   const loadCharacterReferences = async () => {
     try {
-      const response = await fetch(`/api/generation/${generationId}/step5/generate-character-refs`)
+      const response = await fetch(`/api/generation/${generationId}/step4/generate-character-refs`)
       if (response.ok) {
         const data = await response.json()
         setCharacterReferences(data.references || [])

@@ -25,7 +25,7 @@ export interface SceneCharacterWithReference extends SceneCharacter {
   }
 }
 
-export class Step6SceneCharactersService {
+export class Step5SceneCharactersService {
   /**
    * Get all scene-character associations for a generation
    * Returns a mapping of scene_prompt_id to array of character_list_ids
@@ -249,4 +249,4 @@ export class Step6SceneCharactersService {
 }
 
 // Export singleton instance
-export const step6SceneCharactersService = new Step6SceneCharactersService()
+export const step5SceneCharactersService = new Step5SceneCharactersService()

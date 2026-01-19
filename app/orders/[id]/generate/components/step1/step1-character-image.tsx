@@ -176,11 +176,23 @@ export function Step1CharacterImage({
 
     setIsGeneratingReference(true)
     try {
+      let finalSystemPrompt = customSystemPrompt
+      let finalUserPrompt = customPrompt
+
+      // Load default prompts if not already loaded
+      if (!finalSystemPrompt || !finalUserPrompt) {
+        const prompts = await loadDefaultPrompt()
+        if (prompts) {
+          finalSystemPrompt = finalSystemPrompt || prompts.systemPrompt
+          finalUserPrompt = finalUserPrompt || prompts.userPrompt
+        }
+      }
+
       // Combine system + user prompts for the final custom prompt
       const combinedCustomPrompt =
-        customSystemPrompt && customPrompt
-          ? `${customSystemPrompt}\n\n${customPrompt}`
-          : customPrompt || undefined
+        finalSystemPrompt && finalUserPrompt
+          ? `${finalSystemPrompt}\n\n${finalUserPrompt}`
+          : finalUserPrompt || undefined
 
       const response = await fetch(`/api/generation/${generationId}/step1/generate-reference`, {
         method: 'POST',
@@ -224,10 +236,16 @@ export function Step1CharacterImage({
         if (!customSystemPrompt) {
           setCustomSystemPrompt(data.systemPrompt)
         }
+        // Return the prompts for immediate use
+        return {
+          userPrompt: data.userPrompt,
+          systemPrompt: data.systemPrompt,
+        }
       }
     } catch (error) {
       console.error('Error loading default prompt:', error)
     }
+    return null
   }
 
   const handleDeleteVersion = async (characterImageId: string) => {

@@ -2,12 +2,12 @@
 
 import { useState, useEffect } from 'react'
 
-interface Step4ScenePromptsProps {
+interface Step3ScenePromptsProps {
   generationId: string
   onComplete: () => void
 }
 
-export function Step4ScenePrompts({ generationId, onComplete }: Step4ScenePromptsProps) {
+export function Step3ScenePrompts({ generationId, onComplete }: Step3ScenePromptsProps) {
   const [isGenerating, setIsGenerating] = useState(false)
   const [prompts, setPrompts] = useState<any[]>([])
   const [editingPromptId, setEditingPromptId] = useState<string | null>(null)
@@ -30,7 +30,7 @@ export function Step4ScenePrompts({ generationId, onComplete }: Step4ScenePrompt
 
   const loadPrompts = async () => {
     try {
-      const response = await fetch(`/api/generation/${generationId}/step4/generate-prompts`)
+      const response = await fetch(`/api/generation/${generationId}/step3/generate-prompts`)
       if (response.ok) {
         const data = await response.json()
         setPrompts(data.prompts || [])
@@ -43,7 +43,7 @@ export function Step4ScenePrompts({ generationId, onComplete }: Step4ScenePrompt
 
   const loadDefaultPrompt = async () => {
     try {
-      const response = await fetch(`/api/generation/${generationId}/step4/default-prompt`, {
+      const response = await fetch(`/api/generation/${generationId}/step3/default-prompt`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       })
@@ -72,7 +72,7 @@ export function Step4ScenePrompts({ generationId, onComplete }: Step4ScenePrompt
       let finalUserPrompt = customPrompt
 
       if (!finalSystemPrompt || !finalUserPrompt) {
-        const response = await fetch(`/api/generation/${generationId}/step4/default-prompt`, {
+        const response = await fetch(`/api/generation/${generationId}/step3/default-prompt`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
         })
@@ -96,7 +96,7 @@ export function Step4ScenePrompts({ generationId, onComplete }: Step4ScenePrompt
         throw new Error('Prompts not loaded')
       }
 
-      const generateResponse = await fetch(`/api/generation/${generationId}/step4/generate-prompts`, {
+      const generateResponse = await fetch(`/api/generation/${generationId}/step3/generate-prompts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -131,7 +131,7 @@ export function Step4ScenePrompts({ generationId, onComplete }: Step4ScenePrompt
 
   const handleSaveEdit = async (promptId: string) => {
     try {
-      const response = await fetch(`/api/generation/${generationId}/step4/generate-prompts`, {
+      const response = await fetch(`/api/generation/${generationId}/step3/generate-prompts`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -216,7 +216,7 @@ export function Step4ScenePrompts({ generationId, onComplete }: Step4ScenePrompt
             )}
           </button>
           <p className="text-sm text-neutral-500 mt-2">
-            {process.env.NEXT_PUBLIC_USE_MOCK_AI === 'true' || process.env.USE_MOCK_AI === 'true'
+            {process.env.NEXT_PUBLIC_USE_MOCK_AI === 'true'
               ? '(Mock режим - ще върне примерни промпти)'
               : '(Ще използва OpenAI API)'}
           </p>

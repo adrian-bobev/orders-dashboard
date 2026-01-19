@@ -18,7 +18,7 @@ export interface BatchGenerateParams {
   scenePromptIds: string[]
 }
 
-export class Step6SceneImagesService {
+export class Step5SceneImagesService {
   /**
    * Generate an image for a single scene
    */
@@ -332,13 +332,13 @@ export class Step6SceneImagesService {
 }
 
 // Singleton instance
-let step6ServiceInstance: Step6SceneImagesService | null = null
+let step5ServiceInstance: Step5SceneImagesService | null = null
 
-export function getStep6Service(): Step6SceneImagesService {
-  if (!step6ServiceInstance) {
-    step6ServiceInstance = new Step6SceneImagesService()
+export function getStep5Service(): Step5SceneImagesService {
+  if (!step5ServiceInstance) {
+    step5ServiceInstance = new Step5SceneImagesService()
   }
-  return step6ServiceInstance
+  return step5ServiceInstance
 }
 
-export const step6Service = getStep6Service()
+export const step5Service = getStep5Service()

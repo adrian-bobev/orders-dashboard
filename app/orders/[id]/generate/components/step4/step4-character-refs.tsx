@@ -5,7 +5,7 @@ import { getImageUrl } from '@/lib/r2-client'
 import { SmartImage } from '@/components/SmartImage'
 import { useDropzone } from 'react-dropzone'
 
-interface Step5CharacterRefsProps {
+interface Step4CharacterRefsProps {
   generationId: string
   bookConfig: any
   onComplete: () => void
@@ -36,7 +36,7 @@ const acceptedFileTypes = {
   'image/webp': ['.webp'],
 }
 
-export function Step5CharacterRefs({ generationId, bookConfig, onComplete }: Step5CharacterRefsProps) {
+export function Step4CharacterRefs({ generationId, bookConfig, onComplete }: Step4CharacterRefsProps) {
   const [isGenerating, setIsGenerating] = useState(false)
   const [references, setReferences] = useState<any[]>([])
   const [entities, setEntities] = useState<Entity[]>([])
@@ -79,7 +79,7 @@ export function Step5CharacterRefs({ generationId, bookConfig, onComplete }: Ste
 
   const loadReferences = async () => {
     try {
-      const response = await fetch(`/api/generation/${generationId}/step5/generate-character-refs`)
+      const response = await fetch(`/api/generation/${generationId}/step4/generate-character-refs`)
       if (response.ok) {
         const data = await response.json()
         setReferences(data.references || [])
@@ -92,11 +92,14 @@ export function Step5CharacterRefs({ generationId, bookConfig, onComplete }: Ste
   const loadDefaultPrompt = async (entity: Entity) => {
     // If we already have the default prompt for this entity, don't reload
     if (defaultPrompts[entity.id] && defaultSystemPrompts[entity.id]) {
-      return
+      return {
+        userPrompt: defaultPrompts[entity.id],
+        systemPrompt: defaultSystemPrompts[entity.id],
+      }
     }
 
     try {
-      const response = await fetch(`/api/generation/${generationId}/step5/default-prompt`, {
+      const response = await fetch(`/api/generation/${generationId}/step4/default-prompt`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -131,19 +134,49 @@ export function Step5CharacterRefs({ generationId, bookConfig, onComplete }: Ste
             [entity.id]: data.systemPrompt,
           }))
         }
+
+        return {
+          userPrompt: data.userPrompt,
+          systemPrompt: data.systemPrompt,
+        }
       }
     } catch (error) {
       console.error('Failed to load default prompt:', error)
     }
+    return null
   }
 
   const handleGenerateAll = async () => {
     setIsGenerating(true)
     try {
-      const response = await fetch(`/api/generation/${generationId}/step5/generate-character-refs`, {
+      // Load default prompts for all entities that don't have them yet
+      const promptLoadPromises = entities.map(entity => loadDefaultPrompt(entity))
+      const promptsResults = await Promise.all(promptLoadPromises)
+
+      // Build custom prompts object with all entities using the returned values
+      const customPromptsForAll: Record<string, string> = {}
+
+      entities.forEach((entity, index) => {
+        const loadedPrompts = promptsResults[index]
+
+        // Use custom prompt if exists, otherwise use the loaded default
+        const userPrompt = customPrompts[entity.id] || loadedPrompts?.userPrompt
+        const systemPrompt = customSystemPrompts[entity.id] || loadedPrompts?.systemPrompt
+
+        if (systemPrompt && userPrompt) {
+          customPromptsForAll[entity.id] = `${systemPrompt}\n\n${userPrompt}`
+        } else if (userPrompt) {
+          customPromptsForAll[entity.id] = userPrompt
+        }
+      })
+
+      const response = await fetch(`/api/generation/${generationId}/step4/generate-character-refs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ bookConfig }),
+        body: JSON.stringify({
+          bookConfig,
+          customPrompts: customPromptsForAll,
+        }),
       })
 
       if (!response.ok) {
@@ -162,15 +195,25 @@ export function Step5CharacterRefs({ generationId, bookConfig, onComplete }: Ste
   const handleGenerateSingle = async (entity: Entity) => {
     setGeneratingCharacter(entity.id)
     try {
-      // Combine system + user prompts for the final custom prompt
-      const userPromptPart = customPrompts[entity.id]
-      const systemPromptPart = customSystemPrompts[entity.id]
-      const combinedCustomPrompt =
-        systemPromptPart && userPromptPart
-          ? `${systemPromptPart}\n\n${userPromptPart}`
-          : userPromptPart || undefined
+      // Load default prompts if they're not already loaded
+      let finalSystemPrompt = customSystemPrompts[entity.id]
+      let finalUserPrompt = customPrompts[entity.id]
 
-      const response = await fetch(`/api/generation/${generationId}/step5/generate-character-refs`, {
+      if (!finalSystemPrompt || !finalUserPrompt) {
+        const prompts = await loadDefaultPrompt(entity)
+        if (prompts) {
+          finalSystemPrompt = finalSystemPrompt || prompts.systemPrompt
+          finalUserPrompt = finalUserPrompt || prompts.userPrompt
+        }
+      }
+
+      // Combine system + user prompts for the final custom prompt
+      const combinedCustomPrompt =
+        finalSystemPrompt && finalUserPrompt
+          ? `${finalSystemPrompt}\n\n${finalUserPrompt}`
+          : finalUserPrompt || undefined
+
+      const response = await fetch(`/api/generation/${generationId}/step4/generate-character-refs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -198,7 +241,7 @@ export function Step5CharacterRefs({ generationId, bookConfig, onComplete }: Ste
 
   const handleSelectVersion = async (characterListId: string, referenceId: string) => {
     try {
-      const response = await fetch(`/api/generation/${generationId}/step5/generate-character-refs`, {
+      const response = await fetch(`/api/generation/${generationId}/step4/generate-character-refs`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ characterListId, referenceId }),
@@ -346,7 +389,7 @@ export function Step5CharacterRefs({ generationId, bookConfig, onComplete }: Ste
           reject(new Error(error))
         })
 
-        xhr.open('POST', `/api/generation/${generationId}/step5/upload-character-ref`)
+        xhr.open('POST', `/api/generation/${generationId}/step4/upload-character-ref`)
         xhr.send(formData)
       })
     } catch (error) {
@@ -795,7 +838,7 @@ export function Step5CharacterRefs({ generationId, bookConfig, onComplete }: Ste
         <div>
           {!hasAnyReferences && (
             <p className="text-sm text-neutral-500">
-              {process.env.NEXT_PUBLIC_USE_MOCK_AI === 'true' || process.env.USE_MOCK_AI === 'true'
+              {process.env.NEXT_PUBLIC_USE_MOCK_AI === 'true'
                 ? '(Mock режим - ще върне placeholder изображения)'
                 : '(Ще използва fal.ai nano-banana модел)'}
             </p>

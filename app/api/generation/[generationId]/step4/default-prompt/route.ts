@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/services/user-service'
-import { step4Service } from '@/lib/services/generation/step4-scene-prompts'
-import { step2Service } from '@/lib/services/generation/step2-proofread'
+import { step4Service } from '@/lib/services/generation/step4-character-refs'
 
 export async function POST(
   request: NextRequest,
@@ -13,17 +12,21 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { generationId } = await params
+    const body = await request.json()
+    const { characterName, characterType, description, bookConfig } = body
 
-    // Get corrected content from step 2
-    const correctedContent = await step2Service.getCorrectedContent(generationId)
-
-    if (!correctedContent) {
-      return NextResponse.json({ error: 'Corrected content not found. Complete Step 2 first.' }, { status: 404 })
+    if (!characterName || !characterType || !bookConfig) {
+      return NextResponse.json(
+        { error: 'characterName, characterType, and bookConfig are required' },
+        { status: 400 }
+      )
     }
 
     const { systemPrompt, userPrompt } = await step4Service.getDefaultPrompt(
-      correctedContent.corrected_content
+      characterName,
+      characterType,
+      description,
+      bookConfig
     )
 
     return NextResponse.json({

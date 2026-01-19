@@ -5,9 +5,9 @@ import { useRouter } from 'next/navigation'
 import { GenerationStepper } from './generation-stepper'
 import { Step1CharacterImage } from './step1/step1-character-image'
 import { Step2Proofread } from './step2/step2-proofread'
-import { Step4ScenePrompts } from './step4/step4-scene-prompts'
-import { Step5CharacterRefs } from './step5/step5-character-refs'
-import { Step6SceneImages } from './step6/step6-scene-images'
+import { Step3ScenePrompts } from './step3/step3-scene-prompts'
+import { Step4CharacterRefs } from './step4/step4-character-refs'
+import { Step5SceneImages } from './step5/step5-scene-images'
 
 interface GenerationWorkflowProps {
   generation: any
@@ -89,20 +89,20 @@ export function GenerationWorkflow({
           />
         )}
         {currentStep === 3 && (
-          <Step4ScenePrompts
+          <Step3ScenePrompts
             generationId={generation.id}
             onComplete={() => handleStepComplete(3)}
           />
         )}
         {currentStep === 4 && (
-          <Step5CharacterRefs
+          <Step4CharacterRefs
             generationId={generation.id}
             bookConfig={bookConfig}
             onComplete={() => handleStepComplete(4)}
           />
         )}
         {currentStep === 5 && (
-          <Step6SceneImages
+          <Step5SceneImages
             generationId={generation.id}
             onComplete={() => handleStepComplete(5)}
           />

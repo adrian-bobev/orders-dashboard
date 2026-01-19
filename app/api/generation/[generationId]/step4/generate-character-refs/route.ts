@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/services/user-service'
-import { step5Service } from '@/lib/services/generation/step5-character-refs'
+import { step4Service } from '@/lib/services/generation/step4-character-refs'
 
 export async function POST(
   request: NextRequest,
@@ -18,7 +18,7 @@ export async function POST(
     // Check if generating all or single character
     if (body.characterListId) {
       // Generate single character reference
-      const ref = await step5Service.generateCharacterReference({
+      const ref = await step4Service.generateCharacterReference({
         generationId,
         characterListId: body.characterListId,
         characterName: body.characterName,
@@ -31,7 +31,11 @@ export async function POST(
       return NextResponse.json({ reference: ref })
     } else {
       // Generate all character references
-      const refs = await step5Service.generateAllCharacterReferences(generationId, body.bookConfig)
+      const refs = await step4Service.generateAllCharacterReferences(
+        generationId,
+        body.bookConfig,
+        body.customPrompts
+      )
 
       return NextResponse.json({ references: refs })
     }
@@ -56,7 +60,7 @@ export async function GET(
 
     const { generationId } = await params
 
-    const references = await step5Service.getCharacterReferences(generationId)
+    const references = await step4Service.getCharacterReferences(generationId)
 
     return NextResponse.json({ references })
   } catch (error) {
@@ -87,7 +91,7 @@ export async function PATCH(
       )
     }
 
-    await step5Service.selectVersion(characterListId, referenceId)
+    await step4Service.selectVersion(characterListId, referenceId)
 
     return NextResponse.json({ success: true })
   } catch (error) {
@@ -116,7 +120,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'referenceId is required' }, { status: 400 })
     }
 
-    await step5Service.deleteCharacterReference(referenceId)
+    await step4Service.deleteCharacterReference(referenceId)
 
     return NextResponse.json({ success: true })
   } catch (error) {

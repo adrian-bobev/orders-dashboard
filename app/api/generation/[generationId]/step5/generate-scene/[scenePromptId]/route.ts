@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/services/user-service'
-import { step6Service } from '@/lib/services/generation/step6-scene-images'
-import { step6SceneCharactersService } from '@/lib/services/generation/step6-scene-characters-service'
+import { step5Service } from '@/lib/services/generation/step5-scene-images'
+import { sceneCharactersService as sceneCharactersService } from '@/lib/services/generation/step5-scene-characters-service'
 
 export async function POST(
   request: NextRequest,
@@ -23,13 +23,13 @@ export async function POST(
     // If no character references provided, fetch from scene-character associations
     let finalCharacterReferenceIds = characterReferenceIds
     if (!finalCharacterReferenceIds) {
-      finalCharacterReferenceIds = await step6SceneCharactersService.getSceneCharacterReferenceIds(
+      finalCharacterReferenceIds = await sceneCharactersService.getSceneCharacterReferenceIds(
         scenePromptId
       )
     }
 
     // Generate single scene image
-    const image = await step6Service.generateSceneImage({
+    const image = await step5Service.generateSceneImage({
       generationId,
       scenePromptId,
       imagePrompt,

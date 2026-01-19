@@ -5,12 +5,12 @@ import { getImageUrl } from '@/lib/r2-client'
 import { SmartImage } from '@/components/SmartImage'
 import { SceneCard } from './SceneCard'
 
-interface Step6SceneImagesProps {
+interface Step5SceneImagesProps {
   generationId: string
   onComplete: () => void
 }
 
-export function Step6SceneImages({ generationId, onComplete }: Step6SceneImagesProps) {
+export function Step5SceneImages({ generationId, onComplete }: Step5SceneImagesProps) {
   const [prompts, setPrompts] = useState<any[]>([])
   const [images, setImages] = useState<any[]>([])
   const [entities, setEntities] = useState<any[]>([])
@@ -39,7 +39,7 @@ export function Step6SceneImages({ generationId, onComplete }: Step6SceneImagesP
 
   const loadPrompts = async () => {
     try {
-      const response = await fetch(`/api/generation/${generationId}/step4/generate-prompts`)
+      const response = await fetch(`/api/generation/${generationId}/step3/generate-prompts`)
       if (response.ok) {
         const data = await response.json()
         setPrompts(data.prompts || [])
@@ -51,7 +51,7 @@ export function Step6SceneImages({ generationId, onComplete }: Step6SceneImagesP
 
   const loadImages = async () => {
     try {
-      const response = await fetch(`/api/generation/${generationId}/step6/generate-scenes`)
+      const response = await fetch(`/api/generation/${generationId}/step5/generate-scenes`)
       if (response.ok) {
         const data = await response.json()
         setImages(data.images || [])
@@ -75,7 +75,7 @@ export function Step6SceneImages({ generationId, onComplete }: Step6SceneImagesP
 
   const loadReferences = async () => {
     try {
-      const response = await fetch(`/api/generation/${generationId}/step5/generate-character-refs`)
+      const response = await fetch(`/api/generation/${generationId}/step4/generate-character-refs`)
       if (response.ok) {
         const data = await response.json()
         setReferences(data.references || [])
@@ -87,7 +87,7 @@ export function Step6SceneImages({ generationId, onComplete }: Step6SceneImagesP
 
   const loadSceneCharacters = async () => {
     try {
-      const response = await fetch(`/api/generation/${generationId}/step6/scene-characters`)
+      const response = await fetch(`/api/generation/${generationId}/step5/scene-characters`)
       if (response.ok) {
         const data = await response.json()
         setSceneCharacters(data.sceneCharacters || {})
@@ -100,7 +100,7 @@ export function Step6SceneImages({ generationId, onComplete }: Step6SceneImagesP
   const loadScenesWithoutImages = async () => {
     try {
       const response = await fetch(
-        `/api/generation/${generationId}/step6/generate-scenes?action=without-images`
+        `/api/generation/${generationId}/step5/generate-scenes?action=without-images`
       )
       if (response.ok) {
         const data = await response.json()
@@ -126,7 +126,7 @@ export function Step6SceneImages({ generationId, onComplete }: Step6SceneImagesP
     setShowSceneSelector(false)
 
     try {
-      const response = await fetch(`/api/generation/${generationId}/step6/generate-scenes`, {
+      const response = await fetch(`/api/generation/${generationId}/step5/generate-scenes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -150,7 +150,7 @@ export function Step6SceneImages({ generationId, onComplete }: Step6SceneImagesP
     setGeneratingScene(scenePromptId)
     try {
       const response = await fetch(
-        `/api/generation/${generationId}/step6/generate-scene/${scenePromptId}`,
+        `/api/generation/${generationId}/step5/generate-scene/${scenePromptId}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -173,7 +173,7 @@ export function Step6SceneImages({ generationId, onComplete }: Step6SceneImagesP
 
   const handleAddCharacter = async (sceneId: string, characterId: string) => {
     try {
-      const response = await fetch(`/api/generation/${generationId}/step6/scene-characters`, {
+      const response = await fetch(`/api/generation/${generationId}/step5/scene-characters`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -193,7 +193,7 @@ export function Step6SceneImages({ generationId, onComplete }: Step6SceneImagesP
   const handleRemoveCharacter = async (sceneId: string, characterId: string) => {
     try {
       const response = await fetch(
-        `/api/generation/${generationId}/step6/scene-characters?scenePromptId=${sceneId}&characterListId=${characterId}`,
+        `/api/generation/${generationId}/step5/scene-characters?scenePromptId=${sceneId}&characterListId=${characterId}`,
         {
           method: 'DELETE',
         }
@@ -209,7 +209,7 @@ export function Step6SceneImages({ generationId, onComplete }: Step6SceneImagesP
 
   const handlePromptUpdate = async (scenePromptId: string, newPrompt: string) => {
     try {
-      const response = await fetch(`/api/generation/${generationId}/step4/generate-prompts`, {
+      const response = await fetch(`/api/generation/${generationId}/step3/generate-prompts`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -228,7 +228,7 @@ export function Step6SceneImages({ generationId, onComplete }: Step6SceneImagesP
 
   const handleSelectVersion = async (scenePromptId: string, imageId: string) => {
     try {
-      const response = await fetch(`/api/generation/${generationId}/step6/generate-scenes`, {
+      const response = await fetch(`/api/generation/${generationId}/step5/generate-scenes`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -248,7 +248,7 @@ export function Step6SceneImages({ generationId, onComplete }: Step6SceneImagesP
   const handleDeleteVersion = async (imageId: string) => {
     try {
       const response = await fetch(
-        `/api/generation/${generationId}/step6/generate-scenes?imageId=${imageId}`,
+        `/api/generation/${generationId}/step5/generate-scenes?imageId=${imageId}`,
         {
           method: 'DELETE',
         }
@@ -302,7 +302,7 @@ export function Step6SceneImages({ generationId, onComplete }: Step6SceneImagesP
       {/* Action Buttons */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="text-sm text-neutral-500">
-          {process.env.NEXT_PUBLIC_USE_MOCK_AI === 'true' || process.env.USE_MOCK_AI === 'true'
+          {process.env.NEXT_PUBLIC_USE_MOCK_AI === 'true'
             ? '(Mock режим - ще върне placeholder изображения)'
             : '(Ще използва OpenAI DALL-E 3)'}
         </div>

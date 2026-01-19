@@ -17,7 +17,7 @@ export interface GenerateCharacterReferenceParams {
   bookConfig?: any
 }
 
-export class Step5CharacterRefsService {
+export class Step4CharacterRefsService {
   /**
    * Generate a reference image for a character
    */
@@ -246,7 +246,11 @@ export class Step5CharacterRefsService {
   /**
    * Generate references for all characters
    */
-  async generateAllCharacterReferences(generationId: string, bookConfig?: any): Promise<any[]> {
+  async generateAllCharacterReferences(
+    generationId: string,
+    bookConfig?: any,
+    customPrompts?: Record<string, string>
+  ): Promise<any[]> {
     const supabase = await createClient()
 
     // Get all characters for this generation
@@ -274,6 +278,7 @@ export class Step5CharacterRefsService {
           characterName: character.character_name,
           characterType: character.character_type ?? undefined,
           description: character.description,
+          customPrompt: customPrompts?.[character.id],
           bookConfig,
         })
         results.push(ref)
@@ -491,13 +496,13 @@ export class Step5CharacterRefsService {
 }
 
 // Singleton instance
-let step5ServiceInstance: Step5CharacterRefsService | null = null
+let step4ServiceInstance: Step4CharacterRefsService | null = null
 
-export function getStep5Service(): Step5CharacterRefsService {
-  if (!step5ServiceInstance) {
-    step5ServiceInstance = new Step5CharacterRefsService()
+export function getStep4Service(): Step4CharacterRefsService {
+  if (!step4ServiceInstance) {
+    step4ServiceInstance = new Step4CharacterRefsService()
   }
-  return step5ServiceInstance
+  return step4ServiceInstance
 }
 
-export const step5Service = getStep5Service()
+export const step4Service = getStep4Service()

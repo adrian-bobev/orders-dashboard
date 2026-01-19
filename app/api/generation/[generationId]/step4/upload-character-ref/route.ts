@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/services/user-service'
-import { step5Service } from '@/lib/services/generation/step5-character-refs'
+import { step4Service } from '@/lib/services/generation/step4-character-refs'
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp']
@@ -57,7 +57,7 @@ export async function POST(
     const buffer = Buffer.from(arrayBuffer)
 
     // Upload the character reference
-    const result = await step5Service.uploadCharacterReference(
+    const result = await step4Service.uploadCharacterReference(
       generationId,
       characterListId,
       characterName,

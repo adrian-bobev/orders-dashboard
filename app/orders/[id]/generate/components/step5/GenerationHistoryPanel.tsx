@@ -60,7 +60,7 @@ export function GenerationHistoryPanel({
     setIsLoading(true)
     try {
       const response = await fetch(
-        `/api/generation/${generationId}/step6/generate-scenes?scenePromptId=${scenePromptId}`
+        `/api/generation/${generationId}/step5/generate-scenes?scenePromptId=${scenePromptId}`
       )
       if (response.ok) {
         const data = await response.json()
@@ -78,7 +78,7 @@ export function GenerationHistoryPanel({
   const loadCharacterReferences = async () => {
     try {
       const response = await fetch(
-        `/api/generation/${generationId}/step5/generate-character-refs`
+        `/api/generation/${generationId}/step4/generate-character-refs`
       )
       if (response.ok) {
         const data = await response.json()

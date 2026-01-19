@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/services/user-service'
-import { step6Service } from '@/lib/services/generation/step6-scene-images'
+import { step5Service } from '@/lib/services/generation/step5-scene-images'
 
 export async function POST(
   request: NextRequest,
@@ -20,7 +20,7 @@ export async function POST(
     }
 
     // Batch generate scene images
-    const results = await step6Service.batchGenerateSceneImages({
+    const results = await step5Service.batchGenerateSceneImages({
       generationId,
       scenePromptIds,
     })
@@ -51,11 +51,11 @@ export async function GET(
 
     if (action === 'without-images') {
       // Get scenes without images
-      const scenePromptIds = await step6Service.getScenesWithoutImages(generationId)
+      const scenePromptIds = await step5Service.getScenesWithoutImages(generationId)
       return NextResponse.json({ scenePromptIds })
     } else {
       // Get all scene images
-      const images = await step6Service.getSceneImages(generationId)
+      const images = await step5Service.getSceneImages(generationId)
       return NextResponse.json({ images })
     }
   } catch (error) {
@@ -86,7 +86,7 @@ export async function PATCH(
       )
     }
 
-    await step6Service.selectVersion(scenePromptId, imageId)
+    await step5Service.selectVersion(scenePromptId, imageId)
 
     return NextResponse.json({ success: true })
   } catch (error) {
@@ -115,7 +115,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'imageId is required' }, { status: 400 })
     }
 
-    await step6Service.deleteSceneImage(imageId)
+    await step5Service.deleteSceneImage(imageId)
 
     return NextResponse.json({ success: true })
   } catch (error) {
