@@ -17,6 +17,7 @@ interface Entity {
   character_type: string
   description: string | null
   is_custom?: boolean
+  is_main_character?: boolean
 }
 
 interface UploadProgress {
@@ -458,6 +459,11 @@ export function Step4CharacterRefs({ generationId, bookConfig, onComplete }: Ste
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <h4 className={`font-bold text-${bgColor}-900 truncate`}>{entity.character_name}</h4>
+              {entity.is_main_character && (
+                <span className="px-1.5 py-0.5 bg-purple-600 text-white text-xs font-bold rounded-full flex-shrink-0">
+                  Главен
+                </span>
+              )}
               {entity.is_custom && (
                 <span className="px-1.5 py-0.5 bg-blue-100 text-blue-700 text-xs font-bold rounded-full flex-shrink-0">
                   Персонализиран
@@ -495,25 +501,28 @@ export function Step4CharacterRefs({ generationId, bookConfig, onComplete }: Ste
                 </svg>
               </button>
             )}
-            <button
-              onClick={async () => {
-                if (!isEditingPromptForThis) {
-                  // Load default prompt when opening editor
-                  await loadDefaultPrompt(entity)
-                }
-                setEditingPrompt(isEditingPromptForThis ? null : entity.id)
-              }}
-              className={`px-2 py-1 text-xs font-bold rounded transition-colors ${
-                isEditingPromptForThis || customPrompt
-                  ? `bg-${bgColor}-600 text-white hover:bg-${bgColor}-700`
-                  : `bg-${bgColor}-100 text-${bgColor}-900 hover:bg-${bgColor}-200`
-              }`}
-              title="Редактирай промпт"
-            >
-              <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-                <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
-              </svg>
-            </button>
+            {/* Hide edit prompt button for main character */}
+            {!entity.is_main_character && (
+              <button
+                onClick={async () => {
+                  if (!isEditingPromptForThis) {
+                    // Load default prompt when opening editor
+                    await loadDefaultPrompt(entity)
+                  }
+                  setEditingPrompt(isEditingPromptForThis ? null : entity.id)
+                }}
+                className={`px-2 py-1 text-xs font-bold rounded transition-colors ${
+                  isEditingPromptForThis || customPrompt
+                    ? `bg-${bgColor}-600 text-white hover:bg-${bgColor}-700`
+                    : `bg-${bgColor}-100 text-${bgColor}-900 hover:bg-${bgColor}-200`
+                }`}
+                title="Редактирай промпт"
+              >
+                <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                </svg>
+              </button>
+            )}
             {hasRefs && (
               <button
                 onClick={() => setExpandedEntity(isExpanded ? null : entity.id)}
@@ -526,26 +535,29 @@ export function Step4CharacterRefs({ generationId, bookConfig, onComplete }: Ste
               </button>
             )}
             <UploadButton entity={entity} bgColor={bgColor} onDrop={onDropForEntity(entity)} isUploading={uploadingEntity === entity.id} />
-            <button
-              onClick={() => handleGenerateSingle(entity)}
-              disabled={generatingCharacter === entity.id}
-              className={`px-2 py-1 bg-${buttonColor}-600 text-white text-xs font-bold rounded hover:bg-${buttonColor}-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}
-            >
-              {generatingCharacter === entity.id ? (
-                <svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                </svg>
-              ) : hasRefs ? (
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-              ) : (
-                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                </svg>
-              )}
-            </button>
+            {/* Hide generate button for main character */}
+            {!entity.is_main_character && (
+              <button
+                onClick={() => handleGenerateSingle(entity)}
+                disabled={generatingCharacter === entity.id}
+                className={`px-2 py-1 bg-${buttonColor}-600 text-white text-xs font-bold rounded hover:bg-${buttonColor}-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed`}
+              >
+                {generatingCharacter === entity.id ? (
+                  <svg className="animate-spin h-3.5 w-3.5" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                ) : hasRefs ? (
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                ) : (
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                )}
+              </button>
+            )}
             {entity.is_custom && (
               <button
                 onClick={() => handleDeleteEntity(entity)}

@@ -15,13 +15,13 @@ export async function GET(
     const { generationId } = await params
     const supabase = await createClient()
 
+    // Fetch all entities including the main character
     const { data: entities, error } = await supabase
       .from('generation_character_list')
       .select('*')
       .eq('generation_id', generationId)
-      .eq('is_main_character', false)
-      .order('character_type', { ascending: true })
       .order('sort_order', { ascending: true })
+      .order('character_type', { ascending: true })
 
     if (error) {
       console.error('Error fetching entities:', error)

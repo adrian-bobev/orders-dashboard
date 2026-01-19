@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 import { CompactEntityCard } from './CompactEntityCard'
+import { getImageUrl } from '@/lib/r2-client'
+import { SmartImage } from '@/components/SmartImage'
 
 interface Entity {
   id: string
@@ -156,8 +158,8 @@ export function EntitySelectionSection({
                     >
                       {ref && (
                         <div className="w-12 h-12 rounded overflow-hidden flex-shrink-0 bg-neutral-100">
-                          <img
-                            src={`/api/image-proxy?key=${encodeURIComponent(ref.image_key)}`}
+                          <SmartImage
+                            src={getImageUrl(ref.image_key)}
                             alt={entity.character_name}
                             className="w-full h-full object-cover"
                           />

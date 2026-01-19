@@ -17,6 +17,11 @@ export class Step3ScenePromptsService {
   async generateScenePrompts(params: GenerateScenePromptsParams): Promise<any[]> {
     const supabase = await createClient()
 
+    // Ensure the main character exists in the character list
+    if (params.mainCharacterName) {
+      await this.ensureMainCharacterExists(params.generationId, params.mainCharacterName)
+    }
+
     // Load prompt configuration for model settings only
     const promptConfig = promptLoader.loadPrompt('3.scenes_prompt.yaml')
 
@@ -199,6 +204,109 @@ export class Step3ScenePromptsService {
         console.error('Error saving characters/objects:', error)
         throw new Error(`Failed to save characters/objects: ${error.message}`)
       }
+    }
+  }
+
+  /**
+   * Ensure the main character exists in generation_character_list
+   */
+  async ensureMainCharacterExists(generationId: string, characterName: string): Promise<void> {
+    const supabase = await createClient()
+
+    // Check if main character already exists
+    const { data: existing } = await supabase
+      .from('generation_character_list')
+      .select('id')
+      .eq('generation_id', generationId)
+      .eq('is_main_character', true)
+      .maybeSingle()
+
+    // If it already exists, we're done
+    if (existing) {
+      // Make sure we have a reference from Step 1
+      await this.syncMainCharacterReference(generationId, existing.id)
+      return
+    }
+
+    // Create the main character entry
+    const { data: newCharacter, error } = await supabase
+      .from('generation_character_list')
+      .insert({
+        generation_id: generationId,
+        character_name: characterName,
+        character_type: 'character',
+        description: 'Main character',
+        is_main_character: true,
+        is_custom: false,
+        sort_order: -1, // Put main character first
+      })
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Error creating main character:', error)
+      // Don't throw - this is not critical, log and continue
+      return
+    }
+
+    // Sync the reference image from Step 1
+    if (newCharacter) {
+      await this.syncMainCharacterReference(generationId, newCharacter.id)
+    }
+  }
+
+  /**
+   * Sync the main character's reference image from Step 1 (generation_character_images)
+   * to Step 4 (generation_character_references)
+   */
+  async syncMainCharacterReference(generationId: string, characterListId: string): Promise<void> {
+    const supabase = await createClient()
+
+    // Check if a reference already exists
+    const { data: existingRef } = await supabase
+      .from('generation_character_references')
+      .select('id')
+      .eq('character_list_id', characterListId)
+      .maybeSingle()
+
+    if (existingRef) {
+      // Reference already exists, no need to sync
+      return
+    }
+
+    // Get the selected character image from Step 1
+    const { data: characterImage } = await supabase
+      .from('generation_character_images')
+      .select('generated_image_key, version')
+      .eq('generation_id', generationId)
+      .eq('is_selected', true)
+      .maybeSingle()
+
+    if (!characterImage || !characterImage.generated_image_key) {
+      // No selected main character image yet, skip for now
+      return
+    }
+
+    // Create a reference entry pointing to the Step 1 image
+    const { error } = await supabase
+      .from('generation_character_references')
+      .insert({
+        generation_id: generationId,
+        character_list_id: characterListId,
+        image_key: characterImage.generated_image_key,
+        image_prompt: 'Main character reference from Step 1',
+        version: 1,
+        is_selected: true,
+        model_used: 'step1-reference',
+        generation_params: {
+          source: 'step1',
+          note: 'Synced from generation_character_images',
+        },
+      })
+
+    if (error) {
+      console.error('Error syncing main character reference:', error)
+      // Don't throw - this is not critical
     }
   }
 
