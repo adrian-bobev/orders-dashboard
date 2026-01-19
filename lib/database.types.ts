@@ -193,6 +193,7 @@ export type Database = {
           description: string | null
           generation_id: string
           id: string
+          is_custom: boolean | null
           is_main_character: boolean | null
           sort_order: number
           updated_at: string
@@ -204,6 +205,7 @@ export type Database = {
           description?: string | null
           generation_id: string
           id?: string
+          is_custom?: boolean | null
           is_main_character?: boolean | null
           sort_order?: number
           updated_at?: string
@@ -215,6 +217,7 @@ export type Database = {
           description?: string | null
           generation_id?: string
           id?: string
+          is_custom?: boolean | null
           is_main_character?: boolean | null
           sort_order?: number
           updated_at?: string
@@ -237,9 +240,10 @@ export type Database = {
           generation_params: Json | null
           id: string
           image_key: string
-          image_prompt: string
+          image_prompt: string | null
           is_selected: boolean | null
           model_used: string | null
+          notes: string | null
           version: number
         }
         Insert: {
@@ -249,9 +253,10 @@ export type Database = {
           generation_params?: Json | null
           id?: string
           image_key: string
-          image_prompt: string
+          image_prompt?: string | null
           is_selected?: boolean | null
           model_used?: string | null
+          notes?: string | null
           version?: number
         }
         Update: {
@@ -261,9 +266,10 @@ export type Database = {
           generation_params?: Json | null
           id?: string
           image_key?: string
-          image_prompt?: string
+          image_prompt?: string | null
           is_selected?: boolean | null
           model_used?: string | null
+          notes?: string | null
           version?: number
         }
         Relationships: [
@@ -285,28 +291,31 @@ export type Database = {
       }
       generation_corrected_content: {
         Row: {
-          corrected_content: Json
+          corrected_content: Json | null
           created_at: string
           generation_id: string
           id: string
+          manually_edited_content: Json | null
           model_used: string | null
           original_content: Json
           tokens_used: number | null
         }
         Insert: {
-          corrected_content: Json
+          corrected_content?: Json | null
           created_at?: string
           generation_id: string
           id?: string
+          manually_edited_content?: Json | null
           model_used?: string | null
           original_content: Json
           tokens_used?: number | null
         }
         Update: {
-          corrected_content?: Json
+          corrected_content?: Json | null
           created_at?: string
           generation_id?: string
           id?: string
+          manually_edited_content?: Json | null
           model_used?: string | null
           original_content?: Json
           tokens_used?: number | null
@@ -323,6 +332,7 @@ export type Database = {
       }
       generation_scene_images: {
         Row: {
+          character_reference_ids: Json | null
           completed_at: string | null
           created_at: string
           error_message: string | null
@@ -331,12 +341,14 @@ export type Database = {
           generation_status: string
           id: string
           image_key: string
+          image_prompt: string | null
           is_selected: boolean | null
           model_used: string | null
           scene_prompt_id: string
           version: number
         }
         Insert: {
+          character_reference_ids?: Json | null
           completed_at?: string | null
           created_at?: string
           error_message?: string | null
@@ -345,12 +357,14 @@ export type Database = {
           generation_status?: string
           id?: string
           image_key: string
+          image_prompt?: string | null
           is_selected?: boolean | null
           model_used?: string | null
           scene_prompt_id: string
           version?: number
         }
         Update: {
+          character_reference_ids?: Json | null
           completed_at?: string | null
           created_at?: string
           error_message?: string | null
@@ -359,6 +373,7 @@ export type Database = {
           generation_status?: string
           id?: string
           image_key?: string
+          image_prompt?: string | null
           is_selected?: boolean | null
           model_used?: string | null
           scene_prompt_id?: string
@@ -625,6 +640,45 @@ export type Database = {
           woocommerce_order_id?: number
         }
         Relationships: []
+      }
+      scene_prompt_characters: {
+        Row: {
+          character_list_id: string
+          created_at: string
+          id: string
+          scene_prompt_id: string
+          sort_order: number
+        }
+        Insert: {
+          character_list_id: string
+          created_at?: string
+          id?: string
+          scene_prompt_id: string
+          sort_order?: number
+        }
+        Update: {
+          character_list_id?: string
+          created_at?: string
+          id?: string
+          scene_prompt_id?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scene_prompt_characters_character_list_id_fkey"
+            columns: ["character_list_id"]
+            isOneToOne: false
+            referencedRelation: "generation_character_list"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scene_prompt_characters_scene_prompt_id_fkey"
+            columns: ["scene_prompt_id"]
+            isOneToOne: false
+            referencedRelation: "generation_scene_prompts"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       users: {
         Row: {
