@@ -191,14 +191,23 @@ export class Step5SceneImagesService {
       return []
     }
 
+    // Import the scene characters service to fetch character references
+    const { step5SceneCharactersService } = await import('./step5-scene-characters-service')
+
     // Generate images sequentially (to avoid rate limits)
     const results = []
     for (const prompt of scenePrompts) {
       try {
+        // Fetch character reference IDs for this scene
+        const characterReferenceIds = await step5SceneCharactersService.getSceneCharacterReferenceIds(
+          prompt.id
+        )
+
         const image = await this.generateSceneImage({
           generationId: params.generationId,
           scenePromptId: prompt.id,
           imagePrompt: prompt.image_prompt,
+          characterReferenceIds: characterReferenceIds.length > 0 ? characterReferenceIds : undefined,
         })
         results.push({ success: true, scenePromptId: prompt.id, image })
       } catch (error) {
@@ -284,11 +293,12 @@ export class Step5SceneImagesService {
 
   /**
    * Get scenes without images (for batch generation)
+   * Returns IDs of all prompts (including cover) that don't have completed images
    */
   async getScenesWithoutImages(generationId: string): Promise<string[]> {
     const supabase = await createClient()
 
-    // Get all scene prompts
+    // Get all scene prompts (including cover)
     const { data: allPrompts } = await supabase
       .from('generation_scene_prompts')
       .select('id')
@@ -296,7 +306,7 @@ export class Step5SceneImagesService {
 
     if (!allPrompts) return []
 
-    // Get scene prompts that already have images
+    // Get scene prompts that already have completed images
     const { data: imagesData } = await supabase
       .from('generation_scene_images')
       .select('scene_prompt_id')
@@ -305,7 +315,7 @@ export class Step5SceneImagesService {
 
     const promptsWithImages = new Set(imagesData?.map((img) => img.scene_prompt_id) || [])
 
-    // Return prompts without images
+    // Return prompts without images (cover will be included if it has no image)
     return allPrompts.filter((p) => !promptsWithImages.has(p.id)).map((p) => p.id)
   }
 

@@ -115,27 +115,94 @@ export class FalClient {
     } else if (params.size === '1024x1536') {
       width = 1024
       height = 1536
+    } else if (params.size === 'auto_4K') {
+      width = 1920
+      height = 1080
     }
+
+    // Detect if this is a scene image (has reference images) or character image
+    const isSceneImage = imageCount > 0
+    const title = isSceneImage ? 'Mock Scene Image' : 'Mock Character Image'
+    const bgColor = isSceneImage ? '#e0f2fe' : '#fef3c7'
+    const textColor = isSceneImage ? '#0369a1' : '#92400e'
+    const accentColor = isSceneImage ? '#0284c7' : '#d97706'
+
+    // Truncate prompt for display
+    const displayPrompt = params.prompt.substring(0, 80)
+    const promptLines = displayPrompt.match(/.{1,40}/g) || [displayPrompt]
 
     // Return a mock SVG image as data URL
     const mockSvg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
-      <rect width="${width}" height="${height}" fill="#e0f2fe"/>
-      <text x="${width / 2}" y="${height * 0.35}" font-family="Arial" font-size="24" fill="#0369a1" text-anchor="middle">
-        Mock Pixar Character
+      <defs>
+        <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" style="stop-color:${bgColor};stop-opacity:1" />
+          <stop offset="100%" style="stop-color:${bgColor === '#e0f2fe' ? '#bae6fd' : '#fde68a'};stop-opacity:1" />
+        </linearGradient>
+      </defs>
+      <rect width="${width}" height="${height}" fill="url(#bg)"/>
+
+      <!-- Title -->
+      <text x="${width / 2}" y="60" font-family="Arial, sans-serif" font-size="32" font-weight="bold" fill="${textColor}" text-anchor="middle">
+        ${title}
       </text>
-      <text x="${width / 2}" y="${height * 0.42}" font-family="Arial" font-size="16" fill="#0284c7" text-anchor="middle">
-        Generated with ${imageCount} reference image(s)
-      </text>
-      <text x="${width / 2}" y="${height * 0.48}" font-family="Arial" font-size="14" fill="#0ea5e9" text-anchor="middle">
+
+      <!-- Model info -->
+      <text x="${width / 2}" y="100" font-family="Arial, sans-serif" font-size="16" fill="${accentColor}" text-anchor="middle">
         Model: ${modelName}
       </text>
-      <text x="${width / 2}" y="${height * 0.54}" font-family="Arial" font-size="12" fill="#38bdf8" text-anchor="middle">
-        Size: ${params.size || 'default'}
+
+      ${isSceneImage ? `<text x="${width / 2}" y="125" font-family="Arial, sans-serif" font-size="14" fill="${accentColor}" text-anchor="middle">
+        Characters: ${imageCount}
+      </text>` : ''}
+
+      <!-- Prompt -->
+      <text x="${width / 2}" y="160" font-family="Arial, sans-serif" font-size="14" font-weight="bold" fill="${textColor}" text-anchor="middle">
+        Prompt:
       </text>
-      <circle cx="${width / 2}" cy="${height * 0.65}" r="80" fill="#fbbf24"/>
-      <circle cx="${width / 2 - 32}" cy="${height * 0.63}" r="10" fill="#374151"/>
-      <circle cx="${width / 2 + 32}" cy="${height * 0.63}" r="10" fill="#374151"/>
-      <path d="M ${width / 2 - 42} ${height * 0.7} Q ${width / 2} ${height * 0.73} ${width / 2 + 42} ${height * 0.7}" stroke="#374151" stroke-width="3" fill="none"/>
+      ${promptLines.map((line, i) => `
+      <text x="${width / 2}" y="${185 + i * 20}" font-family="Arial, sans-serif" font-size="13" fill="${accentColor}" text-anchor="middle">
+        ${line}
+      </text>`).join('')}
+
+      <!-- Visual representation -->
+      ${isSceneImage ? `
+      <!-- Scene illustration - landscape with characters -->
+      <rect x="${width / 2 - 300}" y="${height / 2 - 100}" width="600" height="400" rx="10" fill="rgba(255,255,255,0.4)" stroke="${textColor}" stroke-width="2"/>
+
+      <!-- Sky -->
+      <ellipse cx="${width / 2 - 150}" cy="${height / 2 - 50}" rx="50" ry="50" fill="#fbbf24" opacity="0.7"/>
+
+      <!-- Ground -->
+      <path d="M ${width / 2 - 280} ${height / 2 + 150} Q ${width / 2} ${height / 2 + 100} ${width / 2 + 280} ${height / 2 + 150} L ${width / 2 + 280} ${height / 2 + 280} L ${width / 2 - 280} ${height / 2 + 280} Z" fill="#86efac" opacity="0.6"/>
+
+      <!-- Characters (simple figures) -->
+      ${Array.from({ length: Math.min(imageCount, 3) }, (_, i) => {
+        const xPos = width / 2 - 150 + i * 150
+        const yPos = height / 2 + 80
+        const colors = ['#f87171', '#60a5fa', '#a78bfa']
+        return `
+        <!-- Character ${i + 1} -->
+        <circle cx="${xPos}" cy="${yPos}" r="30" fill="${colors[i]}" opacity="0.8"/>
+        <ellipse cx="${xPos}" cy="${yPos + 50}" rx="25" ry="40" fill="${colors[i]}" opacity="0.8"/>
+        `
+      }).join('')}
+      ` : `
+      <!-- Character illustration - single character -->
+      <circle cx="${width / 2}" cy="${height / 2 + 40}" r="80" fill="#fbbf24" opacity="0.8"/>
+      <circle cx="${width / 2 - 32}" cy="${height / 2 + 25}" r="12" fill="#374151"/>
+      <circle cx="${width / 2 + 32}" cy="${height / 2 + 25}" r="12" fill="#374151"/>
+      <path d="M ${width / 2 - 45} ${height / 2 + 65} Q ${width / 2} ${height / 2 + 75} ${width / 2 + 45} ${height / 2 + 65}" stroke="#374151" stroke-width="4" fill="none"/>
+      <ellipse cx="${width / 2}" cy="${height / 2 + 120}" rx="60" ry="80" fill="#3b82f6" opacity="0.8"/>
+      `}
+
+      <!-- Size info -->
+      <text x="${width / 2}" y="${height - 40}" font-family="Arial, sans-serif" font-size="12" fill="${accentColor}" text-anchor="middle">
+        Size: ${params.size || 'default'} (${width}x${height})
+      </text>
+
+      <text x="${width / 2}" y="${height - 20}" font-family="Arial, sans-serif" font-size="11" fill="${textColor}" text-anchor="middle" opacity="0.7">
+        Mock mode - USE_MOCK_AI=true
+      </text>
     </svg>`
 
     const base64Svg = Buffer.from(mockSvg).toString('base64')

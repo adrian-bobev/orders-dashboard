@@ -331,7 +331,7 @@ export class Step3ScenePromptsService {
     // Get all entities (characters and objects) for this generation
     const { data: entities, error: entitiesError } = await supabase
       .from('generation_character_list')
-      .select('id, character_name, character_type')
+      .select('id, character_name, character_type, is_main_character')
       .eq('generation_id', generationId)
 
     if (entitiesError || !entities) {
@@ -344,6 +344,9 @@ export class Step3ScenePromptsService {
     entities.forEach((entity) => {
       entityMap.set(entity.character_name.toLowerCase(), entity)
     })
+
+    // Find the main character
+    const mainCharacter = entities.find((entity) => entity.is_main_character)
 
     // Delete existing scene-character associations for this generation
     await supabase
@@ -359,10 +362,61 @@ export class Step3ScenePromptsService {
     let sortOrder = 0
 
     for (const scenePrompt of scenePrompts) {
-      // Skip cover prompts
-      if (scenePrompt.scene_type === 'cover') continue
+      // Handle cover prompts - associate main character + key characters from canon
+      if (scenePrompt.scene_type === 'cover') {
+        const addedEntities = new Set<string>()
 
-      // Get characters from prompt_metadata
+        // Always add main character first
+        if (mainCharacter) {
+          associationsToInsert.push({
+            scene_prompt_id: scenePrompt.id,
+            character_list_id: mainCharacter.id,
+            sort_order: sortOrder++,
+          })
+          addedEntities.add(mainCharacter.id)
+        }
+
+        // Add other characters and objects from canon (limit to top 5 to avoid overcrowding)
+        const canon = scenePrompt.prompt_metadata?.canon
+        if (canon) {
+          // Add secondary characters (non-main characters)
+          const secondaryCharacters = canon.characters?.slice(0, 3) || []
+          for (const character of secondaryCharacters) {
+            const characterName = character.name?.trim()
+            if (!characterName) continue
+
+            const entity = entityMap.get(characterName.toLowerCase())
+            if (entity && !addedEntities.has(entity.id)) {
+              associationsToInsert.push({
+                scene_prompt_id: scenePrompt.id,
+                character_list_id: entity.id,
+                sort_order: sortOrder++,
+              })
+              addedEntities.add(entity.id)
+            }
+          }
+
+          // Add important objects (limit to 2)
+          const importantObjects = canon.objects?.slice(0, 2) || []
+          for (const object of importantObjects) {
+            const objectName = object.name?.trim()
+            if (!objectName) continue
+
+            const entity = entityMap.get(objectName.toLowerCase())
+            if (entity && !addedEntities.has(entity.id)) {
+              associationsToInsert.push({
+                scene_prompt_id: scenePrompt.id,
+                character_list_id: entity.id,
+                sort_order: sortOrder++,
+              })
+              addedEntities.add(entity.id)
+            }
+          }
+        }
+        continue
+      }
+
+      // Get characters from prompt_metadata for regular scenes
       const characters = scenePrompt.prompt_metadata?.characters || []
 
       for (const character of characters) {

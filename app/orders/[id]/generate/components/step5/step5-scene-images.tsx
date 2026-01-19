@@ -112,8 +112,21 @@ export function Step5SceneImages({ generationId, onComplete }: Step5SceneImagesP
   }
 
   const handleOpenSceneSelector = async () => {
-    await loadScenesWithoutImages()
-    setSelectedScenes(new Set(scenesWithoutImages))
+    // Fetch scenes without images and use the result directly
+    try {
+      const response = await fetch(
+        `/api/generation/${generationId}/step5/generate-scenes?action=without-images`
+      )
+      if (response.ok) {
+        const data = await response.json()
+        const sceneIds = data.scenePromptIds || []
+        setScenesWithoutImages(sceneIds)
+        // Pre-select only scenes without images (including cover if it has no image)
+        setSelectedScenes(new Set(sceneIds))
+      }
+    } catch (error) {
+      console.error('Failed to load scenes without images:', error)
+    }
     setShowSceneSelector(true)
   }
 
@@ -287,6 +300,9 @@ export function Step5SceneImages({ generationId, onComplete }: Step5SceneImagesP
     .filter((p) => p.scene_type === 'scene')
     .sort((a, b) => (a.scene_number || 0) - (b.scene_number || 0))
 
+  // All prompts (cover + scenes) for the selector dialog
+  const allPrompts = coverPrompt ? [coverPrompt, ...scenePrompts] : scenePrompts
+
   return (
     <div className="space-y-6">
       <div>
@@ -330,7 +346,7 @@ export function Step5SceneImages({ generationId, onComplete }: Step5SceneImagesP
             <h3 className="text-xl font-bold text-purple-900 mb-4">Изберете сцени за генериране</h3>
 
             <div className="space-y-2 mb-6">
-              {scenePrompts.map((prompt) => {
+              {allPrompts.map((prompt) => {
                 const hasImage = imagesByPrompt[prompt.id] && imagesByPrompt[prompt.id].length > 0
                 const isSelected = selectedScenes.has(prompt.id)
 
