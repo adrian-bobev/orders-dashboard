@@ -42,6 +42,8 @@ export function Step1CharacterImage({
   const [isPromptEditorOpen, setIsPromptEditorOpen] = useState(false)
   const [customPrompt, setCustomPrompt] = useState<string>('')
   const [defaultPrompt, setDefaultPrompt] = useState<string>('')
+  const [customSystemPrompt, setCustomSystemPrompt] = useState<string>('')
+  const [defaultSystemPrompt, setDefaultSystemPrompt] = useState<string>('')
 
   const uploadedImages = (bookConfig.images as any[]) || []
 
@@ -174,12 +176,18 @@ export function Step1CharacterImage({
 
     setIsGeneratingReference(true)
     try {
+      // Combine system + user prompts for the final custom prompt
+      const combinedCustomPrompt =
+        customSystemPrompt && customPrompt
+          ? `${customSystemPrompt}\n\n${customPrompt}`
+          : customPrompt || undefined
+
       const response = await fetch(`/api/generation/${generationId}/step1/generate-reference`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           imageKeys: Array.from(selectedImagesForGeneration),
-          customPrompt: customPrompt || undefined, // Send custom prompt if set
+          customPrompt: combinedCustomPrompt, // Send combined prompt if set
         }),
       })
 
@@ -208,9 +216,13 @@ export function Step1CharacterImage({
 
       if (response.ok) {
         const data = await response.json()
-        setDefaultPrompt(data.prompt)
+        setDefaultPrompt(data.userPrompt)
+        setDefaultSystemPrompt(data.systemPrompt)
         if (!customPrompt) {
-          setCustomPrompt(data.prompt)
+          setCustomPrompt(data.userPrompt)
+        }
+        if (!customSystemPrompt) {
+          setCustomSystemPrompt(data.systemPrompt)
         }
       }
     } catch (error) {
@@ -822,30 +834,52 @@ export function Step1CharacterImage({
 
             {/* Content */}
             <div className="p-6 overflow-y-auto flex-1">
-              <div className="space-y-4">
+              <div className="space-y-6">
+                {/* System Prompt */}
                 <div>
                   <label className="block text-sm font-bold text-neutral-700 mb-2">
-                    Текущ промпт за генериране:
+                    System Prompt (контекст за AI модела):
+                  </label>
+                  <textarea
+                    value={customSystemPrompt}
+                    onChange={(e) => setCustomSystemPrompt(e.target.value)}
+                    rows={6}
+                    className="w-full px-4 py-3 border-2 border-neutral-300 rounded-xl focus:border-purple-500 focus:outline-none font-mono text-sm"
+                    placeholder="System промптът ще се зареди..."
+                  />
+                  {customSystemPrompt !== defaultSystemPrompt && defaultSystemPrompt && (
+                    <p className="text-xs text-amber-600 mt-1">⚠️ System промптът е променен</p>
+                  )}
+                </div>
+
+                {/* User Prompt */}
+                <div>
+                  <label className="block text-sm font-bold text-neutral-700 mb-2">
+                    User Prompt (инструкции за генериране):
                   </label>
                   <textarea
                     value={customPrompt}
                     onChange={(e) => setCustomPrompt(e.target.value)}
                     rows={15}
                     className="w-full px-4 py-3 border-2 border-neutral-300 rounded-xl focus:border-purple-500 focus:outline-none font-mono text-sm"
-                    placeholder="Промптът ще се зареди..."
+                    placeholder="User промптът ще се зареди..."
                   />
+                  {customPrompt !== defaultPrompt && defaultPrompt && (
+                    <p className="text-xs text-amber-600 mt-1">⚠️ User промптът е променен</p>
+                  )}
                 </div>
 
-                {customPrompt !== defaultPrompt && defaultPrompt && (
-                  <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl">
-                    <svg className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                    </svg>
-                    <p className="text-sm text-amber-800">
-                      Промптът е променен спрямо оригиналния от YAML файла.
-                    </p>
-                  </div>
-                )}
+                {(customPrompt !== defaultPrompt || customSystemPrompt !== defaultSystemPrompt) &&
+                  (defaultPrompt || defaultSystemPrompt) && (
+                    <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-xl">
+                      <svg className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                      </svg>
+                      <p className="text-sm text-amber-800">
+                        Промптът е променен спрямо оригиналния от YAML файла.
+                      </p>
+                    </div>
+                  )}
               </div>
             </div>
 
@@ -854,11 +888,12 @@ export function Step1CharacterImage({
               <button
                 onClick={() => {
                   setCustomPrompt(defaultPrompt)
+                  setCustomSystemPrompt(defaultSystemPrompt)
                 }}
                 className="px-4 py-2 bg-neutral-200 text-neutral-700 rounded-xl font-bold hover:bg-neutral-300 transition-colors"
-                disabled={!defaultPrompt}
+                disabled={!defaultPrompt && !defaultSystemPrompt}
               >
-                Възстанови оригинала
+                Възстанови оригиналите
               </button>
               <button
                 onClick={() => setIsPromptEditorOpen(false)}

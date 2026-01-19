@@ -25,9 +25,12 @@ export async function POST(
 
     // Replace gender pronouns
     const pronoun = bookConfig.gender === 'момиче' || bookConfig.gender === 'girl' ? 'She' : 'He'
-    const finalPrompt = userPrompt.replace('{He/She}', pronoun).replace('{name}', bookConfig.name)
+    const finalUserPrompt = userPrompt.replace('{He/She}', pronoun).replace('{name}', bookConfig.name)
 
-    return NextResponse.json({ prompt: finalPrompt })
+    return NextResponse.json({
+      systemPrompt: promptConfig.system_prompt || '',
+      userPrompt: finalUserPrompt,
+    })
   } catch (error) {
     console.error('Error loading default prompt:', error)
     return NextResponse.json(

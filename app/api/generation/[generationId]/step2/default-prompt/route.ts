@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser } from '@/lib/services/user-service'
-import { step5Service } from '@/lib/services/generation/step5-character-refs'
+import { step2Service } from '@/lib/services/generation/step2-proofread'
+import { generationService } from '@/lib/services/generation/generation-service'
 
 export async function POST(
   request: NextRequest,
@@ -12,22 +13,21 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const body = await request.json()
-    const { characterName, characterType, description, bookConfig } = body
+    const { generationId } = await params
 
-    if (!characterName || !characterType || !bookConfig) {
-      return NextResponse.json(
-        { error: 'characterName, characterType, and bookConfig are required' },
-        { status: 400 }
-      )
+    // Get generation with book configuration
+    const generation = await generationService.getGenerationById(generationId)
+
+    if (!generation) {
+      return NextResponse.json({ error: 'Generation not found' }, { status: 404 })
     }
 
-    const { systemPrompt, userPrompt } = await step5Service.getDefaultPrompt(
-      characterName,
-      characterType,
-      description,
-      bookConfig
-    )
+    const bookConfig = generation.book_configurations
+    if (!bookConfig || !bookConfig.content) {
+      return NextResponse.json({ error: 'Book configuration content not found' }, { status: 404 })
+    }
+
+    const { systemPrompt, userPrompt } = await step2Service.getDefaultPrompt(bookConfig.content)
 
     return NextResponse.json({
       systemPrompt,

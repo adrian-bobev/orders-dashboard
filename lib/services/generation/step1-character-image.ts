@@ -465,7 +465,12 @@ export class Step1CharacterImageService {
 
       // Replace gender pronouns
       const pronoun = bookConfig.gender === 'момиче' || bookConfig.gender === 'girl' ? 'She' : 'He'
-      finalPrompt = userPrompt.replace('{He/She}', pronoun).replace('{name}', bookConfig.name)
+      const processedUserPrompt = userPrompt.replace('{He/She}', pronoun).replace('{name}', bookConfig.name)
+
+      // Combine system prompt + user prompt for image generation
+      // For image generation APIs, we combine system and user prompts into one
+      const systemPromptPart = promptConfig.system_prompt ? `${promptConfig.system_prompt}\n\n` : ''
+      finalPrompt = `${systemPromptPart}${processedUserPrompt}`
     }
 
     // Note about multiple images

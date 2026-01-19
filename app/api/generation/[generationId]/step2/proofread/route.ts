@@ -14,6 +14,15 @@ export async function POST(
     }
 
     const { generationId } = await params
+    const body = await request.json()
+    const { systemPrompt, userPrompt } = body
+
+    if (!systemPrompt || !userPrompt) {
+      return NextResponse.json(
+        { error: 'systemPrompt and userPrompt are required' },
+        { status: 400 }
+      )
+    }
 
     // Get generation with book configuration
     const generation = await generationService.getGenerationById(generationId)
@@ -27,10 +36,12 @@ export async function POST(
       return NextResponse.json({ error: 'Book configuration content not found' }, { status: 404 })
     }
 
-    // Proofread the content
+    // Proofread the content with provided prompts
     const correctedContent = await step2Service.proofreadContent({
       generationId,
       originalContent: bookConfig.content,
+      systemPrompt,
+      userPrompt,
     })
 
     return NextResponse.json({ correctedContent })

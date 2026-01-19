@@ -6,6 +6,8 @@ export interface GenerateScenePromptsParams {
   generationId: string
   correctedContent: any
   mainCharacterName?: string
+  systemPrompt: string
+  userPrompt: string
 }
 
 export class Step4ScenePromptsService {
@@ -15,18 +17,16 @@ export class Step4ScenePromptsService {
   async generateScenePrompts(params: GenerateScenePromptsParams): Promise<any[]> {
     const supabase = await createClient()
 
-    // Load prompt configuration
+    // Load prompt configuration for model settings only
     const promptConfig = promptLoader.loadPrompt('3.scenes_prompt.yaml')
 
-    // Replace JSON placeholder with corrected content
-    const userPrompt = promptLoader.replaceJsonPlaceholder(
-      promptConfig.user_prompt,
-      params.correctedContent
-    )
+    // Use the prompts provided by the caller
+    const systemPrompt = params.systemPrompt
+    const userPrompt = params.userPrompt
 
     // Call OpenAI to generate scene prompts
     const responseStr = await openai.chat({
-      systemPrompt: promptConfig.system_prompt,
+      systemPrompt,
       userPrompt,
       model: promptConfig.model,
       temperature: promptConfig.temperature,
@@ -199,6 +199,25 @@ export class Step4ScenePromptsService {
         console.error('Error saving characters/objects:', error)
         throw new Error(`Failed to save characters/objects: ${error.message}`)
       }
+    }
+  }
+
+  /**
+   * Get the default prompt with corrected content
+   */
+  async getDefaultPrompt(correctedContent: any): Promise<{ systemPrompt: string; userPrompt: string }> {
+    // Load prompt configuration
+    const promptConfig = promptLoader.loadPrompt('3.scenes_prompt.yaml')
+
+    // Replace JSON placeholder with corrected content
+    const userPrompt = promptLoader.replaceJsonPlaceholder(
+      promptConfig.user_prompt,
+      correctedContent
+    )
+
+    return {
+      systemPrompt: promptConfig.system_prompt || '',
+      userPrompt,
     }
   }
 

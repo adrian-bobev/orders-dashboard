@@ -44,6 +44,7 @@ export function Step5CharacterRefs({ generationId, bookConfig, onComplete }: Ste
   const [expandedEntity, setExpandedEntity] = useState<string | null>(null)
   const [editingPrompt, setEditingPrompt] = useState<string | null>(null)
   const [customPrompts, setCustomPrompts] = useState<Record<string, string>>({})
+  const [customSystemPrompts, setCustomSystemPrompts] = useState<Record<string, string>>({})
   const [showAddForm, setShowAddForm] = useState<'character' | 'object' | null>(null)
   const [newEntityName, setNewEntityName] = useState('')
   const [newEntityDescription, setNewEntityDescription] = useState('')
@@ -54,6 +55,7 @@ export function Step5CharacterRefs({ generationId, bookConfig, onComplete }: Ste
   const [previewRef, setPreviewRef] = useState<any | null>(null)
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
   const [defaultPrompts, setDefaultPrompts] = useState<Record<string, string>>({})
+  const [defaultSystemPrompts, setDefaultSystemPrompts] = useState<Record<string, string>>({})
 
   useEffect(() => {
     loadData()
@@ -89,7 +91,7 @@ export function Step5CharacterRefs({ generationId, bookConfig, onComplete }: Ste
 
   const loadDefaultPrompt = async (entity: Entity) => {
     // If we already have the default prompt for this entity, don't reload
-    if (defaultPrompts[entity.id]) {
+    if (defaultPrompts[entity.id] && defaultSystemPrompts[entity.id]) {
       return
     }
 
@@ -109,14 +111,24 @@ export function Step5CharacterRefs({ generationId, bookConfig, onComplete }: Ste
         const data = await response.json()
         setDefaultPrompts((prev) => ({
           ...prev,
-          [entity.id]: data.prompt,
+          [entity.id]: data.userPrompt,
+        }))
+        setDefaultSystemPrompts((prev) => ({
+          ...prev,
+          [entity.id]: data.systemPrompt,
         }))
 
         // If no custom prompt exists yet, initialize it with the default
         if (!customPrompts[entity.id]) {
           setCustomPrompts((prev) => ({
             ...prev,
-            [entity.id]: data.prompt,
+            [entity.id]: data.userPrompt,
+          }))
+        }
+        if (!customSystemPrompts[entity.id]) {
+          setCustomSystemPrompts((prev) => ({
+            ...prev,
+            [entity.id]: data.systemPrompt,
           }))
         }
       }
@@ -150,7 +162,14 @@ export function Step5CharacterRefs({ generationId, bookConfig, onComplete }: Ste
   const handleGenerateSingle = async (entity: Entity) => {
     setGeneratingCharacter(entity.id)
     try {
-      const customPrompt = customPrompts[entity.id]
+      // Combine system + user prompts for the final custom prompt
+      const userPromptPart = customPrompts[entity.id]
+      const systemPromptPart = customSystemPrompts[entity.id]
+      const combinedCustomPrompt =
+        systemPromptPart && userPromptPart
+          ? `${systemPromptPart}\n\n${userPromptPart}`
+          : userPromptPart || undefined
+
       const response = await fetch(`/api/generation/${generationId}/step5/generate-character-refs`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -159,7 +178,7 @@ export function Step5CharacterRefs({ generationId, bookConfig, onComplete }: Ste
           characterName: entity.character_name,
           characterType: entity.character_type,
           description: entity.description,
-          customPrompt: customPrompt || undefined,
+          customPrompt: combinedCustomPrompt || undefined,
           bookConfig,
         }),
       })
@@ -529,30 +548,53 @@ export function Step5CharacterRefs({ generationId, bookConfig, onComplete }: Ste
         {isEditingPromptForThis && (
           <div className="mt-3 pt-3 border-t border-neutral-200">
             <label className="block text-xs font-bold text-neutral-700 mb-1">
-              Персонализиран промпт за генериране:
+              System Prompt (контекст за AI модела):
+            </label>
+            <textarea
+              value={customSystemPrompts[entity.id] || ''}
+              onChange={(e) =>
+                setCustomSystemPrompts({ ...customSystemPrompts, [entity.id]: e.target.value })
+              }
+              className={`w-full px-2 py-1.5 border-2 border-${bgColor}-200 rounded text-xs focus:border-${bgColor}-400 focus:ring-2 focus:ring-${bgColor}-200 outline-none mb-2`}
+              rows={4}
+              placeholder={`System промпт за ${entity.character_name}...`}
+            />
+            <label className="block text-xs font-bold text-neutral-700 mb-1">
+              User Prompt (инструкции за генериране):
             </label>
             <textarea
               value={customPrompts[entity.id] || ''}
               onChange={(e) => setCustomPrompts({ ...customPrompts, [entity.id]: e.target.value })}
               className={`w-full px-2 py-1.5 border-2 border-${bgColor}-200 rounded text-xs focus:border-${bgColor}-400 focus:ring-2 focus:ring-${bgColor}-200 outline-none`}
-              rows={6}
-              placeholder={`Зарежда се промпт за ${entity.character_name}...`}
+              rows={8}
+              placeholder={`User промпт за ${entity.character_name}...`}
             />
             <div className="flex gap-2 mt-2">
               <button
                 onClick={() => {
-                  // Reset to default prompt
+                  // Reset to default prompts
                   if (defaultPrompts[entity.id]) {
                     setCustomPrompts({ ...customPrompts, [entity.id]: defaultPrompts[entity.id] })
+                  }
+                  if (defaultSystemPrompts[entity.id]) {
+                    setCustomSystemPrompts({
+                      ...customSystemPrompts,
+                      [entity.id]: defaultSystemPrompts[entity.id],
+                    })
                   }
                 }}
                 className="px-2 py-1 bg-neutral-200 text-neutral-700 text-xs font-bold rounded hover:bg-neutral-300 transition-colors"
               >
-                Нулирай до оригинален
+                Нулирай до оригинални
               </button>
               <button
                 onClick={() => {
                   setCustomPrompts((prev) => {
+                    const updated = { ...prev }
+                    delete updated[entity.id]
+                    return updated
+                  })
+                  setCustomSystemPrompts((prev) => {
                     const updated = { ...prev }
                     delete updated[entity.id]
                     return updated

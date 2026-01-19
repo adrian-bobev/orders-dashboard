@@ -15,6 +15,15 @@ export async function POST(
     }
 
     const { generationId } = await params
+    const body = await request.json()
+    const { systemPrompt, userPrompt } = body
+
+    if (!systemPrompt || !userPrompt) {
+      return NextResponse.json(
+        { error: 'systemPrompt and userPrompt are required' },
+        { status: 400 }
+      )
+    }
 
     // Get generation with book configuration
     const generation = await generationService.getGenerationById(generationId)
@@ -31,11 +40,13 @@ export async function POST(
       )
     }
 
-    // Generate scene prompts
+    // Generate scene prompts with provided prompts
     const prompts = await step4Service.generateScenePrompts({
       generationId,
       correctedContent: correctedContent.corrected_content,
       mainCharacterName: generation.book_configurations.name,
+      systemPrompt,
+      userPrompt,
     })
 
     return NextResponse.json({ prompts })

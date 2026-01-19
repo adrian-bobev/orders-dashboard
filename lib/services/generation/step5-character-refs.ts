@@ -146,10 +146,15 @@ export class Step5CharacterRefsService {
       promptJson
     )
 
+    // Combine system prompt + user prompt for image generation
+    // For image generation APIs, we combine system and user prompts into one
+    const systemPromptPart = promptConfig.system_prompt ? `${promptConfig.system_prompt}\n\n` : ''
+    const finalPrompt = `${systemPromptPart}${userPrompt}`
+
     // Generate image using fal.ai nano-banana model
     const imageResult = await falClient.generateImage({
       model: 'fal-ai/nano-banana',
-      prompt: userPrompt,
+      prompt: finalPrompt,
       size: '1024x1024',
       numImages: 1,
     })
@@ -207,7 +212,7 @@ export class Step5CharacterRefsService {
         generation_id: params.generationId,
         character_list_id: params.characterListId,
         image_key: imageKey,
-        image_prompt: userPrompt,
+        image_prompt: finalPrompt,
         version: nextVersion,
         is_selected: true,
         model_used: 'nano-banana',
@@ -289,7 +294,7 @@ export class Step5CharacterRefsService {
     characterType: string,
     description: string | null,
     bookConfig: any
-  ): Promise<string> {
+  ): Promise<{ systemPrompt: string; userPrompt: string }> {
     // Load prompt configuration
     const promptConfig = promptLoader.loadPrompt('4.characters_prompt.yaml')
 
@@ -314,7 +319,10 @@ export class Step5CharacterRefsService {
       promptJson
     )
 
-    return userPrompt
+    return {
+      systemPrompt: promptConfig.system_prompt || '',
+      userPrompt,
+    }
   }
 
   /**

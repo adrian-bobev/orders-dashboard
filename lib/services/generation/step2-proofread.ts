@@ -5,27 +5,43 @@ import { promptLoader } from '@/lib/services/ai/prompt-loader'
 export interface ProofreadContentParams {
   generationId: string
   originalContent: any
+  systemPrompt: string
+  userPrompt: string
 }
 
 export class Step2ProofreadService {
+  /**
+   * Get the default prompt with book content
+   */
+  async getDefaultPrompt(content: any): Promise<{ systemPrompt: string; userPrompt: string }> {
+    // Load prompt configuration
+    const promptConfig = promptLoader.loadPrompt('1.grammar_prompt.yaml')
+
+    // Replace JSON placeholder with content
+    const userPrompt = promptLoader.replaceJsonPlaceholder(promptConfig.user_prompt, content)
+
+    return {
+      systemPrompt: promptConfig.system_prompt || '',
+      userPrompt,
+    }
+  }
+
   /**
    * Proofread content using OpenAI
    */
   async proofreadContent(params: ProofreadContentParams): Promise<any> {
     const supabase = await createClient()
 
-    // Load prompt configuration
+    // Load prompt configuration for model settings only
     const promptConfig = promptLoader.loadPrompt('1.grammar_prompt.yaml')
 
-    // Replace JSON placeholder with actual content
-    const userPrompt = promptLoader.replaceJsonPlaceholder(
-      promptConfig.user_prompt,
-      params.originalContent
-    )
+    // Use the prompts provided by the caller
+    const systemPrompt = params.systemPrompt
+    const userPrompt = params.userPrompt
 
     // Call OpenAI to proofread
     const correctedContentStr = await openai.chat({
-      systemPrompt: promptConfig.system_prompt,
+      systemPrompt,
       userPrompt,
       model: promptConfig.model,
       temperature: promptConfig.temperature,
