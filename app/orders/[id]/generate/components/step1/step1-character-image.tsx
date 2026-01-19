@@ -820,6 +820,12 @@ export function Step1CharacterImage({
           >
             Готово - Следваща стъпка
           </button>
+          <button
+            onClick={onComplete}
+            className="px-4 py-2 bg-neutral-200 text-neutral-700 rounded-xl font-bold hover:bg-neutral-300 transition-colors"
+          >
+            Пропусни (Debug)
+          </button>
         </div>
         {!characterImages.some((img: any) => img.generated_image_key && img.is_selected) && (
           <p className="mt-2 text-sm text-amber-600">
