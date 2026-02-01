@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/services/user-service'
-import { step5Service } from '@/lib/services/generation/step5-scene-images'
+import { step5Service, type ProviderConfig } from '@/lib/services/generation/step5-scene-images'
 import { step5SceneCharactersService } from '@/lib/services/generation/step5-scene-characters-service'
 
 export async function POST(
@@ -12,7 +12,7 @@ export async function POST(
     if (authResult instanceof NextResponse) return authResult
 
     const { generationId, scenePromptId } = await params
-    const { imagePrompt, characterReferenceIds } = await request.json()
+    const { imagePrompt, characterReferenceIds, providerConfig } = await request.json()
 
     if (!imagePrompt) {
       return NextResponse.json({ error: 'imagePrompt is required' }, { status: 400 })
@@ -32,6 +32,7 @@ export async function POST(
       scenePromptId,
       imagePrompt,
       characterReferenceIds: finalCharacterReferenceIds,
+      providerConfig: providerConfig as ProviderConfig | undefined,
     })
 
     return NextResponse.json({ image })

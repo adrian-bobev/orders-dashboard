@@ -5,6 +5,17 @@ import { getImageUrl } from '@/lib/r2-client'
 import { SmartImage } from '@/components/SmartImage'
 import { SceneCard } from './SceneCard'
 
+type ImageProvider = 'fal' | 'replicate'
+
+interface ProviderConfig {
+  provider: ImageProvider
+}
+
+interface ProviderOption {
+  id: ImageProvider
+  name: string
+}
+
 interface Step5SceneImagesProps {
   generationId: string
   onComplete: () => void
@@ -22,8 +33,15 @@ export function Step5SceneImages({ generationId, onComplete }: Step5SceneImagesP
   const [selectedScenes, setSelectedScenes] = useState<Set<string>>(new Set())
   const [scenesWithoutImages, setScenesWithoutImages] = useState<string[]>([])
 
+  // Provider configuration
+  const [providers, setProviders] = useState<ProviderOption[]>([])
+  const [selectedProvider, setSelectedProvider] = useState<ImageProvider>('fal')
+  const [costPerImage, setCostPerImage] = useState<number>(0.039)
+  const [step5Cost, setStep5Cost] = useState<number>(0)
+
   useEffect(() => {
     loadData()
+    loadProviders()
   }, [generationId])
 
   const loadData = async () => {
@@ -34,7 +52,38 @@ export function Step5SceneImages({ generationId, onComplete }: Step5SceneImagesP
       loadEntities(),
       loadReferences(),
       loadSceneCharacters(),
+      loadCosts(),
     ])
+  }
+
+  const loadProviders = async () => {
+    try {
+      const response = await fetch(`/api/generation/${generationId}/step5/providers`)
+      if (response.ok) {
+        const data = await response.json()
+        setProviders(data.providers || [])
+        if (data.defaultConfig) {
+          setSelectedProvider(data.defaultConfig.provider)
+        }
+        if (data.cost) {
+          setCostPerImage(data.cost)
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load providers:', error)
+    }
+  }
+
+  const loadCosts = async () => {
+    try {
+      const response = await fetch(`/api/generation/${generationId}/step5/costs`)
+      if (response.ok) {
+        const data = await response.json()
+        setStep5Cost(data.step5Cost || 0)
+      }
+    } catch (error) {
+      console.error('Failed to load costs:', error)
+    }
   }
 
   const loadPrompts = async () => {
@@ -139,11 +188,16 @@ export function Step5SceneImages({ generationId, onComplete }: Step5SceneImagesP
     setShowSceneSelector(false)
 
     try {
+      const providerConfig: ProviderConfig = {
+        provider: selectedProvider,
+      }
+
       const response = await fetch(`/api/generation/${generationId}/step5/generate-scenes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           scenePromptIds: Array.from(selectedScenes),
+          providerConfig,
         }),
       })
 
@@ -152,6 +206,9 @@ export function Step5SceneImages({ generationId, onComplete }: Step5SceneImagesP
       }
 
       await loadData()
+
+      // Dispatch event to update global cost tracker
+      window.dispatchEvent(new CustomEvent('generation-cost-updated'))
     } catch (error) {
       console.error('Error generating scenes:', error)
     } finally {
@@ -162,12 +219,16 @@ export function Step5SceneImages({ generationId, onComplete }: Step5SceneImagesP
   const handleGenerateSingle = async (scenePromptId: string, imagePrompt: string) => {
     setGeneratingScene(scenePromptId)
     try {
+      const providerConfig: ProviderConfig = {
+        provider: selectedProvider,
+      }
+
       const response = await fetch(
         `/api/generation/${generationId}/step5/generate-scene/${scenePromptId}`,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ imagePrompt }),
+          body: JSON.stringify({ imagePrompt, providerConfig }),
         }
       )
 
@@ -175,8 +236,12 @@ export function Step5SceneImages({ generationId, onComplete }: Step5SceneImagesP
         throw new Error('Failed to generate scene')
       }
 
-      // Only reload images after generation
+      // Reload images and costs after generation
       await loadImages()
+      await loadCosts()
+
+      // Dispatch event to update global cost tracker
+      window.dispatchEvent(new CustomEvent('generation-cost-updated'))
     } catch (error) {
       console.error('Error generating scene:', error)
     } finally {
@@ -315,28 +380,66 @@ export function Step5SceneImages({ generationId, onComplete }: Step5SceneImagesP
         </p>
       </div>
 
-      {/* Action Buttons */}
-      <div className="flex items-center justify-between flex-wrap gap-3">
+      {/* Provider Selection and Cost Display */}
+      <div className="bg-neutral-50 rounded-xl p-4 space-y-4">
+        <div className="flex flex-wrap items-center gap-4">
+          {/* Provider Selection */}
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-neutral-700">Доставчик:</span>
+            <div className="flex gap-2">
+              {providers.map((provider) => (
+                <button
+                  key={provider.id}
+                  onClick={() => setSelectedProvider(provider.id)}
+                  disabled={isGenerating || generatingScene !== null}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                    selectedProvider === provider.id
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-white border border-neutral-300 text-neutral-700 hover:border-purple-400'
+                  } disabled:opacity-50`}
+                >
+                  {provider.name}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Cost Display */}
+          <div className="flex items-center gap-4 ml-auto">
+            <div className="text-sm">
+              <span className="text-neutral-500">Цена/изобр.:</span>{' '}
+              <span className="font-bold text-purple-700">${costPerImage.toFixed(3)}</span>
+            </div>
+            <div className="text-sm">
+              <span className="text-neutral-500">Стъпка 5:</span>{' '}
+              <span className="font-bold text-green-600">${step5Cost.toFixed(4)}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Mock Mode Notice */}
         <div className="text-sm text-neutral-500">
           {process.env.NEXT_PUBLIC_USE_MOCK_AI === 'true'
             ? '(Mock режим - ще върне placeholder изображения)'
-            : '(Ще използва OpenAI DALL-E 3)'}
+            : `(Използва Seedream 4.5 от ${selectedProvider === 'fal' ? 'fal.ai' : 'Replicate'})`}
         </div>
-        <div className="flex gap-2">
-          <button
-            onClick={handleOpenSceneSelector}
-            disabled={isGenerating}
-            className="px-4 py-2 bg-purple-600 text-white rounded-xl font-bold hover:bg-purple-700 transition-colors disabled:opacity-50"
-          >
-            Генерирай избрани сцени
-          </button>
-          <button
-            onClick={onComplete}
-            className="px-4 py-2 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-colors"
-          >
-            Завърши
-          </button>
-        </div>
+      </div>
+
+      {/* Action Buttons */}
+      <div className="flex items-center justify-end gap-2">
+        <button
+          onClick={handleOpenSceneSelector}
+          disabled={isGenerating}
+          className="px-4 py-2 bg-purple-600 text-white rounded-xl font-bold hover:bg-purple-700 transition-colors disabled:opacity-50"
+        >
+          Генерирай избрани сцени
+        </button>
+        <button
+          onClick={onComplete}
+          className="px-4 py-2 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-colors"
+        >
+          Завърши
+        </button>
       </div>
 
       {/* Scene Selector Dialog */}

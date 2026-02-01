@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/services/user-service'
-import { step5Service } from '@/lib/services/generation/step5-scene-images'
+import { step5Service, type ProviderConfig } from '@/lib/services/generation/step5-scene-images'
 
 export async function POST(
   request: NextRequest,
@@ -11,7 +11,7 @@ export async function POST(
     if (authResult instanceof NextResponse) return authResult
 
     const { generationId } = await params
-    const { scenePromptIds } = await request.json()
+    const { scenePromptIds, providerConfig } = await request.json()
 
     if (!scenePromptIds || !Array.isArray(scenePromptIds)) {
       return NextResponse.json({ error: 'scenePromptIds array is required' }, { status: 400 })
@@ -21,6 +21,7 @@ export async function POST(
     const results = await step5Service.batchGenerateSceneImages({
       generationId,
       scenePromptIds,
+      providerConfig: providerConfig as ProviderConfig | undefined,
     })
 
     return NextResponse.json({ results })

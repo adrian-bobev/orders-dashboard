@@ -1,24 +1,109 @@
 import { createClient } from '@/lib/supabase/server'
-import { openai } from '@/lib/services/ai/openai-client'
 import { falClient } from '@/lib/services/ai/fal-client'
-import { getStorageClient, getImageUrl } from '@/lib/r2-client'
-import { PutObjectCommand } from '@aws-sdk/client-s3'
+import { replicateClient } from '@/lib/services/ai/replicate-client'
+import { getStorageClient } from '@/lib/r2-client'
+import { GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3'
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import sharp from 'sharp'
 import { getGenerationFolderPath } from './generation-service'
+
+export type ImageProvider = 'fal' | 'replicate'
+
+export interface ProviderConfig {
+  provider: ImageProvider
+}
+
+// Cost per image generation (in USD) - same as Step 4
+export const IMAGE_GENERATION_COST = 0.039
+
+export const DEFAULT_PROVIDER_CONFIG: ProviderConfig = {
+  provider: 'fal',
+}
+
+// Default model for each provider (both use Seedream 4.5 Edit)
+export const DEFAULT_MODEL_PER_PROVIDER: Record<ImageProvider, string> = {
+  fal: 'fal-ai/bytedance/seedream/v4.5/edit',
+  replicate: 'bytedance/seedream-4.5',
+}
+
+export const AVAILABLE_PROVIDERS: { id: ImageProvider; name: string }[] = [
+  { id: 'fal', name: 'fal.ai' },
+  { id: 'replicate', name: 'Replicate' },
+]
 
 export interface GenerateSceneImageParams {
   generationId: string
   scenePromptId: string
   imagePrompt: string
   characterReferenceIds?: string[]
+  providerConfig?: ProviderConfig
 }
 
 export interface BatchGenerateParams {
   generationId: string
   scenePromptIds: string[]
+  providerConfig?: ProviderConfig
 }
 
 export class Step5SceneImagesService {
+  /**
+   * Generate image using the configured provider
+   */
+  private async generateImageWithProvider(
+    prompt: string,
+    referenceImageUrls: string[],
+    config: ProviderConfig
+  ): Promise<{ url: string; contentType?: string }> {
+    const model = DEFAULT_MODEL_PER_PROVIDER[config.provider]
+
+    if (config.provider === 'replicate') {
+      // Seedream 4.5 on Replicate uses image_input and size
+      return replicateClient.generateImage({
+        model,
+        prompt,
+        imageUrls: referenceImageUrls,
+        size: '2K',
+        aspectRatio: '1:1',
+      })
+    } else {
+      // Default to fal.ai
+      // Seedream 4.5 Edit uses image_urls and image_size
+      return falClient.generateImage({
+        model,
+        prompt,
+        imageUrls: referenceImageUrls,
+        size: 'square_hd',
+        numImages: 1,
+        additionalParams: {
+          enable_safety_checker: true,
+        },
+      })
+    }
+  }
+
+  /**
+   * Update the total cost for a generation
+   */
+  private async updateTotalCost(generationId: string, additionalCost: number): Promise<void> {
+    const supabase = await createClient()
+
+    // Get current total cost
+    const { data: generation } = await supabase
+      .from('book_generations')
+      .select('total_cost')
+      .eq('id', generationId)
+      .single()
+
+    const currentCost = (generation as any)?.total_cost || 0
+    const newTotalCost = Number(currentCost) + additionalCost
+
+    // Update total cost
+    await supabase
+      .from('book_generations')
+      .update({ total_cost: newTotalCost } as any)
+      .eq('id', generationId)
+  }
+
   /**
    * Generate an image for a single scene
    */
@@ -81,30 +166,45 @@ export class Step5SceneImagesService {
           .in('id', params.characterReferenceIds)
 
         if (references && references.length > 0) {
-          referenceImageUrls = references
-            .map((ref) => getImageUrl(ref.image_key))
-            .filter((url): url is string => url !== undefined)
+          // Generate presigned URLs for external service access
+          const storageClient = getStorageClient()
+          const generationsBucket = process.env.R2_GENERATIONS_BUCKET || 'generations'
+
+          for (const ref of references) {
+            if (ref.image_key) {
+              try {
+                const getCommand = new GetObjectCommand({
+                  Bucket: generationsBucket,
+                  Key: ref.image_key,
+                })
+                // Generate presigned URL valid for 1 hour
+                const presignedUrl = await getSignedUrl(storageClient, getCommand, { expiresIn: 3600 })
+                referenceImageUrls.push(presignedUrl)
+              } catch (error) {
+                console.error(`Error generating presigned URL for ${ref.image_key}:`, error)
+              }
+            }
+          }
         }
       }
 
-      // Seedream v4.5 Edit requires at least one reference image
+      // Seedream 4.5 edit model requires at least one reference image
       if (referenceImageUrls.length === 0) {
         throw new Error(
-          'ByteDance Seedream v4.5 Edit model requires at least one reference image. Please add characters or objects to this scene.'
+          'Seedream 4.5 edit model requires at least one reference image. Please add characters or objects to this scene.'
         )
       }
 
-      // Generate image using fal.ai ByteDance Seedream v4.5 Edit model
-      const imageResult = await falClient.generateImage({
-        model: 'fal-ai/bytedance/seedream/v4.5/edit',
-        prompt: params.imagePrompt,
-        imageUrls: referenceImageUrls,
-        size: 'auto_4K',
-        numImages: 1,
-        additionalParams: {
-          enable_safety_checker: true,
-        },
-      })
+      // Get provider configuration
+      const providerConfig = params.providerConfig || DEFAULT_PROVIDER_CONFIG
+      const model = DEFAULT_MODEL_PER_PROVIDER[providerConfig.provider]
+
+      // Generate image using the configured provider
+      const imageResult = await this.generateImageWithProvider(
+        params.imagePrompt,
+        referenceImageUrls,
+        providerConfig
+      )
 
       // Download the generated image
       let imageBuffer: Buffer
@@ -154,6 +254,10 @@ export class Step5SceneImagesService {
         .update({ is_selected: false })
         .eq('scene_prompt_id', params.scenePromptId)
 
+      // Calculate generation cost (skip cost for mock mode)
+      const isMockMode = process.env.USE_MOCK_AI === 'true'
+      const generationCost = isMockMode ? 0 : IMAGE_GENERATION_COST
+
       // Update the pending record with the final data
       const { data, error } = await supabase
         .from('generation_scene_images')
@@ -163,16 +267,18 @@ export class Step5SceneImagesService {
           is_selected: true,
           generation_status: 'completed',
           completed_at: new Date().toISOString(),
-          model_used: 'fal-ai/bytedance/seedream/v4.5/edit',
+          model_used: model,
+          generation_cost: generationCost,
           generation_params: {
-            size: 'auto_4K',
+            provider: providerConfig.provider,
+            model: model,
             reference_images_count: referenceImageUrls.length,
           },
           image_prompt: params.imagePrompt,
           character_reference_ids: params.characterReferenceIds
             ? JSON.stringify(params.characterReferenceIds)
             : null,
-        })
+        } as any)
         .eq('id', pendingRecord.id)
         .select()
         .single()
@@ -180,6 +286,11 @@ export class Step5SceneImagesService {
       if (error) {
         console.error('Error saving scene image:', error)
         throw new Error(`Failed to save scene image: ${error.message}`)
+      }
+
+      // Update total cost in book_generations table
+      if (generationCost > 0) {
+        await this.updateTotalCost(params.generationId, generationCost)
       }
 
       return data
@@ -234,6 +345,7 @@ export class Step5SceneImagesService {
           scenePromptId: prompt.id,
           imagePrompt: prompt.image_prompt,
           characterReferenceIds: characterReferenceIds.length > 0 ? characterReferenceIds : undefined,
+          providerConfig: params.providerConfig,
         })
         results.push({ success: true, scenePromptId: prompt.id, image })
       } catch (error) {
@@ -364,6 +476,32 @@ export class Step5SceneImagesService {
     }
 
     return data || []
+  }
+
+  /**
+   * Get costs for Step 5 (scene images)
+   */
+  async getStep5Costs(generationId: string): Promise<{ step5Cost: number; totalCost: number }> {
+    const supabase = await createClient()
+
+    // Get sum of all scene image costs for this generation
+    const { data: images } = await supabase
+      .from('generation_scene_images')
+      .select('generation_cost')
+      .eq('generation_id', generationId)
+
+    const step5Cost = (images as any[])?.reduce((sum, img) => sum + (Number(img.generation_cost) || 0), 0) || 0
+
+    // Get total cost from book_generations
+    const { data: generation } = await supabase
+      .from('book_generations')
+      .select('total_cost')
+      .eq('id', generationId)
+      .single()
+
+    const totalCost = Number((generation as any)?.total_cost) || 0
+
+    return { step5Cost, totalCost }
   }
 }
 

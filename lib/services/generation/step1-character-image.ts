@@ -119,10 +119,10 @@ export class Step1CharacterImageService {
     // Fetch the source image from S3
     const storageClient = getStorageClient()
 
-    // Determine which bucket to use based on image key
-    // Uploaded images are in generations bucket and have /uploaded/ in path
-    const isUploadedImage = params.sourceImageKey.includes('/uploaded/')
-    const sourceBucket = isUploadedImage ? generationsBucket : process.env.R2_BUCKET!
+    // Determine which bucket to use based on image key pattern
+    // Generation images follow pattern: {number}-{number}-{uuid}/...
+    const isGenerationImage = /^\d+-\d+-[a-f0-9-]+\//.test(params.sourceImageKey)
+    const sourceBucket = isGenerationImage ? generationsBucket : process.env.R2_BUCKET!
 
     const getCommand = new GetObjectCommand({
       Bucket: sourceBucket,
@@ -313,9 +313,9 @@ export class Step1CharacterImageService {
     // Delete processed image from R2 if it exists
     if (imageRecord?.processed_image_key) {
       try {
-        // Determine bucket - if it's in generations folder, use generations bucket
-        const isInGenerationsBucket = imageRecord.processed_image_key.includes('/character-')
-        const bucket = isInGenerationsBucket ? process.env.R2_GENERATIONS_BUCKET! : process.env.R2_BUCKET!
+        // Determine bucket - generation images follow pattern: {number}-{number}-{uuid}/...
+        const isGenerationImage = /^\d+-\d+-[a-f0-9-]+\//.test(imageRecord.processed_image_key)
+        const bucket = isGenerationImage ? process.env.R2_GENERATIONS_BUCKET! : process.env.R2_BUCKET!
 
         const deleteCommand = new DeleteObjectCommand({
           Bucket: bucket,
@@ -333,9 +333,9 @@ export class Step1CharacterImageService {
     // Delete generated image from R2 if it exists
     if (imageRecord?.generated_image_key) {
       try {
-        // Determine bucket - if it's in generations folder, use generations bucket
-        const isInGenerationsBucket = imageRecord.generated_image_key.includes('/character-')
-        const bucket = isInGenerationsBucket ? process.env.R2_GENERATIONS_BUCKET! : process.env.R2_BUCKET!
+        // Determine bucket - generation images follow pattern: {number}-{number}-{uuid}/...
+        const isGenerationImage = /^\d+-\d+-[a-f0-9-]+\//.test(imageRecord.generated_image_key)
+        const bucket = isGenerationImage ? process.env.R2_GENERATIONS_BUCKET! : process.env.R2_BUCKET!
 
         const deleteCommand = new DeleteObjectCommand({
           Bucket: bucket,
@@ -463,9 +463,10 @@ export class Step1CharacterImageService {
 
     for (const imageKey of imageKeys) {
       try {
-        // Determine which bucket to use based on image key
-        const isUploadedImage = imageKey.includes('/uploaded/')
-        const sourceBucket = isUploadedImage ? generationsBucket : process.env.R2_BUCKET!
+        // Determine which bucket to use based on image key pattern
+        // Generation images follow pattern: {number}-{number}-{uuid}/...
+        const isGenerationImage = /^\d+-\d+-[a-f0-9-]+\//.test(imageKey)
+        const sourceBucket = isGenerationImage ? generationsBucket : process.env.R2_BUCKET!
 
         const getCommand = new GetObjectCommand({
           Bucket: sourceBucket,
