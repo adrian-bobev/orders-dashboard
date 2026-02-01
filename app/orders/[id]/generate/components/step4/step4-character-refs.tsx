@@ -105,9 +105,14 @@ export function Step4CharacterRefs({ generationId, bookConfig, onComplete }: Ste
   const [replicateAspectRatio, setReplicateAspectRatio] = useState<string>('1:1')
   const [showProviderSettings, setShowProviderSettings] = useState(false)
 
+  // Cost tracking state
+  const [step4Cost, setStep4Cost] = useState<number>(0)
+  const [costPerImage, setCostPerImage] = useState<number>(0.039)
+
   useEffect(() => {
     loadData()
     loadProviders()
+    loadCosts()
   }, [generationId])
 
   const loadProviders = async () => {
@@ -125,6 +130,22 @@ export function Step4CharacterRefs({ generationId, bookConfig, onComplete }: Ste
       }
     } catch (error) {
       console.error('Failed to load providers:', error)
+    }
+  }
+
+  const loadCosts = async () => {
+    try {
+      const response = await fetch(`/api/generation/${generationId}/step4/costs`)
+      if (response.ok) {
+        const data = await response.json()
+        setStep4Cost(data.step4Cost || 0)
+        if (data.costPerImage) setCostPerImage(data.costPerImage)
+
+        // Dispatch event to update global cost tracker
+        window.dispatchEvent(new CustomEvent('generation-cost-updated'))
+      }
+    } catch (error) {
+      console.error('Failed to load costs:', error)
     }
   }
 
@@ -268,6 +289,7 @@ export function Step4CharacterRefs({ generationId, bookConfig, onComplete }: Ste
       }
 
       await loadReferences()
+      await loadCosts()
     } catch (error) {
       console.error('Error generating references:', error)
     } finally {
@@ -315,6 +337,7 @@ export function Step4CharacterRefs({ generationId, bookConfig, onComplete }: Ste
       }
 
       await loadReferences()
+      await loadCosts()
       // Don't clear custom prompt after generation - keep it for the next generation
     } catch (error) {
       console.error('Error generating reference:', error)
@@ -336,6 +359,7 @@ export function Step4CharacterRefs({ generationId, bookConfig, onComplete }: Ste
       }
 
       await loadReferences()
+      await loadCosts()
     } catch (error) {
       console.error('Error selecting version:', error)
     }
@@ -930,6 +954,9 @@ export function Step4CharacterRefs({ generationId, bookConfig, onComplete }: Ste
         </h2>
         <p className="text-neutral-600">
           Генерирайте референтни изображения за всички герои и обекти от списъка.
+          <span className="ml-2 text-green-600 font-medium">
+            (${costPerImage.toFixed(3)}/изображение • Стъпка 4: ${step4Cost.toFixed(2)})
+          </span>
         </p>
       </div>
 

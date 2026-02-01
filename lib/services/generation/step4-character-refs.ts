@@ -37,6 +37,9 @@ export const AVAILABLE_PROVIDERS: { id: ImageProvider; name: string }[] = [
   { id: 'replicate', name: 'Replicate' },
 ]
 
+// Cost per image generation (in USD)
+export const IMAGE_GENERATION_COST = 0.039
+
 export interface GenerateCharacterReferenceParams {
   generationId: string
   characterListId: string
@@ -172,6 +175,10 @@ export class Step4CharacterRefsService {
     // Extract model name for display
     const modelName = providerConfig.model.split('/').pop() || providerConfig.model
 
+    // Calculate generation cost (skip cost for mock mode)
+    const isMockMode = process.env.USE_MOCK_AI === 'true'
+    const generationCost = isMockMode ? 0 : IMAGE_GENERATION_COST
+
     // Save to database
     const { data, error } = await supabase
       .from('generation_character_references')
@@ -183,6 +190,7 @@ export class Step4CharacterRefsService {
         version: nextVersion,
         is_selected: true,
         model_used: modelName,
+        generation_cost: generationCost,
         generation_params: {
           provider: providerConfig.provider,
           model: providerConfig.model,
@@ -192,7 +200,7 @@ export class Step4CharacterRefsService {
             aspectRatio: providerConfig.replicateAspectRatio,
           }),
         },
-      })
+      } as any)
       .select(
         `
         *,
@@ -211,7 +219,35 @@ export class Step4CharacterRefsService {
       throw new Error(`Failed to save character reference: ${error.message}`)
     }
 
+    // Update total cost in book_generations table
+    if (generationCost > 0) {
+      await this.updateTotalCost(params.generationId, generationCost)
+    }
+
     return data
+  }
+
+  /**
+   * Update the total cost for a generation
+   */
+  private async updateTotalCost(generationId: string, additionalCost: number): Promise<void> {
+    const supabase = await createClient()
+
+    // Get current total cost
+    const { data: generation } = await supabase
+      .from('book_generations')
+      .select('total_cost')
+      .eq('id', generationId)
+      .single()
+
+    const currentCost = (generation as any)?.total_cost || 0
+    const newTotalCost = Number(currentCost) + additionalCost
+
+    // Update total cost
+    await supabase
+      .from('book_generations')
+      .update({ total_cost: newTotalCost } as any)
+      .eq('id', generationId)
   }
 
   /**
@@ -332,6 +368,32 @@ export class Step4CharacterRefsService {
     }
 
     return data || []
+  }
+
+  /**
+   * Get costs for Step 4 (character references)
+   */
+  async getStep4Costs(generationId: string): Promise<{ step4Cost: number; totalCost: number }> {
+    const supabase = await createClient()
+
+    // Get sum of all character reference costs for this generation
+    const { data: refs } = await supabase
+      .from('generation_character_references')
+      .select('generation_cost')
+      .eq('generation_id', generationId)
+
+    const step4Cost = (refs as any[])?.reduce((sum, ref) => sum + (Number(ref.generation_cost) || 0), 0) || 0
+
+    // Get total cost from book_generations
+    const { data: generation } = await supabase
+      .from('book_generations')
+      .select('total_cost')
+      .eq('id', generationId)
+      .single()
+
+    const totalCost = Number((generation as any)?.total_cost) || 0
+
+    return { step4Cost, totalCost }
   }
 
   /**

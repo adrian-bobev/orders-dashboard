@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { GenerationStepper } from './generation-stepper'
+import { GenerationCostTracker } from './generation-cost-tracker'
 import { Step1CharacterImage } from './step1/step1-character-image'
 import { Step2Proofread } from './step2/step2-proofread'
 import { Step3ScenePrompts } from './step3/step3-scene-prompts'
@@ -84,12 +85,17 @@ export function GenerationWorkflow({
 
   return (
     <div className="space-y-6">
-      {/* Stepper */}
-      <GenerationStepper
-        currentStep={currentStep}
-        stepsCompleted={stepsCompleted}
-        onStepClick={setCurrentStep}
-      />
+      {/* Stepper and Cost Tracker */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4">
+        <div className="flex-1">
+          <GenerationStepper
+            currentStep={currentStep}
+            stepsCompleted={stepsCompleted}
+            onStepClick={setCurrentStep}
+          />
+        </div>
+        <GenerationCostTracker generationId={generation.id} />
+      </div>
 
       {/* Step Content */}
       <div className="bg-white rounded-2xl shadow-warm p-6 border border-purple-100">
