@@ -49,29 +49,32 @@ function buildOrderInsertData(orderData: any): OrderInsert {
     billing_state: orderData.billing?.state || null,
     billing_country: orderData.billing?.country || null,
 
-    // Delivery metadata
-    speedy_office_id: extractMetadata(metaData, '_speedy_office_id'),
-    speedy_office_name: extractMetadata(metaData, '_speedy_office_name'),
-    delivery_city_id: extractMetadata(metaData, '_delivery_city_id'),
-    delivery_city_name: extractMetadata(metaData, '_delivery_city_name'),
-    delivery_city_region: extractMetadata(metaData, '_delivery_city_region'),
-    delivery_city_type: extractMetadata(metaData, '_delivery_city_type'),
-    delivery_address_component_id: extractMetadata(
-      metaData,
-      '_delivery_address_component_id'
-    ),
-    delivery_address_component_name: extractMetadata(
-      metaData,
-      '_delivery_address_component_name'
-    ),
-    delivery_address_component_type: extractMetadata(
-      metaData,
-      '_delivery_address_component_type'
-    ),
-    delivery_address_type_prefix: extractMetadata(
-      metaData,
-      '_delivery_address_type_prefix'
-    ),
+    // Generic BG Carriers metadata
+    bg_carriers_method_id: extractMetadata(metaData, '_bg_carriers_method_id'),
+    bg_carriers_carrier: extractMetadata(metaData, '_bg_carriers_carrier'),
+    bg_carriers_service_type: extractMetadata(metaData, '_bg_carriers_service_type'),
+    bg_carriers_location_id: extractMetadata(metaData, '_bg_carriers_location_id'),
+    bg_carriers_location_name: extractMetadata(metaData, '_bg_carriers_location_name'),
+    bg_carriers_location_address: extractMetadata(metaData, '_bg_carriers_location_address'),
+
+    // Speedy pickup (office/APM) metadata
+    speedy_pickup_location_id: extractMetadata(metaData, '_speedy_pickup_location_id'),
+    speedy_pickup_location_name: extractMetadata(metaData, '_speedy_pickup_location_name'),
+    speedy_pickup_location_address: extractMetadata(metaData, '_speedy_pickup_location_address'),
+    speedy_pickup_location_type: extractMetadata(metaData, '_speedy_pickup_location_type'),
+    speedy_pickup_location_city: extractMetadata(metaData, '_speedy_pickup_location_city'),
+    speedy_pickup_location_city_id: extractMetadata(metaData, '_speedy_pickup_location_city_id'),
+    speedy_pickup_location_postcode: extractMetadata(metaData, '_speedy_pickup_location_postcode'),
+
+    // Speedy home delivery metadata
+    speedy_delivery_city_id: extractMetadata(metaData, '_speedy_delivery_city_id'),
+    speedy_delivery_city_name: extractMetadata(metaData, '_speedy_delivery_city_name'),
+    speedy_delivery_street_id: extractMetadata(metaData, '_speedy_delivery_street_id'),
+    speedy_delivery_street_name: extractMetadata(metaData, '_speedy_delivery_street_name'),
+    speedy_delivery_street_type: extractMetadata(metaData, '_speedy_delivery_street_type'),
+    speedy_delivery_street_number: extractMetadata(metaData, '_speedy_delivery_street_number'),
+    speedy_delivery_postcode: extractMetadata(metaData, '_speedy_delivery_postcode'),
+    speedy_delivery_full_address: extractMetadata(metaData, '_speedy_delivery_full_address'),
 
     // Shipping details
     shipping_total: orderData.shipping_total || null,

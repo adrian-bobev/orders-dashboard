@@ -532,6 +532,12 @@ export type Database = {
       }
       orders: {
         Row: {
+          bg_carriers_carrier: string | null
+          bg_carriers_location_address: string | null
+          bg_carriers_location_id: string | null
+          bg_carriers_location_name: string | null
+          bg_carriers_method_id: string | null
+          bg_carriers_service_type: string | null
           billing_address_1: string | null
           billing_address_2: string | null
           billing_city: string | null
@@ -545,22 +551,27 @@ export type Database = {
           billing_state: string | null
           created_at: string
           currency: string | null
-          delivery_address_component_id: string | null
-          delivery_address_component_name: string | null
-          delivery_address_component_type: string | null
-          delivery_address_type_prefix: string | null
-          delivery_city_id: string | null
-          delivery_city_name: string | null
-          delivery_city_region: string | null
-          delivery_city_type: string | null
           id: string
           order_number: string | null
           payment_method: string
           payment_method_title: string | null
           shipping_method_title: string | null
           shipping_total: number | null
-          speedy_office_id: string | null
-          speedy_office_name: string | null
+          speedy_delivery_city_id: string | null
+          speedy_delivery_city_name: string | null
+          speedy_delivery_full_address: string | null
+          speedy_delivery_postcode: string | null
+          speedy_delivery_street_id: string | null
+          speedy_delivery_street_name: string | null
+          speedy_delivery_street_number: string | null
+          speedy_delivery_street_type: string | null
+          speedy_pickup_location_address: string | null
+          speedy_pickup_location_city: string | null
+          speedy_pickup_location_city_id: string | null
+          speedy_pickup_location_id: string | null
+          speedy_pickup_location_name: string | null
+          speedy_pickup_location_postcode: string | null
+          speedy_pickup_location_type: string | null
           status: Database["public"]["Enums"]["order_status"]
           total: number
           updated_at: string
@@ -568,6 +579,12 @@ export type Database = {
           woocommerce_order_id: number
         }
         Insert: {
+          bg_carriers_carrier?: string | null
+          bg_carriers_location_address?: string | null
+          bg_carriers_location_id?: string | null
+          bg_carriers_location_name?: string | null
+          bg_carriers_method_id?: string | null
+          bg_carriers_service_type?: string | null
           billing_address_1?: string | null
           billing_address_2?: string | null
           billing_city?: string | null
@@ -581,22 +598,27 @@ export type Database = {
           billing_state?: string | null
           created_at?: string
           currency?: string | null
-          delivery_address_component_id?: string | null
-          delivery_address_component_name?: string | null
-          delivery_address_component_type?: string | null
-          delivery_address_type_prefix?: string | null
-          delivery_city_id?: string | null
-          delivery_city_name?: string | null
-          delivery_city_region?: string | null
-          delivery_city_type?: string | null
           id?: string
           order_number?: string | null
           payment_method: string
           payment_method_title?: string | null
           shipping_method_title?: string | null
           shipping_total?: number | null
-          speedy_office_id?: string | null
-          speedy_office_name?: string | null
+          speedy_delivery_city_id?: string | null
+          speedy_delivery_city_name?: string | null
+          speedy_delivery_full_address?: string | null
+          speedy_delivery_postcode?: string | null
+          speedy_delivery_street_id?: string | null
+          speedy_delivery_street_name?: string | null
+          speedy_delivery_street_number?: string | null
+          speedy_delivery_street_type?: string | null
+          speedy_pickup_location_address?: string | null
+          speedy_pickup_location_city?: string | null
+          speedy_pickup_location_city_id?: string | null
+          speedy_pickup_location_id?: string | null
+          speedy_pickup_location_name?: string | null
+          speedy_pickup_location_postcode?: string | null
+          speedy_pickup_location_type?: string | null
           status?: Database["public"]["Enums"]["order_status"]
           total: number
           updated_at?: string
@@ -604,6 +626,12 @@ export type Database = {
           woocommerce_order_id: number
         }
         Update: {
+          bg_carriers_carrier?: string | null
+          bg_carriers_location_address?: string | null
+          bg_carriers_location_id?: string | null
+          bg_carriers_location_name?: string | null
+          bg_carriers_method_id?: string | null
+          bg_carriers_service_type?: string | null
           billing_address_1?: string | null
           billing_address_2?: string | null
           billing_city?: string | null
@@ -617,22 +645,27 @@ export type Database = {
           billing_state?: string | null
           created_at?: string
           currency?: string | null
-          delivery_address_component_id?: string | null
-          delivery_address_component_name?: string | null
-          delivery_address_component_type?: string | null
-          delivery_address_type_prefix?: string | null
-          delivery_city_id?: string | null
-          delivery_city_name?: string | null
-          delivery_city_region?: string | null
-          delivery_city_type?: string | null
           id?: string
           order_number?: string | null
           payment_method?: string
           payment_method_title?: string | null
           shipping_method_title?: string | null
           shipping_total?: number | null
-          speedy_office_id?: string | null
-          speedy_office_name?: string | null
+          speedy_delivery_city_id?: string | null
+          speedy_delivery_city_name?: string | null
+          speedy_delivery_full_address?: string | null
+          speedy_delivery_postcode?: string | null
+          speedy_delivery_street_id?: string | null
+          speedy_delivery_street_name?: string | null
+          speedy_delivery_street_number?: string | null
+          speedy_delivery_street_type?: string | null
+          speedy_pickup_location_address?: string | null
+          speedy_pickup_location_city?: string | null
+          speedy_pickup_location_city_id?: string | null
+          speedy_pickup_location_id?: string | null
+          speedy_pickup_location_name?: string | null
+          speedy_pickup_location_postcode?: string | null
+          speedy_pickup_location_type?: string | null
           status?: Database["public"]["Enums"]["order_status"]
           total?: number
           updated_at?: string

@@ -248,45 +248,113 @@ export function OrderDetail({ order, currentUser, generationCounts = {} }: Order
       </div>
 
       {/* Delivery Information */}
-      {(order.delivery_city_name || order.speedy_office_name) && (
+      {order.bg_carriers_service_type && (
         <div className="bg-white rounded-2xl shadow-warm p-4 border border-purple-100">
           <h3 className="text-lg font-bold text-purple-900 mb-3">
             Информация за доставка
           </h3>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {order.delivery_city_name && (
-              <div>
-                <p className="text-xs font-bold text-purple-900 mb-1">Град</p>
-                <p className="text-sm text-neutral-700">
-                  {order.delivery_city_type} {order.delivery_city_name}
-                  {order.delivery_city_region && ` (${order.delivery_city_region})`}
-                  {order.delivery_city_id && (
-                    <span className="text-neutral-500"> [{order.delivery_city_id}]</span>
-                  )}
-                </p>
-              </div>
+            {/* Service Type Badge */}
+            <div className="md:col-span-2">
+              <p className="text-xs font-bold text-purple-900 mb-1">Тип доставка</p>
+              <span className={`inline-flex items-center px-2 py-1 rounded-lg text-xs font-bold ${
+                order.bg_carriers_service_type === 'home'
+                  ? 'bg-blue-100 text-blue-800'
+                  : order.bg_carriers_service_type === 'office'
+                  ? 'bg-green-100 text-green-800'
+                  : 'bg-orange-100 text-orange-800'
+              }`}>
+                {order.bg_carriers_service_type === 'home' && 'До адрес'}
+                {order.bg_carriers_service_type === 'office' && 'До офис'}
+                {order.bg_carriers_service_type === 'apm' && 'До автомат'}
+                {order.bg_carriers_service_type === 'pickup' && 'Вземане от място'}
+              </span>
+              {order.bg_carriers_carrier && (
+                <span className="ml-2 text-xs text-neutral-600">
+                  ({order.bg_carriers_carrier})
+                </span>
+              )}
+            </div>
+
+            {/* Pickup Location (Office/APM) */}
+            {(order.bg_carriers_service_type === 'office' || order.bg_carriers_service_type === 'apm') && (
+              <>
+                {order.speedy_pickup_location_name && (
+                  <div className="md:col-span-2">
+                    <p className="text-xs font-bold text-purple-900 mb-1">
+                      {order.speedy_pickup_location_type === 'apm' ? 'Автомат' : 'Офис'}
+                    </p>
+                    <p className="text-sm text-neutral-700">
+                      {order.speedy_pickup_location_name}
+                      {order.speedy_pickup_location_id && (
+                        <span className="text-neutral-500"> [{order.speedy_pickup_location_id}]</span>
+                      )}
+                    </p>
+                  </div>
+                )}
+                {order.speedy_pickup_location_address && (
+                  <div>
+                    <p className="text-xs font-bold text-purple-900 mb-1">Адрес</p>
+                    <p className="text-sm text-neutral-700">{order.speedy_pickup_location_address}</p>
+                  </div>
+                )}
+                {order.speedy_pickup_location_city && (
+                  <div>
+                    <p className="text-xs font-bold text-purple-900 mb-1">Град</p>
+                    <p className="text-sm text-neutral-700">
+                      {order.speedy_pickup_location_city}
+                      {order.speedy_pickup_location_postcode && `, ${order.speedy_pickup_location_postcode}`}
+                    </p>
+                  </div>
+                )}
+              </>
             )}
-            {order.delivery_address_component_name && (
-              <div>
-                <p className="text-xs font-bold text-purple-900 mb-1">Адрес</p>
-                <p className="text-sm text-neutral-700">
-                  {order.delivery_address_type_prefix}{' '}
-                  {order.delivery_address_component_name}
-                  {order.delivery_address_component_id && (
-                    <span className="text-neutral-500"> [{order.delivery_address_component_id}]</span>
-                  )}
-                </p>
-              </div>
+
+            {/* Home Delivery */}
+            {order.bg_carriers_service_type === 'home' && (
+              <>
+                {order.speedy_delivery_full_address && (
+                  <div className="md:col-span-2">
+                    <p className="text-xs font-bold text-purple-900 mb-1">Пълен адрес</p>
+                    <p className="text-sm text-neutral-700">{order.speedy_delivery_full_address}</p>
+                  </div>
+                )}
+                {order.speedy_delivery_city_name && (
+                  <div>
+                    <p className="text-xs font-bold text-purple-900 mb-1">Град</p>
+                    <p className="text-sm text-neutral-700">
+                      {order.speedy_delivery_city_name}
+                      {order.speedy_delivery_postcode && `, ${order.speedy_delivery_postcode}`}
+                      {order.speedy_delivery_city_id && (
+                        <span className="text-neutral-500"> [{order.speedy_delivery_city_id}]</span>
+                      )}
+                    </p>
+                  </div>
+                )}
+                {order.speedy_delivery_street_name && (
+                  <div>
+                    <p className="text-xs font-bold text-purple-900 mb-1">Улица</p>
+                    <p className="text-sm text-neutral-700">
+                      {order.speedy_delivery_street_type && `${order.speedy_delivery_street_type} `}
+                      {order.speedy_delivery_street_name}
+                      {order.speedy_delivery_street_number && ` ${order.speedy_delivery_street_number}`}
+                      {order.speedy_delivery_street_id && (
+                        <span className="text-neutral-500"> [{order.speedy_delivery_street_id}]</span>
+                      )}
+                    </p>
+                  </div>
+                )}
+              </>
             )}
-            {order.speedy_office_name && (
+
+            {/* Generic location (fallback) */}
+            {order.bg_carriers_location_name && !order.speedy_pickup_location_name && !order.speedy_delivery_city_name && (
               <div className="md:col-span-2">
-                <p className="text-xs font-bold text-purple-900 mb-1">Офис Speedy</p>
+                <p className="text-xs font-bold text-purple-900 mb-1">Локация</p>
                 <p className="text-sm text-neutral-700">
-                  {order.speedy_office_name}
-                  {order.speedy_office_id && (
-                    <span className="text-neutral-500"> [{order.speedy_office_id}]</span>
-                  )}
+                  {order.bg_carriers_location_name}
+                  {order.bg_carriers_location_address && ` - ${order.bg_carriers_location_address}`}
                 </p>
               </div>
             )}
