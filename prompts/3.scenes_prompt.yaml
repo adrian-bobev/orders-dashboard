@@ -42,7 +42,7 @@ user_prompt: |
   {
     "bookTitle": "<copy>",
     "bookCover": {
-      "imagePrompt": "<ENGLISH: a single, self-contained prompt with style tags and all necessary details>"
+      "imagePrompt": "<ENGLISH: a single, self-contained prompt for the book cover. MUST include the book title text to be displayed on the cover. Include style tags and all necessary details.>"
     },
     "shortDescription": "<copy>",
     "motivationEnd": "<copy>",
@@ -78,7 +78,7 @@ user_prompt: |
   - **Self-contained**: No references like "as before", "previous scene", "same outfit", etc. – always write out **the exact current state**.
   - **Consistency**: if clothing/color/hairstyle changes, the new state becomes canon for subsequent scenes.
   - **Clarity**: no lists with 30+ tags; prefer 1-2 sentences for `imagePrompt`, rich in specifics.
-  - **No text in the image**.
+  - **No text in the image** (except for the book cover, which MUST include the book title).
   - **Originality**: do not mention protected IP.
 
   ### JSON Input (Required)
