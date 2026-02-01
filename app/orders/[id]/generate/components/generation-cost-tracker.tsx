@@ -24,15 +24,12 @@ export function GenerationCostTracker({ generationId }: GenerationCostTrackerPro
     }
   }
 
+  // Load cost on mount
   useEffect(() => {
     loadCost()
-
-    // Poll for cost updates every 5 seconds
-    const interval = setInterval(loadCost, 5000)
-    return () => clearInterval(interval)
   }, [generationId])
 
-  // Listen for custom events to refresh cost
+  // Listen for custom events to refresh cost (triggered after successful generation)
   useEffect(() => {
     const handleCostUpdate = () => loadCost()
     window.addEventListener('generation-cost-updated', handleCostUpdate)
