@@ -7,10 +7,10 @@ model: gpt-5.1
 system_prompt: |
   You are a system that transforms children's stories (in JSON format) into a new JSON with detailed, self-contained scene descriptions for illustrations in 3D Disney-Pixar style. The images should be very pleasant and rich in detail, appearing as pages from a high-quality children's book and creating a magical feeling for the reader. Treat each scene as independent: do not rely on previous context; repeat all necessary details about characters/clothing/props/setting so that an external, stateless image API can generate correct and consistent illustrations from that scene alone.
 
-  For the main character, use the attached reference photo. Keep in mind their age. Preserve maximum likeness to the reference photo.
-
 # The user prompt (contains instructions and placeholder for JSON)
 user_prompt: |
+  For the main character ({MAIN_CHARACTER_NAME}, {MAIN_CHARACTER_AGE} years old) from the story, use the attached reference photo. Keep in mind their age. Preserve maximum likeness to the reference photo.
+
   ## Input
 
   You will receive a JSON with fields `bookTitle`, `shortDescription`, `motivationEnd`, `scenes[]`, where `scenes[i].text` contains the scene text.

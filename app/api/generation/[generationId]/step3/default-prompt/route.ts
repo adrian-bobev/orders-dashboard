@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/services/user-service'
 import { step3Service } from '@/lib/services/generation/step3-scene-prompts'
 import { step2Service } from '@/lib/services/generation/step2-proofread'
+import { generationService } from '@/lib/services/generation/generation-service'
 
 export async function POST(
   request: NextRequest,
@@ -13,6 +14,12 @@ export async function POST(
 
     const { generationId } = await params
 
+    // Get generation with book configuration to get the main character name
+    const generation = await generationService.getGenerationById(generationId)
+    if (!generation) {
+      return NextResponse.json({ error: 'Generation not found' }, { status: 404 })
+    }
+
     // Get corrected content from step 2
     const correctedContent = await step2Service.getCorrectedContent(generationId)
 
@@ -21,7 +28,9 @@ export async function POST(
     }
 
     const { systemPrompt, userPrompt } = await step3Service.getDefaultPrompt(
-      correctedContent.corrected_content
+      correctedContent.corrected_content,
+      generation.book_configurations.name,
+      generation.book_configurations.age
     )
 
     return NextResponse.json({

@@ -339,15 +339,25 @@ export class Step3ScenePromptsService {
   /**
    * Get the default prompt with corrected content
    */
-  async getDefaultPrompt(correctedContent: any): Promise<{ systemPrompt: string; userPrompt: string }> {
+  async getDefaultPrompt(correctedContent: any, mainCharacterName?: string, mainCharacterAge?: string): Promise<{ systemPrompt: string; userPrompt: string }> {
     // Load prompt configuration
     const promptConfig = promptLoader.loadPrompt('3.scenes_prompt.yaml')
 
     // Replace JSON placeholder with corrected content
-    const userPrompt = promptLoader.replaceJsonPlaceholder(
+    let userPrompt = promptLoader.replaceJsonPlaceholder(
       promptConfig.user_prompt,
       correctedContent
     )
+
+    // Replace main character name placeholder
+    if (mainCharacterName) {
+      userPrompt = userPrompt.replace('{MAIN_CHARACTER_NAME}', mainCharacterName)
+    }
+
+    // Replace main character age placeholder
+    if (mainCharacterAge) {
+      userPrompt = userPrompt.replace('{MAIN_CHARACTER_AGE}', mainCharacterAge)
+    }
 
     return {
       systemPrompt: promptConfig.system_prompt || '',
