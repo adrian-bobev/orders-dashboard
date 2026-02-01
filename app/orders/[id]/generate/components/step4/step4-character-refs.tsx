@@ -30,12 +30,51 @@ interface UploadProgress {
   }
 }
 
+type ImageProvider = 'fal' | 'replicate'
+
+interface ProviderConfig {
+  provider: ImageProvider
+  model: string
+  falSize?: string
+  replicateSize?: string
+  replicateAspectRatio?: string
+}
+
+interface ProviderInfo {
+  id: ImageProvider
+  name: string
+}
+
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
 const acceptedFileTypes = {
   'image/jpeg': ['.jpg', '.jpeg'],
   'image/png': ['.png'],
   'image/webp': ['.webp'],
 }
+
+const FAL_SIZES = [
+  { id: '1024x1024', name: '1024×1024 (Square)' },
+  { id: '1536x1024', name: '1536×1024 (Landscape)' },
+  { id: '1024x1536', name: '1024×1536 (Portrait)' },
+  { id: 'auto', name: 'Auto' },
+  { id: 'auto_4K', name: 'Auto 4K' },
+]
+
+const REPLICATE_SIZES = [
+  { id: '2K', name: '2K (2048px)' },
+  { id: '4K', name: '4K (4096px)' },
+]
+
+const REPLICATE_ASPECT_RATIOS = [
+  { id: '1:1', name: '1:1 (Square)' },
+  { id: '4:3', name: '4:3' },
+  { id: '3:4', name: '3:4' },
+  { id: '16:9', name: '16:9 (Widescreen)' },
+  { id: '9:16', name: '9:16 (Vertical)' },
+  { id: '3:2', name: '3:2' },
+  { id: '2:3', name: '2:3' },
+  { id: '21:9', name: '21:9 (Ultrawide)' },
+]
 
 export function Step4CharacterRefs({ generationId, bookConfig, onComplete }: Step4CharacterRefsProps) {
   const [isGenerating, setIsGenerating] = useState(false)
@@ -58,9 +97,36 @@ export function Step4CharacterRefs({ generationId, bookConfig, onComplete }: Ste
   const [defaultPrompts, setDefaultPrompts] = useState<Record<string, string>>({})
   const [defaultSystemPrompts, setDefaultSystemPrompts] = useState<Record<string, string>>({})
 
+  // Provider state
+  const [providers, setProviders] = useState<ProviderInfo[]>([])
+  const [selectedProvider, setSelectedProvider] = useState<ImageProvider>('fal')
+  const [falSize, setFalSize] = useState<string>('1024x1024')
+  const [replicateSize, setReplicateSize] = useState<string>('2K')
+  const [replicateAspectRatio, setReplicateAspectRatio] = useState<string>('1:1')
+  const [showProviderSettings, setShowProviderSettings] = useState(false)
+
   useEffect(() => {
     loadData()
+    loadProviders()
   }, [generationId])
+
+  const loadProviders = async () => {
+    try {
+      const response = await fetch(`/api/generation/${generationId}/step4/providers`)
+      if (response.ok) {
+        const data = await response.json()
+        setProviders(data.providers || [])
+        if (data.defaultConfig) {
+          setSelectedProvider(data.defaultConfig.provider)
+          if (data.defaultConfig.falSize) setFalSize(data.defaultConfig.falSize)
+          if (data.defaultConfig.replicateSize) setReplicateSize(data.defaultConfig.replicateSize)
+          if (data.defaultConfig.replicateAspectRatio) setReplicateAspectRatio(data.defaultConfig.replicateAspectRatio)
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load providers:', error)
+    }
+  }
 
   const loadData = async () => {
     await Promise.all([loadEntities(), loadReferences()])
@@ -147,6 +213,21 @@ export function Step4CharacterRefs({ generationId, bookConfig, onComplete }: Ste
     return null
   }
 
+  // Get current provider info
+  const currentProviderInfo = providers.find(p => p.id === selectedProvider)
+
+  const getProviderConfig = (): ProviderConfig => {
+    return {
+      provider: selectedProvider,
+      model: selectedProvider === 'fal' ? 'fal-ai/nano-banana' : 'google/nano-banana',
+      ...(selectedProvider === 'fal' && { falSize }),
+      ...(selectedProvider === 'replicate' && {
+        replicateSize,
+        replicateAspectRatio,
+      }),
+    }
+  }
+
   const handleGenerateAll = async () => {
     setIsGenerating(true)
     try {
@@ -177,6 +258,7 @@ export function Step4CharacterRefs({ generationId, bookConfig, onComplete }: Ste
         body: JSON.stringify({
           bookConfig,
           customPrompts: customPromptsForAll,
+          providerConfig: getProviderConfig(),
         }),
       })
 
@@ -224,6 +306,7 @@ export function Step4CharacterRefs({ generationId, bookConfig, onComplete }: Ste
           description: entity.description,
           customPrompt: combinedCustomPrompt || undefined,
           bookConfig,
+          providerConfig: getProviderConfig(),
         }),
       })
 
@@ -426,6 +509,11 @@ export function Step4CharacterRefs({ generationId, bookConfig, onComplete }: Ste
   const objects = entities.filter((e) => e.character_type === 'object')
 
   const hasAnyReferences = references.length > 0
+
+  // When provider changes, the model is automatically set via currentModel
+  const handleProviderChange = (newProvider: ImageProvider) => {
+    setSelectedProvider(newProvider)
+  }
 
   const renderEntityCard = (entity: Entity, bgColor: string, buttonColor: string) => {
     const entityRefs = groupedReferences[entity.id] || []
@@ -845,6 +933,120 @@ export function Step4CharacterRefs({ generationId, bookConfig, onComplete }: Ste
         </p>
       </div>
 
+      {/* Provider Settings Panel */}
+      <div className="bg-gradient-to-r from-indigo-50 to-purple-50 rounded-xl p-4 border border-indigo-200">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center">
+              <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+            </div>
+            <div>
+              <h3 className="font-bold text-indigo-900">AI Доставчик</h3>
+              <p className="text-sm text-indigo-600">
+                {currentProviderInfo?.name || selectedProvider}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => setShowProviderSettings(!showProviderSettings)}
+            className={`px-4 py-2 rounded-lg font-bold transition-colors ${
+              showProviderSettings
+                ? 'bg-indigo-600 text-white'
+                : 'bg-white text-indigo-600 border border-indigo-300 hover:bg-indigo-50'
+            }`}
+          >
+            {showProviderSettings ? 'Скрий настройки' : 'Настройки'}
+          </button>
+        </div>
+
+        {showProviderSettings && (
+          <div className="mt-4 pt-4 border-t border-indigo-200 space-y-4">
+            {/* Provider Selection */}
+            <div>
+              <label className="block text-sm font-bold text-indigo-900 mb-2">Доставчик:</label>
+              <div className="flex gap-2">
+                {providers.map((provider) => (
+                  <button
+                    key={provider.id}
+                    onClick={() => handleProviderChange(provider.id)}
+                    className={`px-4 py-2 rounded-lg font-bold transition-all ${
+                      selectedProvider === provider.id
+                        ? 'bg-indigo-600 text-white shadow-lg scale-105'
+                        : 'bg-white text-indigo-600 border border-indigo-300 hover:bg-indigo-50'
+                    }`}
+                  >
+                    {provider.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Provider-specific settings */}
+            {selectedProvider === 'fal' && (
+              <div>
+                <label className="block text-sm font-bold text-indigo-900 mb-2">Размер:</label>
+                <select
+                  value={falSize}
+                  onChange={(e) => setFalSize(e.target.value)}
+                  className="w-full px-4 py-2 border-2 border-indigo-200 rounded-lg bg-white text-indigo-900 font-medium focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200 outline-none"
+                >
+                  {FAL_SIZES.map((size) => (
+                    <option key={size.id} value={size.id}>
+                      {size.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {selectedProvider === 'replicate' && (
+              <>
+                <div>
+                  <label className="block text-sm font-bold text-indigo-900 mb-2">Размер:</label>
+                  <select
+                    value={replicateSize}
+                    onChange={(e) => setReplicateSize(e.target.value)}
+                    className="w-full px-4 py-2 border-2 border-indigo-200 rounded-lg bg-white text-indigo-900 font-medium focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200 outline-none"
+                  >
+                    {REPLICATE_SIZES.map((size) => (
+                      <option key={size.id} value={size.id}>
+                        {size.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-indigo-900 mb-2">Съотношение:</label>
+                  <select
+                    value={replicateAspectRatio}
+                    onChange={(e) => setReplicateAspectRatio(e.target.value)}
+                    className="w-full px-4 py-2 border-2 border-indigo-200 rounded-lg bg-white text-indigo-900 font-medium focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200 outline-none"
+                  >
+                    {REPLICATE_ASPECT_RATIOS.map((ratio) => (
+                      <option key={ratio.id} value={ratio.id}>
+                        {ratio.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            )}
+
+            {/* Info text */}
+            <div className="text-xs text-indigo-600 bg-indigo-100 rounded-lg p-3">
+              {selectedProvider === 'fal' && (
+                <p>fal.ai използва Nano Banana - модел на Google за генериране на изображения. Цена: $0.039/изображение.</p>
+              )}
+              {selectedProvider === 'replicate' && (
+                <p>Replicate използва Nano Banana на Google. Цена: $0.039/изображение.</p>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Generate All Button */}
       <div className="flex items-center justify-between">
         <div>
@@ -852,7 +1054,7 @@ export function Step4CharacterRefs({ generationId, bookConfig, onComplete }: Ste
             <p className="text-sm text-neutral-500">
               {process.env.NEXT_PUBLIC_USE_MOCK_AI === 'true'
                 ? '(Mock режим - ще върне placeholder изображения)'
-                : '(Ще използва fal.ai nano-banana модел)'}
+                : `(Ще използва ${currentProviderInfo?.name || selectedProvider})`}
             </p>
           )}
         </div>

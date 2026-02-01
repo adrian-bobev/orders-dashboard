@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/services/user-service'
-import { step4Service } from '@/lib/services/generation/step4-character-refs'
+import { step4Service, AVAILABLE_PROVIDERS, type ProviderConfig } from '@/lib/services/generation/step4-character-refs'
 
 export async function POST(
   request: NextRequest,
@@ -13,6 +13,9 @@ export async function POST(
     const { generationId } = await params
     const body = await request.json()
 
+    // Parse provider config from request
+    const providerConfig: ProviderConfig | undefined = body.providerConfig
+
     // Check if generating all or single character
     if (body.characterListId) {
       // Generate single character reference
@@ -24,6 +27,7 @@ export async function POST(
         description: body.description,
         customPrompt: body.customPrompt,
         bookConfig: body.bookConfig,
+        providerConfig,
       })
 
       return NextResponse.json({ reference: ref })
@@ -32,7 +36,8 @@ export async function POST(
       const refs = await step4Service.generateAllCharacterReferences(
         generationId,
         body.bookConfig,
-        body.customPrompts
+        body.customPrompts,
+        providerConfig
       )
 
       return NextResponse.json({ references: refs })

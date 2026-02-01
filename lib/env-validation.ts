@@ -25,6 +25,7 @@ const ENV_VARS: EnvVar[] = [
   // AI Services - Required unless USE_MOCK_AI=true
   { name: 'FAL_KEY', required: false, description: 'FAL AI API key (required if USE_MOCK_AI is not true)' },
   { name: 'OPENAI_API_KEY', required: false, description: 'OpenAI API key (required if USE_MOCK_AI is not true)' },
+  { name: 'REPLICATE_API_TOKEN', required: false, description: 'Replicate API token (optional, for Replicate image generation)' },
 
   // WooCommerce - Optional
   { name: 'WOOCOMMERCE_STORE_URL', required: false, description: 'WooCommerce store URL' },
