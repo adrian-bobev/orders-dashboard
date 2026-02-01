@@ -7,6 +7,13 @@ import ReactCrop, { type Crop, centerCrop, makeAspectCrop, PixelCrop } from 'rea
 import 'react-image-crop/dist/ReactCrop.css'
 import { ImageUploadZone } from './image-upload-zone'
 
+type ImageProvider = 'fal' | 'replicate'
+
+interface ProviderConfig {
+  provider: ImageProvider
+  quality: 'low' | 'medium' | 'high'
+}
+
 interface Step1CharacterImageProps {
   generationId: string
   bookConfig: any
@@ -45,11 +52,62 @@ export function Step1CharacterImage({
   const [customSystemPrompt, setCustomSystemPrompt] = useState<string>('')
   const [defaultSystemPrompt, setDefaultSystemPrompt] = useState<string>('')
 
+  // Provider state
+  const [selectedProvider, setSelectedProvider] = useState<ImageProvider>('fal')
+  const [selectedQuality, setSelectedQuality] = useState<'low' | 'medium' | 'high'>('high')
+  const [showProviderSettings, setShowProviderSettings] = useState(false)
+
+  // Cost tracking state
+  const [step1Cost, setStep1Cost] = useState<number>(0)
+  const [costs, setCosts] = useState<Record<string, number>>({})
+
   const uploadedImages = (bookConfig.images as any[]) || []
 
   useEffect(() => {
     loadCharacterImages()
+    loadProviders()
+    loadCosts()
   }, [generationId])
+
+  const loadProviders = async () => {
+    try {
+      const response = await fetch(`/api/generation/${generationId}/step1/providers`)
+      if (response.ok) {
+        const data = await response.json()
+        if (data.defaultConfig) {
+          setSelectedProvider(data.defaultConfig.provider)
+          setSelectedQuality(data.defaultConfig.quality || 'high')
+        }
+        if (data.costs) {
+          setCosts(data.costs)
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load providers:', error)
+    }
+  }
+
+  const loadCosts = async () => {
+    try {
+      const response = await fetch(`/api/generation/${generationId}/step1/costs`)
+      if (response.ok) {
+        const data = await response.json()
+        setStep1Cost(data.step1Cost || 0)
+        if (data.costs) {
+          setCosts(data.costs)
+        }
+        // Dispatch event to update global cost tracker
+        window.dispatchEvent(new CustomEvent('generation-cost-updated'))
+      }
+    } catch (error) {
+      console.error('Failed to load costs:', error)
+    }
+  }
+
+  const getCurrentCost = () => {
+    const costKey = `${selectedProvider}-${selectedQuality}`
+    return costs[costKey] || 0.20
+  }
 
   const loadCharacterImages = async () => {
     try {
@@ -199,7 +257,11 @@ export function Step1CharacterImage({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           imageKeys: Array.from(selectedImagesForGeneration),
-          customPrompt: combinedCustomPrompt, // Send combined prompt if set
+          customPrompt: combinedCustomPrompt,
+          providerConfig: {
+            provider: selectedProvider,
+            quality: selectedQuality,
+          },
         }),
       })
 
@@ -211,6 +273,8 @@ export function Step1CharacterImage({
       const data = await response.json()
       // Reload character images to show the new generated reference
       await loadCharacterImages()
+      // Reload costs
+      await loadCosts()
     } catch (error) {
       console.error('Error generating reference character:', error)
     } finally {
@@ -769,6 +833,110 @@ export function Step1CharacterImage({
 
       {/* Generation Actions - Always Visible */}
       <div className="bg-white rounded-xl p-4 border-2 border-blue-200">
+        {/* Provider Settings */}
+        <div className="mb-4 pb-4 border-b border-neutral-200">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+              </div>
+              <div>
+                <span className="font-bold text-indigo-900">
+                  {selectedProvider === 'fal' ? 'fal.ai' : 'Replicate'}
+                </span>
+                <span className="ml-2 text-sm text-indigo-600">
+                  ({selectedQuality === 'low' ? 'Ниско' : selectedQuality === 'medium' ? 'Средно' : 'Високо'} качество)
+                </span>
+                <span className="ml-2 text-sm text-green-600 font-medium">
+                  ${getCurrentCost().toFixed(3)}/изображение
+                </span>
+                {step1Cost > 0 && (
+                  <span className="ml-2 text-sm text-green-700 font-bold">
+                    • Стъпка 1: ${step1Cost.toFixed(2)}
+                  </span>
+                )}
+              </div>
+            </div>
+            <button
+              onClick={() => setShowProviderSettings(!showProviderSettings)}
+              className={`px-3 py-1.5 rounded-lg text-sm font-bold transition-colors ${
+                showProviderSettings
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-indigo-100 text-indigo-600 hover:bg-indigo-200'
+              }`}
+            >
+              {showProviderSettings ? 'Скрий' : 'Настройки'}
+            </button>
+          </div>
+
+          {showProviderSettings && (
+            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-bold text-indigo-900 mb-2">Доставчик:</label>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setSelectedProvider('fal')}
+                    className={`flex-1 px-3 py-2 rounded-lg font-bold transition-all ${
+                      selectedProvider === 'fal'
+                        ? 'bg-indigo-600 text-white'
+                        : 'bg-indigo-100 text-indigo-600 hover:bg-indigo-200'
+                    }`}
+                  >
+                    fal.ai
+                  </button>
+                  <button
+                    onClick={() => setSelectedProvider('replicate')}
+                    className={`flex-1 px-3 py-2 rounded-lg font-bold transition-all ${
+                      selectedProvider === 'replicate'
+                        ? 'bg-indigo-600 text-white'
+                        : 'bg-indigo-100 text-indigo-600 hover:bg-indigo-200'
+                    }`}
+                  >
+                    Replicate
+                  </button>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-indigo-900 mb-2">Качество:</label>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setSelectedQuality('low')}
+                    className={`flex-1 px-3 py-2 rounded-lg text-sm font-bold transition-all ${
+                      selectedQuality === 'low'
+                        ? 'bg-indigo-600 text-white'
+                        : 'bg-indigo-100 text-indigo-600 hover:bg-indigo-200'
+                    }`}
+                  >
+                    Ниско
+                  </button>
+                  <button
+                    onClick={() => setSelectedQuality('medium')}
+                    className={`flex-1 px-3 py-2 rounded-lg text-sm font-bold transition-all ${
+                      selectedQuality === 'medium'
+                        ? 'bg-indigo-600 text-white'
+                        : 'bg-indigo-100 text-indigo-600 hover:bg-indigo-200'
+                    }`}
+                  >
+                    Средно
+                  </button>
+                  <button
+                    onClick={() => setSelectedQuality('high')}
+                    className={`flex-1 px-3 py-2 rounded-lg text-sm font-bold transition-all ${
+                      selectedQuality === 'high'
+                        ? 'bg-indigo-600 text-white'
+                        : 'bg-indigo-100 text-indigo-600 hover:bg-indigo-200'
+                    }`}
+                  >
+                    Високо
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
         <div className="flex flex-wrap gap-3 items-center">
           <button
             onClick={() => {

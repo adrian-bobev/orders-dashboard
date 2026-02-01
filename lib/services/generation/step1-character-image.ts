@@ -5,8 +5,43 @@ import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import sharp from 'sharp'
 import { openai } from '@/lib/services/ai/openai-client'
 import { falClient } from '@/lib/services/ai/fal-client'
+import { replicateClient } from '@/lib/services/ai/replicate-client'
 import { promptLoader } from '@/lib/services/ai/prompt-loader'
 import { getGenerationFolderPath } from './generation-service'
+
+export type ImageProvider = 'fal' | 'replicate'
+
+export interface ProviderConfig {
+  provider: ImageProvider
+  quality?: 'low' | 'medium' | 'high' | 'auto'
+}
+
+// Cost per image based on quality (using high quality pricing as default)
+export const IMAGE_GENERATION_COSTS: Record<string, number> = {
+  'fal-low': 0.013,
+  'fal-medium': 0.051,
+  'fal-high': 0.200,
+  'replicate-low': 0.013,
+  'replicate-medium': 0.05,
+  'replicate-high': 0.136,
+  'replicate-auto': 0.136,
+}
+
+export const DEFAULT_PROVIDER_CONFIG: ProviderConfig = {
+  provider: 'fal',
+  quality: 'high',
+}
+
+export const AVAILABLE_PROVIDERS: { id: ImageProvider; name: string }[] = [
+  { id: 'fal', name: 'fal.ai' },
+  { id: 'replicate', name: 'Replicate' },
+]
+
+export const QUALITY_OPTIONS = [
+  { id: 'low', name: 'Ниско ($0.013)' },
+  { id: 'medium', name: 'Средно ($0.05)' },
+  { id: 'high', name: 'Високо ($0.13-0.20)' },
+]
 
 export interface CropData {
   x: number
@@ -408,9 +443,11 @@ export class Step1CharacterImageService {
     generationId: string,
     bookConfig: any,
     imageKeys: string[],
-    customPrompt?: string // Optional custom prompt override
+    customPrompt?: string,
+    providerConfig?: ProviderConfig
   ): Promise<any> {
     const supabase = await createClient()
+    const config = providerConfig || DEFAULT_PROVIDER_CONFIG
 
     if (!imageKeys || imageKeys.length === 0) {
       throw new Error('No images selected for generation. Please select at least one image.')
@@ -481,17 +518,38 @@ export class Step1CharacterImageService {
 
     const fullPrompt = `${finalPrompt}${multiImageNote}\n\nCreate a full-body 3D Pixar-style character.`
 
-    console.log(`Generating character with ${imageUrls.length} reference image(s)`)
+    console.log(`Generating character with ${imageUrls.length} reference image(s) using ${config.provider}`)
     console.log('Prompt:', fullPrompt.substring(0, 200) + '...')
 
-    // Generate the reference character image using fal.ai gpt-image-1.5/edit
-    const imageResult = await falClient.generateImage({
-      model: 'fal-ai/gpt-image-1.5/edit',
-      prompt: fullPrompt,
-      imageUrls: imageUrls,
-      size: '1024x1536', // Vertical format for full-body character
-      numImages: 1,
-    })
+    // Generate the reference character image using configured provider
+    let imageResult: { url: string; contentType?: string }
+
+    if (config.provider === 'replicate') {
+      // Use Replicate
+      imageResult = await replicateClient.generateImage({
+        model: 'openai/gpt-image-1.5',
+        prompt: fullPrompt,
+        imageUrls: imageUrls,
+        aspectRatio: '2:3', // Vertical format for full-body character
+        additionalParams: {
+          quality: config.quality || 'high',
+          input_fidelity: 'high',
+        },
+      })
+    } else {
+      // Use fal.ai (default)
+      imageResult = await falClient.generateImage({
+        model: 'fal-ai/gpt-image-1.5/edit',
+        prompt: fullPrompt,
+        imageUrls: imageUrls,
+        size: '1024x1536', // Vertical format for full-body character
+        numImages: 1,
+        additionalParams: {
+          quality: config.quality || 'high',
+          input_fidelity: 'high',
+        },
+      })
+    }
 
     // Download the generated image
     let generatedImageBuffer: Buffer
@@ -507,7 +565,7 @@ export class Step1CharacterImageService {
         generatedImageBuffer = buffer
       }
     } else {
-      // Handle regular URLs from fal.ai
+      // Handle regular URLs from provider
       const imageResponse = await fetch(imageResult.url)
       if (!imageResponse.ok) {
         throw new Error(`Failed to download generated image: ${imageResponse.statusText}`)
@@ -544,6 +602,12 @@ export class Step1CharacterImageService {
       .update({ is_selected: false })
       .eq('generation_id', generationId)
 
+    // Calculate generation cost
+    const isMockMode = process.env.USE_MOCK_AI === 'true'
+    const quality = config.quality || 'high'
+    const costKey = `${config.provider}-${quality}`
+    const generationCost = isMockMode ? 0 : (IMAGE_GENERATION_COSTS[costKey] || IMAGE_GENERATION_COSTS['fal-high'])
+
     // Create a new version with the generated reference image
     const { data: newVersion, error: insertError } = await supabase
       .from('generation_character_images')
@@ -559,7 +623,9 @@ export class Step1CharacterImageService {
           referenceImageKeys: imageKeys,
           imageCount: imageKeys.length,
           model: 'gpt-image-1.5',
-          provider: 'fal.ai',
+          provider: config.provider,
+          quality: quality,
+          generationCost: generationCost,
         }),
       })
       .select()
@@ -570,7 +636,12 @@ export class Step1CharacterImageService {
       throw new Error('Failed to create new version')
     }
 
-    console.log(`Successfully generated character reference v${nextVersion} using ${imageKeys.length} image(s)`)
+    // Update total cost in book_generations table
+    if (generationCost > 0) {
+      await this.updateTotalCost(generationId, generationCost)
+    }
+
+    console.log(`Successfully generated character reference v${nextVersion} using ${imageKeys.length} image(s) via ${config.provider}`)
 
     // Return the reference key and new version info
     return {
@@ -578,7 +649,72 @@ export class Step1CharacterImageService {
       imageCount: imageKeys.length,
       characterImageId: newVersion.id,
       version: nextVersion,
+      provider: config.provider,
+      quality: quality,
+      generationCost: generationCost,
     }
+  }
+
+  /**
+   * Update the total cost for a generation
+   */
+  private async updateTotalCost(generationId: string, additionalCost: number): Promise<void> {
+    const supabase = await createClient()
+
+    // Get current total cost
+    const { data: generation } = await supabase
+      .from('book_generations')
+      .select('total_cost')
+      .eq('id', generationId)
+      .single()
+
+    const currentCost = (generation as any)?.total_cost || 0
+    const newTotalCost = Number(currentCost) + additionalCost
+
+    // Update total cost
+    await supabase
+      .from('book_generations')
+      .update({ total_cost: newTotalCost } as any)
+      .eq('id', generationId)
+  }
+
+  /**
+   * Get costs for Step 1 (main character generation)
+   */
+  async getStep1Costs(generationId: string): Promise<{ step1Cost: number; totalCost: number }> {
+    const supabase = await createClient()
+
+    // Get all character images with notes containing cost info
+    const { data: images } = await supabase
+      .from('generation_character_images')
+      .select('notes')
+      .eq('generation_id', generationId)
+
+    // Sum up costs from notes
+    let step1Cost = 0
+    if (images) {
+      for (const img of images) {
+        try {
+          const notes = typeof img.notes === 'string' ? JSON.parse(img.notes) : img.notes
+          if (notes?.generationCost) {
+            step1Cost += Number(notes.generationCost)
+          }
+        } catch (e) {
+          // Ignore parse errors
+        }
+      }
+    }
+
+    // Get total cost from book_generations
+    const { data: generation } = await supabase
+      .from('book_generations')
+      .select('total_cost')
+      .eq('id', generationId)
+      .single()
+
+    const totalCost = Number((generation as any)?.total_cost) || 0
+
+    return { step1Cost, totalCost }
   }
 }
 

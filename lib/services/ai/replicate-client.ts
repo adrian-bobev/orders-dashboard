@@ -48,8 +48,15 @@ export class ReplicateClient {
       }
 
       // Add image URLs if provided (for image-to-image generation)
+      // Different models use different parameter names
       if (params.imageUrls && params.imageUrls.length > 0) {
-        input.image_input = params.imageUrls
+        if (params.model.includes('gpt-image')) {
+          // OpenAI GPT-Image models use input_images
+          input.input_images = params.imageUrls
+        } else {
+          // Other models like seedream use image_input
+          input.image_input = params.imageUrls
+        }
       }
 
       // Add size

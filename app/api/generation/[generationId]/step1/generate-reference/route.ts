@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/services/user-service'
-import { step1Service } from '@/lib/services/generation/step1-character-image'
+import { step1Service, type ProviderConfig } from '@/lib/services/generation/step1-character-image'
 import { generationService } from '@/lib/services/generation/generation-service'
 
 export async function POST(
@@ -13,7 +13,7 @@ export async function POST(
 
     const { generationId } = await params
     const body = await request.json()
-    const { imageKeys, customPrompt } = body
+    const { imageKeys, customPrompt, providerConfig } = body
 
     if (!imageKeys || !Array.isArray(imageKeys) || imageKeys.length === 0) {
       return NextResponse.json(
@@ -33,13 +33,17 @@ export async function POST(
       generationId,
       generation.book_configurations,
       imageKeys,
-      customPrompt // Pass custom prompt if provided
+      customPrompt,
+      providerConfig as ProviderConfig | undefined
     )
 
     return NextResponse.json({
       success: true,
       referenceKey: result.referenceKey,
       imageCount: result.imageCount,
+      provider: result.provider,
+      quality: result.quality,
+      generationCost: result.generationCost,
     })
   } catch (error) {
     console.error('Error generating reference character:', error)
