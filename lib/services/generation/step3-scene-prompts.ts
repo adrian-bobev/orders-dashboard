@@ -8,6 +8,10 @@ export interface GenerateScenePromptsParams {
   mainCharacterName?: string
   systemPrompt: string
   userPrompt: string
+  images?: Array<{
+    url: string
+    description?: string
+  }>
 }
 
 export interface SaveManualSceneDataParams {
@@ -42,6 +46,7 @@ export class Step3ScenePromptsService {
       model: promptConfig.model,
       temperature: promptConfig.temperature,
       maxTokens: promptConfig.max_tokens,
+      images: params.images,
     })
 
     // Parse the response

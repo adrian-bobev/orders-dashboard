@@ -1,10 +1,19 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { getImageUrl } from '@/lib/r2-client'
+import { SmartImage } from '@/components/SmartImage'
 
 interface Step3ScenePromptsProps {
   generationId: string
   onComplete: () => void
+}
+
+interface ReferenceImage {
+  id: string
+  url: string
+  file?: File
+  description: string
 }
 
 export function Step3ScenePrompts({ generationId, onComplete }: Step3ScenePromptsProps) {
@@ -26,9 +35,68 @@ export function Step3ScenePrompts({ generationId, onComplete }: Step3ScenePrompt
   const [isManualPasteOpen, setIsManualPasteOpen] = useState(false)
   const [manualJsonText, setManualJsonText] = useState<string>('')
 
+  // Main character image from Step 1
+  const [mainCharacterImage, setMainCharacterImage] = useState<any | null>(null)
+
+  // Additional reference images
+  const [additionalImages, setAdditionalImages] = useState<ReferenceImage[]>([])
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
   useEffect(() => {
     loadPrompts()
+    loadMainCharacterImage()
   }, [generationId])
+
+  const loadMainCharacterImage = async () => {
+    try {
+      const response = await fetch(`/api/generation/${generationId}/step1/images`)
+      if (response.ok) {
+        const data = await response.json()
+        const selectedImage = data.images?.find((img: any) => img.is_selected)
+        if (selectedImage) {
+          setMainCharacterImage(selectedImage)
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load main character image:', error)
+    }
+  }
+
+  const handleAddImage = () => {
+    fileInputRef.current?.click()
+  }
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files
+    if (!files) return
+
+    Array.from(files).forEach((file) => {
+      const reader = new FileReader()
+      reader.onload = (event) => {
+        const newImage: ReferenceImage = {
+          id: `img-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          url: event.target?.result as string,
+          file,
+          description: '',
+        }
+        setAdditionalImages((prev) => [...prev, newImage])
+      }
+      reader.readAsDataURL(file)
+    })
+
+    // Reset input
+    e.target.value = ''
+  }
+
+  const handleRemoveImage = (id: string) => {
+    setAdditionalImages((prev) => prev.filter((img) => img.id !== id))
+  }
+
+  const handleImageDescriptionChange = (id: string, description: string) => {
+    setAdditionalImages((prev) =>
+      prev.map((img) => (img.id === id ? { ...img, description } : img))
+    )
+  }
 
   const loadPrompts = async () => {
     try {
@@ -104,6 +172,10 @@ export function Step3ScenePrompts({ generationId, onComplete }: Step3ScenePrompt
         body: JSON.stringify({
           systemPrompt: finalSystemPrompt,
           userPrompt: finalUserPrompt,
+          additionalImages: additionalImages.map((img) => ({
+            url: img.url,
+            description: img.description || undefined,
+          })),
         }),
       })
 
@@ -185,6 +257,13 @@ export function Step3ScenePrompts({ generationId, onComplete }: Step3ScenePrompt
   const coverPrompt = prompts.find((p) => p.scene_type === 'cover')
   const scenePrompts = prompts.filter((p) => p.scene_type === 'scene').sort((a, b) => (a.scene_number || 0) - (b.scene_number || 0))
 
+  // Get the image URL for main character
+  const mainCharacterImageUrl = mainCharacterImage?.generated_image_key
+    ? getImageUrl(mainCharacterImage.generated_image_key)
+    : mainCharacterImage?.cropped_image_key
+    ? getImageUrl(mainCharacterImage.cropped_image_key)
+    : null
+
   return (
     <div className="space-y-6">
       <div>
@@ -194,6 +273,103 @@ export function Step3ScenePrompts({ generationId, onComplete }: Step3ScenePrompt
         <p className="text-neutral-600">
           Генерирайте детайлни prompts за корицата и всяка сцена. Prompts могат да се редактират след генериране.
         </p>
+      </div>
+
+      {/* Reference Images Section */}
+      <div className="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl p-4 border-2 border-blue-200">
+        <h3 className="font-bold text-blue-900 mb-3 flex items-center gap-2">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+          Референтни изображения
+        </h3>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {/* Main Character Image */}
+          <div className="space-y-2">
+            <p className="text-xs font-bold text-blue-800">Главен герой (от Стъпка 1)</p>
+            {mainCharacterImageUrl ? (
+              <div className="relative aspect-square rounded-lg overflow-hidden border-2 border-blue-300 bg-white">
+                <SmartImage
+                  src={mainCharacterImageUrl}
+                  alt="Main character"
+                  fill
+                  className="object-cover"
+                />
+                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent p-2">
+                  <p className="text-xs text-white font-medium truncate">Главен герой</p>
+                </div>
+              </div>
+            ) : (
+              <div className="aspect-square rounded-lg border-2 border-dashed border-blue-300 bg-blue-100/50 flex items-center justify-center">
+                <div className="text-center p-2">
+                  <svg className="w-8 h-8 text-blue-400 mx-auto mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                  <p className="text-xs text-blue-600">Няма избрано изображение</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Additional Reference Images */}
+          {additionalImages.map((img) => (
+            <div key={img.id} className="space-y-2">
+              <p className="text-xs font-bold text-blue-800">Допълнителна референция</p>
+              <div className="relative aspect-square rounded-lg overflow-hidden border-2 border-blue-300 bg-white group">
+                <SmartImage
+                  src={img.url}
+                  alt="Reference"
+                  fill
+                  className="object-cover"
+                />
+                <button
+                  onClick={() => handleRemoveImage(img.id)}
+                  className="absolute top-1 right-1 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <input
+                type="text"
+                placeholder="Опиши какво е това..."
+                value={img.description}
+                onChange={(e) => handleImageDescriptionChange(img.id, e.target.value)}
+                className="w-full px-2 py-1 text-xs border border-blue-200 rounded-lg focus:border-blue-400 focus:outline-none"
+              />
+            </div>
+          ))}
+
+          {/* Add Image Button */}
+          <div className="space-y-2">
+            <p className="text-xs font-bold text-blue-800 invisible">Добави</p>
+            <button
+              onClick={handleAddImage}
+              className="aspect-square w-full rounded-lg border-2 border-dashed border-blue-300 bg-blue-100/50 hover:bg-blue-100 hover:border-blue-400 transition-colors flex flex-col items-center justify-center gap-2"
+            >
+              <svg className="w-8 h-8 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              <span className="text-xs text-blue-600 font-medium">Добави изображение</span>
+            </button>
+          </div>
+        </div>
+
+        <p className="text-xs text-blue-700 mt-3">
+          Тези изображения ще бъдат изпратени към AI модела заедно с промпта за по-добро описание на сцените.
+        </p>
+
+        {/* Hidden file input */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          onChange={handleFileSelect}
+          className="hidden"
+        />
       </div>
 
       {/* Prompt Editor Button - Always Visible */}

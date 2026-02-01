@@ -12,6 +12,10 @@ export interface ChatParams {
   model?: string
   temperature?: number
   maxTokens?: number
+  images?: Array<{
+    url: string  // Can be a URL or base64 data URL
+    description?: string
+  }>
 }
 
 export interface GenerateImageParams {
@@ -42,6 +46,8 @@ export class OpenAIClient {
 
       this.client = new OpenAI({
         apiKey,
+        timeout: 120000, // 2 minutes timeout for vision requests
+        maxRetries: 2,
       })
     }
   }
@@ -58,17 +64,58 @@ export class OpenAIClient {
       throw new Error('OpenAI client not initialized')
     }
 
-    const response = await this.client.chat.completions.create({
-      model: params.model || 'gpt-4o',
-      temperature: params.temperature ?? 0.7,
-      max_tokens: params.maxTokens,
-      messages: [
-        { role: 'system', content: params.systemPrompt },
-        { role: 'user', content: params.userPrompt },
-      ],
+    // Build the user message content
+    type ContentPart = { type: 'text'; text: string } | { type: 'image_url'; image_url: { url: string; detail?: 'low' | 'high' | 'auto' } }
+    const userContent: ContentPart[] = []
+
+    // Add images first if provided
+    if (params.images && params.images.length > 0) {
+      console.log(`[OpenAI] Sending ${params.images.length} images with model ${params.model}`)
+      for (const img of params.images) {
+        userContent.push({
+          type: 'image_url',
+          image_url: {
+            url: img.url,
+            detail: 'auto', // Let the API decide the detail level
+          },
+        })
+        // Add description if provided
+        if (img.description) {
+          userContent.push({
+            type: 'text',
+            text: `[Image description: ${img.description}]`,
+          })
+        }
+      }
+    }
+
+    // Add the main text prompt
+    userContent.push({
+      type: 'text',
+      text: params.userPrompt,
     })
 
-    return response.choices[0]?.message?.content || ''
+    try {
+      console.log(`[OpenAI] Starting chat request with model: ${params.model || 'gpt-4o'}`)
+      const response = await this.client.chat.completions.create({
+        model: params.model || 'gpt-4o',
+        temperature: params.temperature ?? 0.7,
+        max_tokens: params.maxTokens,
+        messages: [
+          { role: 'system', content: params.systemPrompt },
+          { role: 'user', content: userContent },
+        ],
+      })
+      console.log(`[OpenAI] Chat request completed successfully`)
+
+      return response.choices[0]?.message?.content || ''
+    } catch (error: any) {
+      console.error('[OpenAI] Chat request failed:', error.message)
+      if (error.cause) {
+        console.error('[OpenAI] Cause:', error.cause)
+      }
+      throw error
+    }
   }
 
   /**
