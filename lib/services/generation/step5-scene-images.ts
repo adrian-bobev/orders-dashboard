@@ -331,31 +331,41 @@ export class Step5SceneImagesService {
     // Import the scene characters service to fetch character references
     const { step5SceneCharactersService } = await import('./step5-scene-characters-service')
 
-    // Generate images sequentially (to avoid rate limits)
-    const results = []
-    for (const prompt of scenePrompts) {
-      try {
-        // Fetch character reference IDs for this scene
-        const characterReferenceIds = await step5SceneCharactersService.getSceneCharacterReferenceIds(
-          prompt.id
-        )
+    // Generate images in parallel with concurrency limit of 6
+    const CONCURRENCY_LIMIT = 6
+    const results: any[] = []
 
-        const image = await this.generateSceneImage({
-          generationId: params.generationId,
-          scenePromptId: prompt.id,
-          imagePrompt: prompt.image_prompt,
-          characterReferenceIds: characterReferenceIds.length > 0 ? characterReferenceIds : undefined,
-          providerConfig: params.providerConfig,
-        })
-        results.push({ success: true, scenePromptId: prompt.id, image })
-      } catch (error) {
-        console.error(`Failed to generate image for scene ${prompt.scene_number}:`, error)
-        results.push({
-          success: false,
-          scenePromptId: prompt.id,
-          error: error instanceof Error ? error.message : 'Unknown error',
-        })
-      }
+    // Process in batches
+    for (let i = 0; i < scenePrompts.length; i += CONCURRENCY_LIMIT) {
+      const batch = scenePrompts.slice(i, i + CONCURRENCY_LIMIT)
+
+      const batchPromises = batch.map(async (prompt) => {
+        try {
+          // Fetch character reference IDs for this scene
+          const characterReferenceIds = await step5SceneCharactersService.getSceneCharacterReferenceIds(
+            prompt.id
+          )
+
+          const image = await this.generateSceneImage({
+            generationId: params.generationId,
+            scenePromptId: prompt.id,
+            imagePrompt: prompt.image_prompt,
+            characterReferenceIds: characterReferenceIds.length > 0 ? characterReferenceIds : undefined,
+            providerConfig: params.providerConfig,
+          })
+          return { success: true, scenePromptId: prompt.id, image }
+        } catch (error) {
+          console.error(`Failed to generate image for scene ${prompt.scene_number}:`, error)
+          return {
+            success: false,
+            scenePromptId: prompt.id,
+            error: error instanceof Error ? error.message : 'Unknown error',
+          }
+        }
+      })
+
+      const batchResults = await Promise.all(batchPromises)
+      results.push(...batchResults)
     }
 
     return results

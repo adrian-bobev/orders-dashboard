@@ -276,25 +276,35 @@ export class Step4CharacterRefsService {
       return []
     }
 
-    // Generate reference for each character
-    const results = []
-    for (const character of characters) {
-      try {
-        const ref = await this.generateCharacterReference({
-          generationId,
-          characterListId: character.id,
-          characterName: character.character_name,
-          characterType: character.character_type ?? undefined,
-          description: character.description,
-          customPrompt: customPrompts?.[character.id],
-          bookConfig,
-          providerConfig,
-        })
-        results.push(ref)
-      } catch (error) {
-        console.error(`Failed to generate reference for ${character.character_name}:`, error)
-        // Continue with other characters
-      }
+    // Generate references in parallel with concurrency limit of 6
+    const CONCURRENCY_LIMIT = 6
+    const results: any[] = []
+
+    // Process in batches
+    for (let i = 0; i < characters.length; i += CONCURRENCY_LIMIT) {
+      const batch = characters.slice(i, i + CONCURRENCY_LIMIT)
+
+      const batchPromises = batch.map(async (character) => {
+        try {
+          const ref = await this.generateCharacterReference({
+            generationId,
+            characterListId: character.id,
+            characterName: character.character_name,
+            characterType: character.character_type ?? undefined,
+            description: character.description,
+            customPrompt: customPrompts?.[character.id],
+            bookConfig,
+            providerConfig,
+          })
+          return ref
+        } catch (error) {
+          console.error(`Failed to generate reference for ${character.character_name}:`, error)
+          return null
+        }
+      })
+
+      const batchResults = await Promise.all(batchPromises)
+      results.push(...batchResults.filter((r) => r !== null))
     }
 
     return results
