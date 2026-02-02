@@ -252,14 +252,22 @@ export function Step4CharacterRefs({ generationId, bookConfig, onComplete }: Ste
   const handleGenerateAll = async () => {
     setIsGenerating(true)
     try {
+      // Filter entities that need generation (excluding main character)
+      const entitiesToGenerate = entities.filter(e => !e.is_main_character)
+
+      if (entitiesToGenerate.length === 0) {
+        setIsGenerating(false)
+        return
+      }
+
       // Load default prompts for all entities that don't have them yet
-      const promptLoadPromises = entities.map(entity => loadDefaultPrompt(entity))
+      const promptLoadPromises = entitiesToGenerate.map(entity => loadDefaultPrompt(entity))
       const promptsResults = await Promise.all(promptLoadPromises)
 
       // Build custom prompts object with all entities using the returned values
       const customPromptsForAll: Record<string, string> = {}
 
-      entities.forEach((entity, index) => {
+      entitiesToGenerate.forEach((entity, index) => {
         const loadedPrompts = promptsResults[index]
 
         // Use custom prompt if exists, otherwise use the loaded default
@@ -273,27 +281,53 @@ export function Step4CharacterRefs({ generationId, bookConfig, onComplete }: Ste
         }
       })
 
-      const response = await fetch(`/api/generation/${generationId}/step4/generate-character-refs`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          bookConfig,
-          customPrompts: customPromptsForAll,
-          providerConfig: getProviderConfig(),
-        }),
-      })
+      // Generate in parallel batches of 6
+      const CONCURRENCY_LIMIT = 6
 
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Failed to generate references')
+      for (let i = 0; i < entitiesToGenerate.length; i += CONCURRENCY_LIMIT) {
+        const batch = entitiesToGenerate.slice(i, i + CONCURRENCY_LIMIT)
+
+        const batchPromises = batch.map(async (entity) => {
+          try {
+            setGeneratingCharacter(entity.id)
+            const response = await fetch(`/api/generation/${generationId}/step4/generate-character-refs`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                characterListId: entity.id,
+                characterName: entity.character_name,
+                characterType: entity.character_type,
+                description: entity.description,
+                customPrompt: customPromptsForAll[entity.id] || undefined,
+                bookConfig,
+                providerConfig: getProviderConfig(),
+              }),
+            })
+
+            if (!response.ok) {
+              const error = await response.json()
+              throw new Error(error.error || 'Failed to generate reference')
+            }
+
+            // Reload references after each successful generation to show progress
+            await loadReferences()
+            await loadCosts()
+            return { success: true, entityId: entity.id }
+          } catch (error) {
+            console.error(`Error generating reference for ${entity.character_name}:`, error)
+            return { success: false, entityId: entity.id, error }
+          }
+        })
+
+        await Promise.all(batchPromises)
       }
 
-      await loadReferences()
-      await loadCosts()
+      setGeneratingCharacter(null)
     } catch (error) {
       console.error('Error generating references:', error)
     } finally {
       setIsGenerating(false)
+      setGeneratingCharacter(null)
     }
   }
 

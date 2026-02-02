@@ -192,27 +192,59 @@ export function Step5SceneImages({ generationId, onComplete }: Step5SceneImagesP
         provider: selectedProvider,
       }
 
-      const response = await fetch(`/api/generation/${generationId}/step5/generate-scenes`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          scenePromptIds: Array.from(selectedScenes),
-          providerConfig,
-        }),
-      })
+      const scenePromptIds = Array.from(selectedScenes)
 
-      if (!response.ok) {
-        throw new Error('Failed to generate scenes')
+      // Get the prompts for each scene
+      const scenesToGenerate = prompts.filter(p => scenePromptIds.includes(p.id))
+
+      // Generate in parallel batches of 6
+      const CONCURRENCY_LIMIT = 6
+
+      for (let i = 0; i < scenesToGenerate.length; i += CONCURRENCY_LIMIT) {
+        const batch = scenesToGenerate.slice(i, i + CONCURRENCY_LIMIT)
+
+        const batchPromises = batch.map(async (prompt) => {
+          try {
+            setGeneratingScene(prompt.id)
+            const response = await fetch(
+              `/api/generation/${generationId}/step5/generate-scene/${prompt.id}`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  imagePrompt: prompt.image_prompt,
+                  providerConfig,
+                }),
+              }
+            )
+
+            if (!response.ok) {
+              throw new Error('Failed to generate scene')
+            }
+
+            // Reload images after each successful generation to show progress
+            await loadImages()
+            await loadCosts()
+
+            // Dispatch event to update global cost tracker
+            window.dispatchEvent(new CustomEvent('generation-cost-updated'))
+
+            return { success: true, scenePromptId: prompt.id }
+          } catch (error) {
+            console.error(`Error generating scene ${prompt.scene_number}:`, error)
+            return { success: false, scenePromptId: prompt.id, error }
+          }
+        })
+
+        await Promise.all(batchPromises)
       }
 
-      await loadData()
-
-      // Dispatch event to update global cost tracker
-      window.dispatchEvent(new CustomEvent('generation-cost-updated'))
+      setGeneratingScene(null)
     } catch (error) {
       console.error('Error generating scenes:', error)
     } finally {
       setIsGenerating(false)
+      setGeneratingScene(null)
     }
   }
 
