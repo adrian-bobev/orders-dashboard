@@ -4,7 +4,7 @@ import { falClient } from '@/lib/services/ai/fal-client'
 import { replicateClient } from '@/lib/services/ai/replicate-client'
 import { promptLoader } from '@/lib/services/ai/prompt-loader'
 import { getStorageClient } from '@/lib/r2-client'
-import { PutObjectCommand } from '@aws-sdk/client-s3'
+import { PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
 import sharp from 'sharp'
 import { getGenerationFolderPath } from './generation-service'
 
@@ -436,6 +436,38 @@ export class Step4CharacterRefsService {
   async deleteCharacterReference(referenceId: string): Promise<void> {
     const supabase = await createClient()
 
+    // First, get the reference record to get the image_key
+    const { data: refRecord, error: fetchError } = await supabase
+      .from('generation_character_references')
+      .select('image_key')
+      .eq('id', referenceId)
+      .single()
+
+    if (fetchError) {
+      console.error('Error fetching character reference for deletion:', fetchError)
+      throw new Error('Failed to fetch character reference')
+    }
+
+    // Delete from R2 if image_key exists
+    if (refRecord?.image_key) {
+      try {
+        const storageClient = getStorageClient()
+        const generationsBucket = process.env.R2_GENERATIONS_BUCKET || 'generations'
+
+        const deleteCommand = new DeleteObjectCommand({
+          Bucket: generationsBucket,
+          Key: refRecord.image_key,
+        })
+
+        await storageClient.send(deleteCommand)
+        console.log(`Deleted image from R2: ${refRecord.image_key}`)
+      } catch (error) {
+        console.error('Error deleting image from R2:', error)
+        // Continue with database deletion even if R2 deletion fails
+      }
+    }
+
+    // Delete from database
     const { error } = await supabase
       .from('generation_character_references')
       .delete()

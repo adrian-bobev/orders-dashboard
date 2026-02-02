@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server'
 import { falClient } from '@/lib/services/ai/fal-client'
 import { replicateClient } from '@/lib/services/ai/replicate-client'
 import { getStorageClient } from '@/lib/r2-client'
-import { GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3'
+import { GetObjectCommand, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import sharp from 'sharp'
 import { getGenerationFolderPath } from './generation-service'
@@ -431,6 +431,38 @@ export class Step5SceneImagesService {
   async deleteSceneImage(imageId: string): Promise<void> {
     const supabase = await createClient()
 
+    // First, get the image record to get the image_key
+    const { data: imageRecord, error: fetchError } = await supabase
+      .from('generation_scene_images')
+      .select('image_key')
+      .eq('id', imageId)
+      .single()
+
+    if (fetchError) {
+      console.error('Error fetching scene image for deletion:', fetchError)
+      throw new Error('Failed to fetch scene image')
+    }
+
+    // Delete from R2 if image_key exists
+    if (imageRecord?.image_key) {
+      try {
+        const storageClient = getStorageClient()
+        const generationsBucket = process.env.R2_GENERATIONS_BUCKET || 'generations'
+
+        const deleteCommand = new DeleteObjectCommand({
+          Bucket: generationsBucket,
+          Key: imageRecord.image_key,
+        })
+
+        await storageClient.send(deleteCommand)
+        console.log(`Deleted image from R2: ${imageRecord.image_key}`)
+      } catch (error) {
+        console.error('Error deleting image from R2:', error)
+        // Continue with database deletion even if R2 deletion fails
+      }
+    }
+
+    // Delete from database
     const { error } = await supabase.from('generation_scene_images').delete().eq('id', imageId)
 
     if (error) {
