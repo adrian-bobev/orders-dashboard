@@ -156,6 +156,20 @@ async function checkAndNotifyAllBooksReady(supabase: any, generationId: string) 
     console.log('📝 All ready:', allReady)
 
     if (allReady) {
+      console.log('📝 All books ready! Updating order status to VALIDATION_PENDING...')
+
+      // Update order status to VALIDATION_PENDING
+      const { error: statusError } = await supabase
+        .from('orders')
+        .update({ status: 'VALIDATION_PENDING' })
+        .eq('id', order.id)
+
+      if (statusError) {
+        console.error('📝 Error updating order status:', statusError)
+      } else {
+        console.log('📝 Order status updated to VALIDATION_PENDING')
+      }
+
       console.log('📝 Sending Telegram notification...')
       // Send Telegram notification
       await sendAllBooksReadyNotification({
