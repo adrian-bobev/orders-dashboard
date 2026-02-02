@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { getImageUrl } from '@/lib/r2-client'
 import { SmartImage } from '@/components/SmartImage'
 import { SceneCard } from './SceneCard'
+import { DownloadZip } from '../download-zip'
 
 type ImageProvider = 'fal' | 'replicate'
 
@@ -466,6 +467,7 @@ export function Step5SceneImages({ generationId, onComplete }: Step5SceneImagesP
         >
           Генерирай избрани сцени
         </button>
+        <DownloadZip generationId={generationId} />
         <button
           onClick={onComplete}
           className="px-4 py-2 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-colors"

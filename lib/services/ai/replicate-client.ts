@@ -13,7 +13,8 @@ export interface ReplicateImageGenerationParams {
 }
 
 export interface ReplicateImageGenerationResult {
-  url: string
+  url?: string
+  buffer?: Buffer
   contentType?: string
 }
 
@@ -85,33 +86,77 @@ export class ReplicateClient {
         Object.assign(input, params.additionalParams)
       }
 
-      console.log(`Calling Replicate model: ${params.model}`)
-      console.log(`Input parameters:`, JSON.stringify(input, null, 2))
-
       const output = await this.client!.run(params.model as `${string}/${string}`, { input })
 
       // Handle different output formats
       let imageUrl: string | undefined
+      let imageBuffer: Buffer | undefined
 
       if (Array.isArray(output) && output.length > 0) {
-        // Output is an array of URLs
-        imageUrl = output[0]
+        const firstItem = output[0]
+
+        // Check if it's a ReadableStream (direct image data)
+        if (firstItem instanceof ReadableStream) {
+          const reader = firstItem.getReader()
+          const chunks: Uint8Array[] = []
+
+          while (true) {
+            const { done, value } = await reader.read()
+            if (done) break
+            if (value) chunks.push(value)
+          }
+
+          imageBuffer = Buffer.concat(chunks)
+        } else if (typeof firstItem === 'string') {
+          imageUrl = firstItem
+        } else if (firstItem && typeof firstItem === 'object') {
+          // Check if it's a FileOutput object (has url method or toString that returns URL)
+          const itemAny = firstItem as any
+          if (typeof itemAny.url === 'function') {
+            imageUrl = await itemAny.url()
+          } else if (typeof itemAny.toString === 'function' && itemAny.toString() !== '[object Object]') {
+            const urlStr = itemAny.toString()
+            if (urlStr.startsWith('http')) {
+              imageUrl = urlStr
+            }
+          } else {
+            imageUrl = itemAny.url || itemAny.image
+          }
+        }
       } else if (typeof output === 'string') {
         // Output is a single URL string
         imageUrl = output
+      } else if (output instanceof ReadableStream) {
+        // Single ReadableStream
+        console.log('Replicate returned single ReadableStream, reading into buffer...')
+        const reader = output.getReader()
+        const chunks: Uint8Array[] = []
+
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          if (value) chunks.push(value)
+        }
+
+        imageBuffer = Buffer.concat(chunks)
       } else if (output && typeof output === 'object') {
-        // Output is an object with url property
-        const outputObj = output as Record<string, any>
-        imageUrl = outputObj.url || outputObj.image || outputObj.output
+        // Output is an object - could be FileOutput or plain object
+        const outputObj = output as any
+        if (typeof outputObj.url === 'function') {
+          imageUrl = await outputObj.url()
+        } else {
+          imageUrl = outputObj.url || outputObj.image || outputObj.output
+        }
       }
 
-      if (!imageUrl) {
-        console.error('Replicate response:', JSON.stringify(output, null, 2))
-        throw new Error('No image URL returned from Replicate')
+      if (!imageUrl && !imageBuffer) {
+        console.error('Replicate response could not be parsed')
+        throw new Error('No image URL or data returned from Replicate')
       }
 
       return {
         url: imageUrl,
+        buffer: imageBuffer,
         contentType: 'image/webp', // Replicate typically returns webp
       }
     } catch (error) {

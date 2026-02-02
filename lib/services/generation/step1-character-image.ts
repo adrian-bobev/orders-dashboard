@@ -523,7 +523,7 @@ export class Step1CharacterImageService {
     console.log('Prompt:', fullPrompt.substring(0, 200) + '...')
 
     // Generate the reference character image using configured provider
-    let imageResult: { url: string; contentType?: string }
+    let imageResult: { url?: string; buffer?: Buffer; contentType?: string }
 
     if (config.provider === 'replicate') {
       // Use Replicate
@@ -554,7 +554,10 @@ export class Step1CharacterImageService {
 
     // Download the generated image
     let generatedImageBuffer: Buffer
-    if (imageResult.url.startsWith('data:')) {
+    if (imageResult.buffer) {
+      // Replicate returned a buffer directly (ReadableStream)
+      generatedImageBuffer = imageResult.buffer
+    } else if (imageResult.url?.startsWith('data:')) {
       // Handle data URLs (mock mode)
       const base64Data = imageResult.url.split(',')[1]
       const buffer = Buffer.from(base64Data, 'base64')
@@ -565,13 +568,15 @@ export class Step1CharacterImageService {
       } else {
         generatedImageBuffer = buffer
       }
-    } else {
+    } else if (imageResult.url) {
       // Handle regular URLs from provider
       const imageResponse = await fetch(imageResult.url)
       if (!imageResponse.ok) {
         throw new Error(`Failed to download generated image: ${imageResponse.statusText}`)
       }
       generatedImageBuffer = Buffer.from(await imageResponse.arrayBuffer())
+    } else {
+      throw new Error('No image data returned from provider')
     }
 
     // Save the generated reference character using generation_id

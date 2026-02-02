@@ -58,7 +58,7 @@ export class Step4CharacterRefsService {
   private async generateImageWithProvider(
     prompt: string,
     config: ProviderConfig
-  ): Promise<{ url: string; contentType?: string }> {
+  ): Promise<{ url?: string; buffer?: Buffer; contentType?: string }> {
     if (config.provider === 'replicate') {
       return replicateClient.generateImage({
         model: config.model,
@@ -128,16 +128,21 @@ export class Step4CharacterRefsService {
 
     // Download the generated image
     let imageBuffer: Buffer
-    if (imageResult.url.startsWith('data:')) {
+    if (imageResult.buffer) {
+      // Replicate returned a buffer directly (ReadableStream)
+      imageBuffer = imageResult.buffer
+    } else if (imageResult.url?.startsWith('data:')) {
       // Handle data URLs (mock mode with SVG)
       const base64Data = imageResult.url.split(',')[1]
       const svgBuffer = Buffer.from(base64Data, 'base64')
       // Convert SVG to PNG using sharp (it handles SVG natively)
       imageBuffer = await sharp(svgBuffer).png().toBuffer()
-    } else {
+    } else if (imageResult.url) {
       // Handle regular URLs (real images)
       const imageResponse = await fetch(imageResult.url)
       imageBuffer = Buffer.from(await imageResponse.arrayBuffer())
+    } else {
+      throw new Error('No image data returned from provider')
     }
 
     // Generate S3 key using generation_id

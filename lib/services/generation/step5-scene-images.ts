@@ -53,7 +53,7 @@ export class Step5SceneImagesService {
     prompt: string,
     referenceImageUrls: string[],
     config: ProviderConfig
-  ): Promise<{ url: string; contentType?: string }> {
+  ): Promise<{ url?: string; buffer?: Buffer; contentType?: string }> {
     const model = DEFAULT_MODEL_PER_PROVIDER[config.provider]
 
     if (config.provider === 'replicate') {
@@ -62,8 +62,9 @@ export class Step5SceneImagesService {
         model,
         prompt,
         imageUrls: referenceImageUrls,
-        size: '2K',
-        aspectRatio: '1:1',
+        size: 'custom',
+        width: 2540,
+        height: 2540,
       })
     } else {
       // Default to fal.ai
@@ -72,7 +73,7 @@ export class Step5SceneImagesService {
         model,
         prompt,
         imageUrls: referenceImageUrls,
-        size: 'square_hd',
+        size: { width: 2540, height: 2540 },
         numImages: 1,
         additionalParams: {
           enable_safety_checker: true,
@@ -208,16 +209,21 @@ export class Step5SceneImagesService {
 
       // Download the generated image
       let imageBuffer: Buffer
-      if (imageResult.url.startsWith('data:')) {
+      if (imageResult.buffer) {
+        // Replicate returned a buffer directly (ReadableStream)
+        imageBuffer = imageResult.buffer
+      } else if (imageResult.url?.startsWith('data:')) {
         // Handle data URLs (mock mode with SVG)
         const base64Data = imageResult.url.split(',')[1]
         const svgBuffer = Buffer.from(base64Data, 'base64')
         // Convert SVG to PNG using sharp
         imageBuffer = await sharp(svgBuffer).png().toBuffer()
-      } else {
+      } else if (imageResult.url) {
         // Handle regular URLs (real fal.ai images)
         const imageResponse = await fetch(imageResult.url)
         imageBuffer = Buffer.from(await imageResponse.arrayBuffer())
+      } else {
+        throw new Error('No image data returned from provider')
       }
 
       // Generate S3 key using generation_id
