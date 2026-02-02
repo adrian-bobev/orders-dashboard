@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/services/user-service'
 import { createClient } from '@/lib/supabase/server'
 import { sendAllBooksReadyNotification } from '@/lib/services/telegram-service'
+import { sendBooksReadyEmail } from '@/lib/services/email-service'
 
 export async function PATCH(
   request: NextRequest,
@@ -106,11 +107,16 @@ async function checkAndNotifyAllBooksReady(supabase: any, generationId: string) 
         id,
         order_number,
         woocommerce_order_id,
+        billing_first_name,
+        billing_last_name,
+        billing_email,
         line_items!line_items_order_id_fkey (
           id,
+          product_name,
           book_configurations!book_configurations_line_item_id_fkey (
             id,
-            name
+            name,
+            content
           )
         )
       `)
@@ -122,16 +128,21 @@ async function checkAndNotifyAllBooksReady(supabase: any, generationId: string) 
 
     // Get all book_config_ids for this order
     const allBookConfigIds: string[] = []
-    const bookNames: string[] = []
+    const books: { childName: string; storyName: string }[] = []
     for (const li of order.line_items || []) {
       for (const bc of li.book_configurations || []) {
         allBookConfigIds.push(bc.id)
-        bookNames.push(bc.name)
+        // Extract story title from content JSON, fallback to product_name
+        const content = bc.content as { title?: string } | null
+        books.push({
+          childName: bc.name,
+          storyName: content?.title || li.product_name,
+        })
       }
     }
 
     console.log('📝 All book config IDs:', allBookConfigIds)
-    console.log('📝 Book names:', bookNames)
+    console.log('📝 Books:', books)
 
     if (allBookConfigIds.length === 0) return
 
@@ -176,7 +187,17 @@ async function checkAndNotifyAllBooksReady(supabase: any, generationId: string) 
         orderId: order.id,
         orderNumber: order.order_number || order.woocommerce_order_id?.toString() || 'Unknown',
         bookCount: allBookConfigIds.length,
-        bookNames,
+        books,
+      })
+
+      console.log('📝 Sending email notification...')
+      // Send email notification to customer
+      await sendBooksReadyEmail({
+        orderId: order.id,
+        orderNumber: order.order_number || order.woocommerce_order_id?.toString() || 'Unknown',
+        customerEmail: order.billing_email,
+        customerName: order.billing_first_name,
+        books,
       })
     }
   } catch (error) {

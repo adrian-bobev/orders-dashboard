@@ -14,13 +14,21 @@ export interface OrderNotificationData {
 }
 
 /**
+ * Book info for notifications
+ */
+export interface BookInfo {
+  childName: string;
+  storyName: string;
+}
+
+/**
  * All books ready notification data structure
  */
 export interface AllBooksReadyNotificationData {
   orderId: string;
   orderNumber: string;
   bookCount: number;
-  bookNames: string[];
+  books: BookInfo[];
 }
 
 /**
@@ -47,7 +55,7 @@ function formatAllBooksReadyMessage(data: AllBooksReadyNotificationData): string
   const dashboardUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
   const orderUrl = `${dashboardUrl}/orders/${data.orderId}`;
 
-  const bookList = data.bookNames.map((name, i) => `  ${i + 1}. ${name}`).join('\n');
+  const bookList = data.books.map((book, i) => `  ${i + 1}. ${book.childName} – „${book.storyName}"`).join('\n');
 
   return `✅ <b>Всички книги готови!</b>
 

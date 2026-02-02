@@ -36,6 +36,15 @@ const ENV_VARS: EnvVar[] = [
   // Telegram - Optional
   { name: 'TELEGRAM_BOT_TOKEN', required: false, description: 'Telegram bot token for notifications' },
   { name: 'TELEGRAM_CHAT_ID', required: false, description: 'Telegram chat ID for notifications' },
+
+  // Email (Resend) - Optional
+  { name: 'RESEND_API_KEY', required: false, description: 'Resend API key for email notifications' },
+  { name: 'RESEND_FROM_EMAIL', required: false, description: 'From email address for Resend (default: Приказко БГ <noreply@prikazko.bg>)' },
+
+  // Email (SMTP/Mailpit) - Optional, for local development
+  { name: 'USE_SMTP_EMAIL', required: false, description: 'Set to "true" to use SMTP (Mailpit) for local email testing' },
+  { name: 'SMTP_HOST', required: false, description: 'SMTP host for local email testing (default: localhost)' },
+  { name: 'SMTP_PORT', required: false, description: 'SMTP port for local email testing (default: 54325)' },
 ]
 
 export interface EnvValidationResult {
