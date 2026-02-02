@@ -14,6 +14,16 @@ export interface OrderNotificationData {
 }
 
 /**
+ * All books ready notification data structure
+ */
+export interface AllBooksReadyNotificationData {
+  orderId: string;
+  orderNumber: string;
+  bookCount: number;
+  bookNames: string[];
+}
+
+/**
  * Format message for Telegram notification
  */
 function formatOrderMessage(data: OrderNotificationData): string {
@@ -28,6 +38,26 @@ function formatOrderMessage(data: OrderNotificationData): string {
 <b>Плащане:</b> ${data.paymentMethod}
 
 <a href="${orderUrl}">🔗 Преглед в Dashboard</a>`;
+}
+
+/**
+ * Format message for all books ready notification
+ */
+function formatAllBooksReadyMessage(data: AllBooksReadyNotificationData): string {
+  const dashboardUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  const orderUrl = `${dashboardUrl}/orders/${data.orderId}`;
+
+  const bookList = data.bookNames.map((name, i) => `  ${i + 1}. ${name}`).join('\n');
+
+  return `✅ <b>Всички книги готови!</b>
+
+<b>Поръчка №:</b> ${data.orderNumber}
+<b>Брой книги:</b> ${data.bookCount}
+
+<b>Книги:</b>
+${bookList}
+
+<a href="${orderUrl}">🔗 Преглед на поръчката</a>`;
 }
 
 /**
@@ -71,6 +101,50 @@ export async function sendOrderNotification(
     console.log('✅ Telegram notification sent successfully');
   } catch (error) {
     console.error('❌ Failed to send Telegram notification:', error);
+    // Don't throw - this is a non-critical operation
+  }
+}
+
+/**
+ * Send notification when all books in an order are ready
+ * Non-blocking - logs errors but never throws
+ */
+export async function sendAllBooksReadyNotification(
+  data: AllBooksReadyNotificationData
+): Promise<void> {
+  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  const chatId = process.env.TELEGRAM_CHAT_ID;
+
+  // Silent skip if credentials not configured
+  if (!botToken || !chatId) {
+    console.warn('⚠️  Telegram credentials not configured, skipping notification');
+    return;
+  }
+
+  try {
+    const message = formatAllBooksReadyMessage(data);
+    const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
+
+    console.log('📱 Sending "All Books Ready" Telegram notification...');
+    console.log('   Order:', data.orderNumber);
+    console.log('   Book count:', data.bookCount);
+
+    const response = await postJson(url, {
+      chat_id: chatId,
+      text: message,
+      parse_mode: 'HTML',
+    });
+
+    if (response.status !== 200 || !response.data?.ok) {
+      console.error('❌ Telegram API returned error:');
+      console.error('   Status:', response.status);
+      console.error('   Response:', JSON.stringify(response.data, null, 2));
+      return;
+    }
+
+    console.log('✅ "All Books Ready" notification sent successfully');
+  } catch (error) {
+    console.error('❌ Failed to send "All Books Ready" notification:', error);
     // Don't throw - this is a non-critical operation
   }
 }
