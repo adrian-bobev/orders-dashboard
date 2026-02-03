@@ -1,9 +1,8 @@
 import { Resend } from 'resend'
 import * as nodemailer from 'nodemailer'
-import * as fs from 'fs'
-import * as path from 'path'
-import * as yaml from 'yaml'
+import { render } from '@react-email/components'
 import { generateApprovalUrl } from '@/lib/services/approval-token'
+import BooksReadyEmail from '@/emails/templates/books-ready-email'
 
 /**
  * Book info for email
@@ -26,41 +25,11 @@ export interface BooksReadyEmailData {
 }
 
 /**
- * Load email template from YAML file
+ * Build email content using React Email template
  */
-function loadEmailTemplate(templateName: string): Record<string, string> {
-  const templatePath = path.join(process.cwd(), 'emails', `${templateName}.yaml`)
-  const content = fs.readFileSync(templatePath, 'utf-8')
-  return yaml.parse(content)
-}
-
-/**
- * Replace placeholders in template
- */
-function replacePlaceholders(template: string, data: Record<string, string>): string {
-  let result = template
-  for (const [key, value] of Object.entries(data)) {
-    result = result.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), value)
-  }
-  return result
-}
-
-/**
- * Build email content from template and data
- */
-function buildEmailContent(data: BooksReadyEmailData): { subject: string; body: string } {
-  const template = loadEmailTemplate('books-ready')
+async function buildEmailContent(data: BooksReadyEmailData): Promise<{ subject: string; html: string; text: string }> {
   const isSingleBook = data.books.length === 1
   const approvalUrl = generateApprovalUrl(data.wooOrderId)
-
-  // Determine subject and body based on book count
-  const subjectTemplate = isSingleBook ? template.subject_single : template.subject_multiple
-  const bodyTemplate = isSingleBook ? template.body_single : template.body_multiple
-
-  // Build book list for multiple books
-  const booksList = data.books
-    .map((book) => `• ${book.childName} – „${book.storyName}"`)
-    .join('\n')
 
   // Build children names list (e.g., "Иван, Мария и Петър")
   const childrenNames = data.books.map((book) => book.childName)
@@ -70,25 +39,104 @@ function buildEmailContent(data: BooksReadyEmailData): { subject: string; body: 
   } else if (childrenNames.length === 2) {
     childrenNamesFormatted = `${childrenNames[0]} и ${childrenNames[1]}`
   } else {
-    const lastChild = childrenNames.pop()
-    childrenNamesFormatted = `${childrenNames.join(', ')} и ${lastChild}`
+    const allButLast = childrenNames.slice(0, -1)
+    const lastChild = childrenNames[childrenNames.length - 1]
+    childrenNamesFormatted = `${allButLast.join(', ')} и ${lastChild}`
   }
 
-  // Prepare placeholder data
-  const placeholderData: Record<string, string> = {
-    orderNumber: data.orderNumber,
-    customerName: data.customerName,
-    childName: data.books[0]?.childName || '',
-    storyName: data.books[0]?.storyName || '',
-    booksList,
-    childrenNames: childrenNamesFormatted,
-    approvalUrl,
+  // Generate subject
+  const subject = isSingleBook
+    ? `✨ ${data.books[0].childName} е главният герой! Вижте персоналната книжка преди печат`
+    : `✨ Книжките за ${childrenNamesFormatted} са готови за преглед!`
+
+  // Render React Email template
+  const html = await render(
+    BooksReadyEmail({
+      customerName: data.customerName,
+      childName: data.books[0]?.childName,
+      childrenNames: childrenNamesFormatted,
+      storyName: data.books[0]?.storyName,
+      booksList: data.books,
+      approvalUrl,
+      isSingleBook,
+    })
+  )
+
+  // Generate plain text version
+  const text = generatePlainText(data, childrenNamesFormatted, approvalUrl, isSingleBook)
+
+  return { subject, html, text }
+}
+
+/**
+ * Generate plain text fallback
+ */
+function generatePlainText(
+  data: BooksReadyEmailData,
+  childrenNamesFormatted: string,
+  approvalUrl: string,
+  isSingleBook: boolean
+): string {
+  if (isSingleBook) {
+    return `Здравейте, ${data.customerName}!
+
+Имаме вълнуващи новини – персонализираната книжка за ${data.books[0].childName} е готова!
+
+「${data.books[0].storyName}」
+
+Вложихме много любов и внимание, за да създадем тази уникална история, в която ${data.books[0].childName} е истинският герой. Сега е моментът да я видите!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+КАКВО ДА НАПРАВИТЕ СЕГА:
+
+1. Отворете линка по-долу
+2. Разгледайте всяка страница от книжката на ${data.books[0].childName}
+3. Натиснете „Одобри и изпрати за печат" или „Откажи"
+
+ПРЕГЛЕД НА КНИЖКАТА: ${approvalUrl}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Моля, прегледайте книжката в рамките на 48 часа, за да можем да я изпратим за печат възможно най-скоро.
+
+Ако имате въпроси, просто отговорете на този имейл – винаги сме насреща.
+
+С топли пожелания,
+Екипът на Приказко БГ`
   }
 
-  return {
-    subject: replacePlaceholders(subjectTemplate, placeholderData),
-    body: replacePlaceholders(bodyTemplate, placeholderData),
-  }
+  const booksList = data.books
+    .map((book) => `• ${book.childName} – „${book.storyName}"`)
+    .join('\n')
+
+  return `Здравейте, ${data.customerName}!
+
+Имаме страхотни новини – персонализираните книжки за ${childrenNamesFormatted} са готови!
+
+КНИЖКИ ЗА ВАШИТЕ МАЛЧУГАНИ:
+${booksList}
+
+Всяка история е създадена с много внимание и любов, за да превърне ${childrenNamesFormatted} в истински герои. Сега е моментът да ги видите!
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+КАКВО ДА НАПРАВИТЕ СЕГА:
+
+1. Отворете линка по-долу
+2. Разгледайте внимателно всяка книжка, страница по страница
+3. Натиснете „Одобри и изпрати за печат" или „Откажи"
+
+ПРЕГЛЕД НА КНИЖКИТЕ: ${approvalUrl}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Моля, прегледайте книжките в рамките на 48 часа, за да можем да ги изпратим за печат възможно най-скоро.
+
+Ако имате въпроси, просто отговорете на този имейл – винаги сме насреща.
+
+С топли пожелания,
+Екипът на Приказко БГ`
 }
 
 /**
@@ -98,7 +146,8 @@ async function sendViaSMTP(
   to: string,
   from: string,
   subject: string,
-  body: string
+  html: string,
+  text: string
 ): Promise<void> {
   const smtpHost = process.env.SMTP_HOST || 'localhost'
   const smtpPort = parseInt(process.env.SMTP_PORT || '54325', 10)
@@ -106,14 +155,15 @@ async function sendViaSMTP(
   const transporter = nodemailer.createTransport({
     host: smtpHost,
     port: smtpPort,
-    secure: false, // Mailpit doesn't use TLS
+    secure: false,
   })
 
   await transporter.sendMail({
     from,
     to,
     subject,
-    text: body,
+    html,
+    text,
   })
 }
 
@@ -124,7 +174,8 @@ async function sendViaResend(
   to: string,
   from: string,
   subject: string,
-  body: string
+  html: string,
+  text: string
 ): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY
   if (!apiKey) {
@@ -136,7 +187,8 @@ async function sendViaResend(
     from,
     to: [to],
     subject,
-    text: body,
+    html,
+    text,
   })
 
   if (error) {
@@ -161,25 +213,36 @@ export async function sendBooksReadyEmail(data: BooksReadyEmailData): Promise<vo
   }
 
   try {
-    const { subject, body } = buildEmailContent(data)
+    const { subject, html, text } = await buildEmailContent(data)
     const fromEmail = process.env.RESEND_FROM_EMAIL || 'Приказко БГ <noreply@prikazko.bg>'
 
-    // For development/testing, override the recipient
-    const recipientEmail = process.env.NODE_ENV === 'production' && process.env.ENABLE_CUSTOMER_EMAILS === 'true'
-      ? data.customerEmail
-      : 'test@example.com' // Will be visible in Mailpit
+    // Determine recipient email:
+    // 1. TEST_EMAIL_RECIPIENT - for testing with real email providers (Resend)
+    // 2. ENABLE_CUSTOMER_EMAILS=true - actual customer email
+    // 3. Otherwise - test@example.com (for local SMTP/Mailpit only)
+    let recipientEmail: string
+    if (process.env.TEST_EMAIL_RECIPIENT) {
+      recipientEmail = process.env.TEST_EMAIL_RECIPIENT
+    } else if (process.env.ENABLE_CUSTOMER_EMAILS === 'true') {
+      recipientEmail = data.customerEmail
+    } else {
+      recipientEmail = 'test@example.com'
+    }
 
     console.log('📧 Sending "Books Ready" email notification...')
     console.log('   Order:', data.orderNumber)
     console.log('   Book count:', data.books.length)
     console.log('   Recipient:', recipientEmail)
+    if (process.env.TEST_EMAIL_RECIPIENT) {
+      console.log('   (Using TEST_EMAIL_RECIPIENT override)')
+    }
     console.log('   (Original customer email:', data.customerEmail, ')')
     console.log('   Provider:', useSmtp ? 'SMTP (Mailpit)' : 'Resend')
 
     if (useSmtp) {
-      await sendViaSMTP(recipientEmail, fromEmail, subject, body)
+      await sendViaSMTP(recipientEmail, fromEmail, subject, html, text)
     } else {
-      await sendViaResend(recipientEmail, fromEmail, subject, body)
+      await sendViaResend(recipientEmail, fromEmail, subject, html, text)
     }
 
     console.log('✅ "Books Ready" email sent successfully')
