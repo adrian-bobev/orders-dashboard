@@ -431,6 +431,14 @@ export function Step5SceneImages({ generationId, onComplete }: Step5SceneImagesP
     coverPrompt &&
     imagesByPrompt[coverPrompt.id]?.some((img: any) => img.generation_status === 'completed')
 
+  // Check if all prompts have at least one completed image
+  const allImagesGenerated =
+    prompts.length > 0 &&
+    prompts.every(
+      (prompt) =>
+        imagesByPrompt[prompt.id]?.some((img: any) => img.generation_status === 'completed')
+    )
+
   return (
     <div className="space-y-6">
       <div>
@@ -500,7 +508,9 @@ export function Step5SceneImages({ generationId, onComplete }: Step5SceneImagesP
         <DownloadZip generationId={generationId} />
         <button
           onClick={onComplete}
-          className="px-4 py-2 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-colors"
+          disabled={!allImagesGenerated || isGenerating}
+          title={!allImagesGenerated ? 'Генерирайте всички изображения първо' : ''}
+          className="px-4 py-2 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Завърши
         </button>
