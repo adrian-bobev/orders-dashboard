@@ -45,6 +45,10 @@ const ENV_VARS: EnvVar[] = [
   { name: 'USE_SMTP_EMAIL', required: false, description: 'Set to "true" to use SMTP (Mailpit) for local email testing' },
   { name: 'SMTP_HOST', required: false, description: 'SMTP host for local email testing (default: localhost)' },
   { name: 'SMTP_PORT', required: false, description: 'SMTP port for local email testing (default: 54325)' },
+
+  // Order Approval - Optional
+  { name: 'APPROVAL_SECRET_KEY', required: false, description: 'Secret key for HMAC-SHA256 token generation for order approval URLs' },
+  { name: 'WORDPRESS_URL', required: false, description: 'WordPress site URL for order approval links (default: https://prikazkosite.com)' },
 ]
 
 export interface EnvValidationResult {

@@ -8,7 +8,7 @@ import { generateOrderPreviews } from '@/lib/services/pdf-preview-service'
 /**
  * POST /api/orders/[id]/send-notifications
  *
- * Generates preview PDFs and sends notifications (Telegram + Email) for an order.
+ * Generates preview images (uploaded to R2) and sends notifications (Telegram + Email) for an order.
  * Also updates order status to VALIDATION_PENDING.
  *
  * Prerequisites:
@@ -106,6 +106,16 @@ export async function POST(
 
     console.log('📤 All books ready! Processing...')
 
+    // Ensure we have a WooCommerce order ID for the approval URL
+    if (!order.woocommerce_order_id) {
+      return NextResponse.json(
+        { error: 'Order has no WooCommerce order ID' },
+        { status: 400 }
+      )
+    }
+
+    const wooOrderId = order.woocommerce_order_id.toString()
+
     // Update order status to VALIDATION_PENDING
     const { error: statusError } = await supabase
       .from('orders')
@@ -118,36 +128,38 @@ export async function POST(
       console.log('📤 Order status updated to VALIDATION_PENDING')
     }
 
-    // Generate preview PDFs for all books
-    console.log('📄 Generating preview PDFs...')
-    let previews: Array<{ childName: string; storyName: string; pdfBuffer: Buffer }> = []
+    // Generate preview images and upload to R2
+    console.log('📄 Generating preview images...')
     try {
-      previews = await generateOrderPreviews(order.id)
-      console.log(`📄 Generated ${previews.length} preview PDFs`)
+      await generateOrderPreviews(order.id)
+      console.log('📄 Preview images generated and uploaded to R2')
     } catch (previewError) {
-      console.error('📄 Failed to generate preview PDFs:', previewError)
-      // Continue with notifications without previews
+      console.error('📄 Failed to generate preview images:', previewError)
+      return NextResponse.json(
+        { error: `Failed to generate preview images: ${previewError instanceof Error ? previewError.message : 'Unknown error'}` },
+        { status: 500 }
+      )
     }
 
-    // Send Telegram notification with preview PDFs
+    // Send Telegram notification
     console.log('📱 Sending Telegram notification...')
     await sendAllBooksReadyNotification({
       orderId: order.id,
-      orderNumber: order.order_number || order.woocommerce_order_id?.toString() || 'Unknown',
+      wooOrderId,
+      orderNumber: order.order_number || wooOrderId,
       bookCount: allBookConfigIds.length,
       books,
-      previews,
     })
 
-    // Send email notification to customer with preview PDFs
+    // Send email notification to customer
     console.log('📧 Sending email notification...')
     await sendBooksReadyEmail({
       orderId: order.id,
-      orderNumber: order.order_number || order.woocommerce_order_id?.toString() || 'Unknown',
+      wooOrderId,
+      orderNumber: order.order_number || wooOrderId,
       customerEmail: order.billing_email,
       customerName: order.billing_first_name,
       books,
-      previews,
     })
 
     console.log('📤 Notifications sent successfully')
@@ -155,7 +167,6 @@ export async function POST(
     return NextResponse.json({
       success: true,
       message: 'Notifications sent successfully',
-      previewsGenerated: previews.length,
       booksCount: allBookConfigIds.length,
     })
   } catch (error) {

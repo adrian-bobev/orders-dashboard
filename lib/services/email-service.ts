@@ -3,6 +3,7 @@ import * as nodemailer from 'nodemailer'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as yaml from 'yaml'
+import { generateApprovalUrl } from '@/lib/services/approval-token'
 
 /**
  * Book info for email
@@ -13,24 +14,15 @@ export interface BookInfo {
 }
 
 /**
- * Preview PDF attachment
- */
-export interface PreviewPdfAttachment {
-  childName: string
-  storyName: string
-  pdfBuffer: Buffer
-}
-
-/**
  * Data for books ready email
  */
 export interface BooksReadyEmailData {
   orderId: string
+  wooOrderId: string
   orderNumber: string
   customerEmail: string
   customerName: string
   books: BookInfo[]
-  previews?: PreviewPdfAttachment[]
 }
 
 /**
@@ -59,6 +51,7 @@ function replacePlaceholders(template: string, data: Record<string, string>): st
 function buildEmailContent(data: BooksReadyEmailData): { subject: string; body: string } {
   const template = loadEmailTemplate('books-ready')
   const isSingleBook = data.books.length === 1
+  const approvalUrl = generateApprovalUrl(data.wooOrderId)
 
   // Determine subject and body based on book count
   const subjectTemplate = isSingleBook ? template.subject_single : template.subject_multiple
@@ -69,6 +62,18 @@ function buildEmailContent(data: BooksReadyEmailData): { subject: string; body: 
     .map((book) => `• ${book.childName} – „${book.storyName}"`)
     .join('\n')
 
+  // Build children names list (e.g., "Иван, Мария и Петър")
+  const childrenNames = data.books.map((book) => book.childName)
+  let childrenNamesFormatted: string
+  if (childrenNames.length === 1) {
+    childrenNamesFormatted = childrenNames[0]
+  } else if (childrenNames.length === 2) {
+    childrenNamesFormatted = `${childrenNames[0]} и ${childrenNames[1]}`
+  } else {
+    const lastChild = childrenNames.pop()
+    childrenNamesFormatted = `${childrenNames.join(', ')} и ${lastChild}`
+  }
+
   // Prepare placeholder data
   const placeholderData: Record<string, string> = {
     orderNumber: data.orderNumber,
@@ -76,6 +81,8 @@ function buildEmailContent(data: BooksReadyEmailData): { subject: string; body: 
     childName: data.books[0]?.childName || '',
     storyName: data.books[0]?.storyName || '',
     booksList,
+    childrenNames: childrenNamesFormatted,
+    approvalUrl,
   }
 
   return {
@@ -85,26 +92,13 @@ function buildEmailContent(data: BooksReadyEmailData): { subject: string; body: 
 }
 
 /**
- * Helper to create URL-safe filenames
- */
-function slugify(text: string): string {
-  return text
-    .toLowerCase()
-    .replace(/[^a-z0-9а-яёіїєґ\s-]/gi, '')
-    .replace(/[\s-]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .substring(0, 50)
-}
-
-/**
  * Send email via SMTP (for local development with Mailpit)
  */
 async function sendViaSMTP(
   to: string,
   from: string,
   subject: string,
-  body: string,
-  attachments?: Array<{ filename: string; content: Buffer }>
+  body: string
 ): Promise<void> {
   const smtpHost = process.env.SMTP_HOST || 'localhost'
   const smtpPort = parseInt(process.env.SMTP_PORT || '54325', 10)
@@ -120,11 +114,6 @@ async function sendViaSMTP(
     to,
     subject,
     text: body,
-    attachments: attachments?.map((a) => ({
-      filename: a.filename,
-      content: a.content,
-      contentType: 'application/pdf',
-    })),
   })
 }
 
@@ -135,8 +124,7 @@ async function sendViaResend(
   to: string,
   from: string,
   subject: string,
-  body: string,
-  attachments?: Array<{ filename: string; content: Buffer }>
+  body: string
 ): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY
   if (!apiKey) {
@@ -149,10 +137,6 @@ async function sendViaResend(
     to: [to],
     subject,
     text: body,
-    attachments: attachments?.map((a) => ({
-      filename: a.filename,
-      content: a.content,
-    })),
   })
 
   if (error) {
@@ -165,7 +149,6 @@ async function sendViaResend(
  * Non-blocking - logs errors but never throws
  *
  * Uses SMTP (Mailpit) for local development, Resend for production
- * Optionally attaches preview PDFs
  */
 export async function sendBooksReadyEmail(data: BooksReadyEmailData): Promise<void> {
   const useSmtp = process.env.USE_SMTP_EMAIL === 'true'
@@ -186,24 +169,17 @@ export async function sendBooksReadyEmail(data: BooksReadyEmailData): Promise<vo
       ? data.customerEmail
       : 'test@example.com' // Will be visible in Mailpit
 
-    // Build attachments from previews
-    const attachments = data.previews?.map((preview) => ({
-      filename: `${data.orderNumber}-${slugify(preview.childName)}-preview.pdf`,
-      content: preview.pdfBuffer,
-    }))
-
     console.log('📧 Sending "Books Ready" email notification...')
     console.log('   Order:', data.orderNumber)
     console.log('   Book count:', data.books.length)
     console.log('   Recipient:', recipientEmail)
     console.log('   (Original customer email:', data.customerEmail, ')')
     console.log('   Provider:', useSmtp ? 'SMTP (Mailpit)' : 'Resend')
-    console.log('   Attachments:', attachments?.length || 0)
 
     if (useSmtp) {
-      await sendViaSMTP(recipientEmail, fromEmail, subject, body, attachments)
+      await sendViaSMTP(recipientEmail, fromEmail, subject, body)
     } else {
-      await sendViaResend(recipientEmail, fromEmail, subject, body, attachments)
+      await sendViaResend(recipientEmail, fromEmail, subject, body)
     }
 
     console.log('✅ "Books Ready" email sent successfully')

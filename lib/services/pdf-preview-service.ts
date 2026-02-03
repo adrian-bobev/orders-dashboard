@@ -15,12 +15,11 @@ interface BookJson {
   }>
 }
 
-interface PreviewResponse {
+interface PreviewImagesResponse {
   ok: boolean
   workId: string
   poll: string
-  download: string
-  previewUrl: string
+  r2Folder: string
 }
 
 interface ProgressResponse {
@@ -172,18 +171,22 @@ function getAuthHeaders(): Record<string, string> {
 }
 
 /**
- * Upload ZIP to PDF service and get preview
+ * Upload ZIP to PDF service for preview image generation
  */
-async function uploadZipForPreview(zipBuffer: Buffer): Promise<PreviewResponse> {
-  // Use undici for proper multipart form handling
+async function uploadZipForPreviewImages(
+  zipBuffer: Buffer,
+  orderId: string,
+  bookConfigId: string
+): Promise<PreviewImagesResponse> {
   const { FormData } = await import('undici')
 
-  // Create a Blob from the buffer - cast to avoid TypeScript issues with Buffer vs BlobPart
   const blob = new Blob([new Uint8Array(zipBuffer)] as BlobPart[], { type: 'application/zip' })
   const formData = new FormData()
   formData.append('archive', blob, 'book.zip')
 
-  const response = await fetch(`${PDF_SERVICE_URL}/preview`, {
+  const url = `${PDF_SERVICE_URL}/preview-images?orderId=${encodeURIComponent(orderId)}&bookConfigId=${encodeURIComponent(bookConfigId)}`
+
+  const response = await fetch(url, {
     method: 'POST',
     headers: getAuthHeaders(),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -202,7 +205,7 @@ async function uploadZipForPreview(zipBuffer: Buffer): Promise<PreviewResponse> 
  * Poll for preview progress
  */
 async function pollProgress(workId: string): Promise<void> {
-  const maxAttempts = 600 // 10 minutes max (large PDFs can take a while)
+  const maxAttempts = 600 // 10 minutes max
   const pollInterval = 1000 // 1 second
 
   for (let i = 0; i < maxAttempts; i++) {
@@ -214,85 +217,71 @@ async function pollProgress(workId: string): Promise<void> {
     }
 
     const progress: ProgressResponse = await response.json()
-    console.log(`📄 PDF preview progress: ${progress.stage} - ${progress.message} (${progress.percent}%)`)
+    console.log(`📄 Preview images progress: ${progress.stage} - ${progress.message} (${progress.percent}%)`)
 
     if (progress.stage === 'done') {
       return
     }
 
     if (progress.stage === 'error') {
-      throw new Error(`PDF generation failed: ${progress.message}`)
+      throw new Error(`Preview generation failed: ${progress.message}`)
     }
 
     await new Promise((resolve) => setTimeout(resolve, pollInterval))
   }
 
-  throw new Error('PDF generation timed out')
+  throw new Error('Preview generation timed out')
 }
 
 /**
- * Download the preview PDF
+ * Generate preview images for a generation and upload to R2
+ * Returns the R2 folder path where images were uploaded
  */
-async function downloadPreviewPdf(workId: string): Promise<Buffer> {
-  const response = await fetch(`${PDF_SERVICE_URL}/files/${workId}/book-preview.pdf`, {
-    headers: getAuthHeaders(),
-  })
-  if (!response.ok) {
-    throw new Error(`Failed to download preview: ${response.status}`)
-  }
-
-  const arrayBuffer = await response.arrayBuffer()
-  return Buffer.from(arrayBuffer)
-}
-
-/**
- * Generate a book preview PDF for a generation
- * Returns the PDF as a Buffer
- */
-export async function generateBookPreview(generationId: string): Promise<Buffer> {
-  console.log(`📄 Generating book preview for generation ${generationId}...`)
+export async function generatePreviewImages(
+  generationId: string,
+  orderId: string,
+  bookConfigId: string
+): Promise<string> {
+  console.log(`📄 Generating preview images for generation ${generationId}...`)
 
   // Step 1: Generate ZIP from generation data
   console.log('📄 Step 1: Generating ZIP file...')
   const zipBuffer = await generateZipForGeneration(generationId)
   console.log(`📄 ZIP generated: ${zipBuffer.length} bytes`)
 
-  // Step 2: Upload ZIP to PDF service
-  console.log('📄 Step 2: Uploading to PDF service...')
-  const previewResponse = await uploadZipForPreview(zipBuffer)
-  console.log(`📄 Work ID: ${previewResponse.workId}`)
+  // Step 2: Upload ZIP to PDF service for preview image generation
+  console.log('📄 Step 2: Uploading to PDF service for preview images...')
+  const response = await uploadZipForPreviewImages(zipBuffer, orderId, bookConfigId)
+  console.log(`📄 Work ID: ${response.workId}, R2 Folder: ${response.r2Folder}`)
 
   // Step 3: Poll for completion
-  console.log('📄 Step 3: Waiting for PDF generation...')
-  await pollProgress(previewResponse.workId)
+  console.log('📄 Step 3: Waiting for preview image generation...')
+  await pollProgress(response.workId)
 
-  // Step 4: Download preview PDF
-  console.log('📄 Step 4: Downloading preview PDF...')
-  const pdfBuffer = await downloadPreviewPdf(previewResponse.workId)
-  console.log(`📄 Preview PDF downloaded: ${pdfBuffer.length} bytes`)
-
-  return pdfBuffer
+  console.log(`📄 Preview images uploaded to R2: ${response.r2Folder}`)
+  return response.r2Folder
 }
 
 /**
- * Generate previews for all completed generations in an order
- * Returns array of { bookName, pdfBuffer } objects
+ * Generate preview images for all completed generations in an order
+ * Uploads watermarked images to R2 bucket
+ * Uses WooCommerce order ID and book config_id for R2 folder structure
  */
-export async function generateOrderPreviews(
-  orderId: string
-): Promise<Array<{ childName: string; storyName: string; pdfBuffer: Buffer }>> {
+export async function generateOrderPreviews(orderId: string): Promise<void> {
   const supabase = await createClient()
 
   // Get all completed generations for this order
   const { data: order } = await supabase
     .from('orders')
     .select(`
+      woocommerce_order_id,
       line_items!line_items_order_id_fkey (
         id,
         product_name,
         book_configurations!book_configurations_line_item_id_fkey (
           id,
           name,
+          config_id,
           content,
           book_generations!book_generations_book_config_id_fkey (
             id,
@@ -308,7 +297,11 @@ export async function generateOrderPreviews(
     throw new Error('Order not found')
   }
 
-  const previews: Array<{ childName: string; storyName: string; pdfBuffer: Buffer }> = []
+  if (!order.woocommerce_order_id) {
+    throw new Error('Order has no WooCommerce order ID')
+  }
+
+  const wooOrderId = order.woocommerce_order_id.toString()
 
   for (const lineItem of order.line_items || []) {
     for (const bookConfig of lineItem.book_configurations || []) {
@@ -319,22 +312,16 @@ export async function generateOrderPreviews(
 
       if (!completedGen) continue
 
-      try {
-        console.log(`📄 Generating preview for book: ${bookConfig.name}`)
-        const pdfBuffer = await generateBookPreview(completedGen.id)
-        const content = bookConfig.content as { title?: string } | null
+      // Use config_id (the WooCommerce book config ID) for R2 folder
+      const bookConfigId = bookConfig.config_id?.toString() || bookConfig.id
 
-        previews.push({
-          childName: bookConfig.name,
-          storyName: content?.title || lineItem.product_name,
-          pdfBuffer,
-        })
+      try {
+        console.log(`📄 Generating preview images for book: ${bookConfig.name} (WooCommerce order: ${wooOrderId}, config: ${bookConfigId})`)
+        await generatePreviewImages(completedGen.id, wooOrderId, bookConfigId)
       } catch (e) {
-        console.error(`Failed to generate preview for ${bookConfig.name}:`, e)
+        console.error(`Failed to generate preview images for ${bookConfig.name}:`, e)
         // Continue with other books even if one fails
       }
     }
   }
-
-  return previews
 }

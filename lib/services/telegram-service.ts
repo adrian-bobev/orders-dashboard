@@ -1,4 +1,5 @@
 import { postJson } from '@/lib/services/http-client'
+import { generateApprovalUrl } from '@/lib/services/approval-token'
 
 /**
  * Order notification data structure
@@ -22,23 +23,14 @@ export interface BookInfo {
 }
 
 /**
- * Preview PDF attachment
- */
-export interface PreviewPdfAttachment {
-  childName: string;
-  storyName: string;
-  pdfBuffer: Buffer;
-}
-
-/**
  * All books ready notification data structure
  */
 export interface AllBooksReadyNotificationData {
   orderId: string;
+  wooOrderId: string;
   orderNumber: string;
   bookCount: number;
   books: BookInfo[];
-  previews?: PreviewPdfAttachment[];
 }
 
 /**
@@ -64,6 +56,7 @@ function formatOrderMessage(data: OrderNotificationData): string {
 function formatAllBooksReadyMessage(data: AllBooksReadyNotificationData): string {
   const dashboardUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
   const orderUrl = `${dashboardUrl}/orders/${data.orderId}`;
+  const approvalUrl = generateApprovalUrl(data.wooOrderId);
 
   const bookList = data.books.map((book, i) => `  ${i + 1}. ${book.childName} – „${book.storyName}"`).join('\n');
 
@@ -75,7 +68,8 @@ function formatAllBooksReadyMessage(data: AllBooksReadyNotificationData): string
 <b>Книги:</b>
 ${bookList}
 
-<a href="${orderUrl}">🔗 Преглед на поръчката</a>`;
+<a href="${orderUrl}">🔗 Преглед на поръчката</a>
+<a href="${approvalUrl}">✓ Линк за одобрение от клиента</a>`;
 }
 
 /**
@@ -124,60 +118,8 @@ export async function sendOrderNotification(
 }
 
 /**
- * Send a document (PDF) via Telegram
- */
-async function sendDocument(
-  botToken: string,
-  chatId: string,
-  pdfBuffer: Buffer,
-  filename: string,
-  caption?: string
-): Promise<boolean> {
-  try {
-    const { FormData } = await import('undici')
-    const url = `https://api.telegram.org/bot${botToken}/sendDocument`;
-
-    // Create blob from buffer for undici FormData
-    const blob = new Blob([new Uint8Array(pdfBuffer)] as BlobPart[], { type: 'application/pdf' })
-    const formData = new FormData();
-    formData.append('chat_id', chatId);
-    formData.append('document', blob, filename);
-    if (caption) {
-      formData.append('caption', caption);
-      formData.append('parse_mode', 'HTML');
-    }
-
-    const response = await fetch(url, {
-      method: 'POST',
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      body: formData as any,
-    });
-
-    const responseText = await response.text();
-    let result;
-    try {
-      result = JSON.parse(responseText);
-    } catch {
-      console.error('❌ Telegram sendDocument non-JSON response:', responseText);
-      return false;
-    }
-
-    if (!response.ok || !result.ok) {
-      console.error('❌ Telegram sendDocument error:', result);
-      return false;
-    }
-
-    return true;
-  } catch (error) {
-    console.error('❌ Failed to send document:', error);
-    return false;
-  }
-}
-
-/**
  * Send notification when all books in an order are ready
  * Non-blocking - logs errors but never throws
- * Optionally attaches preview PDFs
  */
 export async function sendAllBooksReadyNotification(
   data: AllBooksReadyNotificationData
@@ -198,9 +140,7 @@ export async function sendAllBooksReadyNotification(
     console.log('📱 Sending "All Books Ready" Telegram notification...');
     console.log('   Order:', data.orderNumber);
     console.log('   Book count:', data.bookCount);
-    console.log('   Preview PDFs:', data.previews?.length || 0);
 
-    // Send text message first
     const response = await postJson(url, {
       chat_id: chatId,
       text: message,
@@ -214,37 +154,9 @@ export async function sendAllBooksReadyNotification(
       return;
     }
 
-    console.log('✅ "All Books Ready" text notification sent successfully');
-
-    // Send preview PDFs as documents
-    if (data.previews && data.previews.length > 0) {
-      console.log('📎 Sending preview PDFs as attachments...');
-      for (const preview of data.previews) {
-        const filename = `${data.orderNumber}-${slugify(preview.childName)}-preview.pdf`;
-        const caption = `📖 <b>${preview.childName}</b> – „${preview.storyName}"`;
-
-        const success = await sendDocument(botToken, chatId, preview.pdfBuffer, filename, caption);
-        if (success) {
-          console.log(`   ✅ Sent: ${filename}`);
-        } else {
-          console.log(`   ❌ Failed to send: ${filename}`);
-        }
-      }
-    }
+    console.log('✅ "All Books Ready" Telegram notification sent successfully');
   } catch (error) {
     console.error('❌ Failed to send "All Books Ready" notification:', error);
     // Don't throw - this is a non-critical operation
   }
-}
-
-/**
- * Helper to create URL-safe filenames
- */
-function slugify(text: string): string {
-  return text
-    .toLowerCase()
-    .replace(/[^a-z0-9а-яёіїєґ\s-]/gi, '')
-    .replace(/[\s-]+/g, '-')
-    .replace(/^-+|-+$/g, '')
-    .substring(0, 50);
 }
