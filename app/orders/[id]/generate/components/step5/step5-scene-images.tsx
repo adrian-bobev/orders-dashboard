@@ -196,47 +196,67 @@ export function Step5SceneImages({ generationId, onComplete }: Step5SceneImagesP
       const scenePromptIds = Array.from(selectedScenes)
 
       // Get the prompts for each scene
-      const scenesToGenerate = prompts.filter(p => scenePromptIds.includes(p.id))
+      const scenesToGenerate = prompts.filter((p) => scenePromptIds.includes(p.id))
 
-      // Generate in parallel batches of 6
+      // Separate front cover, back cover, and scenes
+      // Front cover must be generated first if back cover is selected
+      const frontCover = scenesToGenerate.find((p) => p.scene_type === 'cover')
+      const backCover = scenesToGenerate.find((p) => p.scene_type === 'back_cover')
+      const scenes = scenesToGenerate.filter(
+        (p) => p.scene_type !== 'cover' && p.scene_type !== 'back_cover'
+      )
+
+      // Helper function to generate a single scene
+      const generateSingleScene = async (prompt: any) => {
+        try {
+          setGeneratingScene(prompt.id)
+          const response = await fetch(
+            `/api/generation/${generationId}/step5/generate-scene/${prompt.id}`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                imagePrompt: prompt.image_prompt,
+                providerConfig,
+              }),
+            }
+          )
+
+          if (!response.ok) {
+            throw new Error('Failed to generate scene')
+          }
+
+          // Reload images after each successful generation to show progress
+          await loadImages()
+          await loadCosts()
+
+          // Dispatch event to update global cost tracker
+          window.dispatchEvent(new CustomEvent('generation-cost-updated'))
+
+          return { success: true, scenePromptId: prompt.id }
+        } catch (error) {
+          console.error(`Error generating scene ${prompt.scene_number}:`, error)
+          return { success: false, scenePromptId: prompt.id, error }
+        }
+      }
+
+      // Step 1: Generate front cover first if selected (back cover depends on it)
+      if (frontCover) {
+        await generateSingleScene(frontCover)
+      }
+
+      // Step 2: Generate back cover after front cover is done (if both are selected)
+      // Back cover uses front cover as reference
+      if (backCover) {
+        await generateSingleScene(backCover)
+      }
+
+      // Step 3: Generate remaining scenes in parallel batches of 6
       const CONCURRENCY_LIMIT = 6
 
-      for (let i = 0; i < scenesToGenerate.length; i += CONCURRENCY_LIMIT) {
-        const batch = scenesToGenerate.slice(i, i + CONCURRENCY_LIMIT)
-
-        const batchPromises = batch.map(async (prompt) => {
-          try {
-            setGeneratingScene(prompt.id)
-            const response = await fetch(
-              `/api/generation/${generationId}/step5/generate-scene/${prompt.id}`,
-              {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  imagePrompt: prompt.image_prompt,
-                  providerConfig,
-                }),
-              }
-            )
-
-            if (!response.ok) {
-              throw new Error('Failed to generate scene')
-            }
-
-            // Reload images after each successful generation to show progress
-            await loadImages()
-            await loadCosts()
-
-            // Dispatch event to update global cost tracker
-            window.dispatchEvent(new CustomEvent('generation-cost-updated'))
-
-            return { success: true, scenePromptId: prompt.id }
-          } catch (error) {
-            console.error(`Error generating scene ${prompt.scene_number}:`, error)
-            return { success: false, scenePromptId: prompt.id, error }
-          }
-        })
-
+      for (let i = 0; i < scenes.length; i += CONCURRENCY_LIMIT) {
+        const batch = scenes.slice(i, i + CONCURRENCY_LIMIT)
+        const batchPromises = batch.map(generateSingleScene)
         await Promise.all(batchPromises)
       }
 
@@ -394,12 +414,22 @@ export function Step5SceneImages({ generationId, onComplete }: Step5SceneImagesP
   })
 
   const coverPrompt = prompts.find((p) => p.scene_type === 'cover')
+  const backCoverPrompt = prompts.find((p) => p.scene_type === 'back_cover')
   const scenePrompts = prompts
     .filter((p) => p.scene_type === 'scene')
     .sort((a, b) => (a.scene_number || 0) - (b.scene_number || 0))
 
-  // All prompts (cover + scenes) for the selector dialog
-  const allPrompts = coverPrompt ? [coverPrompt, ...scenePrompts] : scenePrompts
+  // All prompts (covers + scenes) for the selector dialog
+  const allPrompts = [
+    ...(coverPrompt ? [coverPrompt] : []),
+    ...(backCoverPrompt ? [backCoverPrompt] : []),
+    ...scenePrompts,
+  ]
+
+  // Check if front cover has a completed image (needed for back cover)
+  const frontCoverHasImage =
+    coverPrompt &&
+    imagesByPrompt[coverPrompt.id]?.some((img: any) => img.generation_status === 'completed')
 
   return (
     <div className="space-y-6">
@@ -494,22 +524,32 @@ export function Step5SceneImages({ generationId, onComplete }: Step5SceneImagesP
                       isSelected
                         ? 'border-purple-600 bg-purple-50'
                         : 'border-neutral-200 hover:border-purple-300'
-                    }`}
+                    } ${prompt.scene_type === 'back_cover' && !frontCoverHasImage ? 'opacity-50' : ''}`}
                   >
                     <input
                       type="checkbox"
                       checked={isSelected}
                       onChange={() => toggleSceneSelection(prompt.id)}
+                      disabled={prompt.scene_type === 'back_cover' && !frontCoverHasImage}
                       className="w-5 h-5 text-purple-600 rounded focus:ring-2 focus:ring-purple-200"
                     />
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
                         <span className="font-bold text-purple-900">
-                          {prompt.scene_type === 'cover' ? 'Корица' : `Сцена ${prompt.scene_number}`}
+                          {prompt.scene_type === 'cover'
+                            ? 'Корица (предна)'
+                            : prompt.scene_type === 'back_cover'
+                              ? 'Корица (задна)'
+                              : `Сцена ${prompt.scene_number}`}
                         </span>
                         {hasImage && (
                           <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full font-bold">
                             Има изображение
+                          </span>
+                        )}
+                        {prompt.scene_type === 'back_cover' && !frontCoverHasImage && (
+                          <span className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-bold">
+                            Изчаква предна корица
                           </span>
                         )}
                       </div>
@@ -565,6 +605,35 @@ export function Step5SceneImages({ generationId, onComplete }: Step5SceneImagesP
             onPromptUpdate={handlePromptUpdate}
             onSelectVersion={handleSelectVersion}
             onDeleteVersion={handleDeleteVersion}
+          />
+        </div>
+      )}
+
+      {/* Back Cover */}
+      {backCoverPrompt && (
+        <div className="mb-6">
+          {!frontCoverHasImage && (
+            <div className="mb-2 p-3 bg-amber-50 border border-amber-200 rounded-xl text-amber-800 text-sm">
+              <strong>Забележка:</strong> Задната корица изисква първо да бъде генерирана предната
+              корица. Тя ще използва предната корица като референция, за да запази същата среда.
+            </div>
+          )}
+          <SceneCard
+            prompt={backCoverPrompt}
+            images={imagesByPrompt[backCoverPrompt.id] || []}
+            selectedCharacterIds={[]}
+            selectedObjectIds={[]}
+            entities={entities}
+            references={references}
+            generationId={generationId}
+            isGenerating={generatingScene === backCoverPrompt.id}
+            onGenerateSingle={handleGenerateSingle}
+            onAddCharacter={handleAddCharacter}
+            onRemoveCharacter={handleRemoveCharacter}
+            onPromptUpdate={handlePromptUpdate}
+            onSelectVersion={handleSelectVersion}
+            onDeleteVersion={handleDeleteVersion}
+            disabled={!frontCoverHasImage}
           />
         </div>
       )}

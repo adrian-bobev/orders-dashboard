@@ -88,7 +88,7 @@ export class Step3ScenePromptsService {
     // Prepare prompts to insert
     const promptsToInsert = []
 
-    // Add book cover prompt
+    // Add front book cover prompt
     if (sceneData.bookCover?.imagePrompt) {
       promptsToInsert.push({
         generation_id: generationId,
@@ -98,6 +98,20 @@ export class Step3ScenePromptsService {
         prompt_metadata: {
           bookTitle: sceneData.bookTitle,
           canon: sceneData.canon,
+        },
+      })
+    }
+
+    // Add back cover prompt
+    if (sceneData.backCover?.imagePrompt) {
+      promptsToInsert.push({
+        generation_id: generationId,
+        scene_type: 'back_cover',
+        scene_number: null,
+        image_prompt: sceneData.backCover.imagePrompt,
+        prompt_metadata: {
+          bookTitle: sceneData.bookTitle,
+          note: 'Back cover - environment only, no characters or text',
         },
       })
     }

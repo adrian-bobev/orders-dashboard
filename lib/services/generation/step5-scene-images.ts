@@ -106,6 +106,55 @@ export class Step5SceneImagesService {
   }
 
   /**
+   * Get the front cover image URL for back cover generation
+   * Returns a presigned URL to the selected front cover image
+   */
+  private async getFrontCoverImageUrl(generationId: string): Promise<string | null> {
+    const supabase = await createClient()
+
+    // Get the front cover prompt
+    const { data: coverPrompt } = await supabase
+      .from('generation_scene_prompts')
+      .select('id')
+      .eq('generation_id', generationId)
+      .eq('scene_type', 'cover')
+      .single()
+
+    if (!coverPrompt) {
+      return null
+    }
+
+    // Get the selected front cover image
+    const { data: coverImage } = await supabase
+      .from('generation_scene_images')
+      .select('image_key')
+      .eq('scene_prompt_id', coverPrompt.id)
+      .eq('is_selected', true)
+      .eq('generation_status', 'completed')
+      .single()
+
+    if (!coverImage?.image_key) {
+      return null
+    }
+
+    // Generate presigned URL
+    try {
+      const storageClient = getStorageClient()
+      const generationsBucket = process.env.R2_GENERATIONS_BUCKET || 'generations'
+
+      const getCommand = new GetObjectCommand({
+        Bucket: generationsBucket,
+        Key: coverImage.image_key,
+      })
+
+      return await getSignedUrl(storageClient, getCommand, { expiresIn: 3600 })
+    } catch (error) {
+      console.error(`Error generating presigned URL for front cover:`, error)
+      return null
+    }
+  }
+
+  /**
    * Generate an image for a single scene
    */
   async generateSceneImage(params: GenerateSceneImageParams): Promise<any> {
@@ -160,7 +209,18 @@ export class Step5SceneImagesService {
     try {
       // Fetch reference image URLs if character references are provided
       let referenceImageUrls: string[] = []
-      if (params.characterReferenceIds && params.characterReferenceIds.length > 0) {
+
+      // Special handling for back cover - use front cover as reference
+      if (scenePrompt.scene_type === 'back_cover') {
+        const frontCoverUrl = await this.getFrontCoverImageUrl(params.generationId)
+        if (frontCoverUrl) {
+          referenceImageUrls.push(frontCoverUrl)
+        } else {
+          throw new Error(
+            'Back cover requires the front cover to be generated first. Please generate the front cover image first.'
+          )
+        }
+      } else if (params.characterReferenceIds && params.characterReferenceIds.length > 0) {
         const { data: references } = await supabase
           .from('generation_character_references')
           .select('image_key')
@@ -228,7 +288,14 @@ export class Step5SceneImagesService {
 
       // Generate S3 key using generation_id
       const timestamp = Date.now()
-      const sceneType = scenePrompt.scene_type === 'cover' ? 'cover' : `scene-${scenePrompt.scene_number}`
+      let sceneType: string
+      if (scenePrompt.scene_type === 'cover') {
+        sceneType = 'cover'
+      } else if (scenePrompt.scene_type === 'back_cover') {
+        sceneType = 'back-cover'
+      } else {
+        sceneType = `scene-${scenePrompt.scene_number}`
+      }
       const imageKey = `${folderPath}/${sceneType}-${timestamp}.jpg`
 
       // Upload to S3

@@ -66,6 +66,7 @@ interface SceneCardProps {
   onPromptUpdate: (scenePromptId: string, newPrompt: string) => void
   onSelectVersion: (scenePromptId: string, imageId: string) => void
   onDeleteVersion: (imageId: string) => void
+  disabled?: boolean
 }
 
 export function SceneCard({
@@ -83,6 +84,7 @@ export function SceneCard({
   onPromptUpdate,
   onSelectVersion,
   onDeleteVersion,
+  disabled = false,
 }: SceneCardProps) {
   const [showPrompt, setShowPrompt] = useState(false)
   const [editedPrompt, setEditedPrompt] = useState(prompt.image_prompt)
@@ -146,14 +148,18 @@ export function SceneCard({
   }
 
   const isCover = prompt.scene_type === 'cover'
+  const isBackCover = prompt.scene_type === 'back_cover'
+  const isCoverType = isCover || isBackCover
 
   return (
     <div
       className={`rounded-xl p-4 border-2 ${
-        isCover
-          ? 'bg-gradient-to-br from-purple-50 to-pink-50 border-purple-300'
+        isCoverType
+          ? isBackCover
+            ? 'bg-gradient-to-br from-amber-50 to-orange-50 border-amber-300'
+            : 'bg-gradient-to-br from-purple-50 to-pink-50 border-purple-300'
           : 'bg-white border-purple-200'
-      }`}
+      } ${disabled ? 'opacity-60' : ''}`}
     >
       {/* Scene Header */}
       <div className="flex items-center justify-between mb-3">
@@ -163,7 +169,14 @@ export function SceneCard({
               <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                 <path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z" />
               </svg>
-              Корица на книгата
+              Корица на книгата (предна)
+            </>
+          ) : isBackCover ? (
+            <>
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M9 4.804A7.968 7.968 0 005.5 4c-1.255 0-2.443.29-3.5.804v10A7.969 7.969 0 015.5 14c1.669 0 3.218.51 4.5 1.385A7.962 7.962 0 0114.5 14c1.255 0 2.443.29 3.5.804v-10A7.968 7.968 0 0014.5 4c-1.255 0-2.443.29-3.5.804V12a1 1 0 11-2 0V4.804z" />
+              </svg>
+              Корица на книгата (задна)
             </>
           ) : (
             <>
@@ -176,7 +189,7 @@ export function SceneCard({
         </h4>
         <button
           onClick={() => onGenerateSingle(prompt.id, prompt.image_prompt)}
-          disabled={isGenerating}
+          disabled={isGenerating || disabled}
           className="px-3 py-1.5 bg-purple-600 text-white rounded-lg font-bold hover:bg-purple-700 transition-colors disabled:opacity-50 text-sm"
         >
           {isGenerating ? 'Генериране...' : hasImages ? 'Нова версия' : 'Генерирай'}
@@ -227,16 +240,26 @@ export function SceneCard({
         )}
       </div>
 
-      {/* Character/Object Selection Section */}
-      <EntitySelectionSection
-        sceneId={prompt.id}
-        selectedCharacterIds={selectedCharacterIds}
-        selectedObjectIds={selectedObjectIds}
-        allEntities={entities}
-        allReferences={references}
-        onAdd={onAddCharacter}
-        onRemove={onRemoveCharacter}
-      />
+      {/* Character/Object Selection Section - Not shown for back cover */}
+      {!isBackCover && (
+        <EntitySelectionSection
+          sceneId={prompt.id}
+          selectedCharacterIds={selectedCharacterIds}
+          selectedObjectIds={selectedObjectIds}
+          allEntities={entities}
+          allReferences={references}
+          onAdd={onAddCharacter}
+          onRemove={onRemoveCharacter}
+        />
+      )}
+
+      {/* Back cover note */}
+      {isBackCover && (
+        <div className="mb-3 p-2 bg-amber-100 rounded-lg text-xs text-amber-800">
+          Задната корица използва предната корица като референция и показва само средата без герои и
+          текст.
+        </div>
+      )}
 
       {/* Generated Images Grid */}
       {hasImages ? (
@@ -346,7 +369,12 @@ export function SceneCard({
               {/* Header */}
               <div className="flex justify-between items-center mb-4">
                 <h3 className="text-2xl font-bold text-purple-900">
-                  {isCover ? 'Преглед на корица' : `Преглед на сцена ${prompt.scene_number}`} - версия {previewImage.version}
+                  {isCover
+                    ? 'Преглед на корица (предна)'
+                    : isBackCover
+                      ? 'Преглед на корица (задна)'
+                      : `Преглед на сцена ${prompt.scene_number}`}{' '}
+                  - версия {previewImage.version}
                 </h3>
                 <button
                   onClick={() => setIsPreviewOpen(false)}
