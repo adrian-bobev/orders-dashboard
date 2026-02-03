@@ -13,6 +13,7 @@ interface OrderDetailProps {
   order: any
   currentUser: User
   generationCounts?: Record<string, number>
+  completedConfigs?: Record<string, boolean>
 }
 
 const STATUS_LABELS: Record<OrderStatus, string> = {
@@ -33,11 +34,13 @@ const STATUS_COLORS: Record<OrderStatus, string> = {
   COMPLETED: 'bg-green-100 text-green-800 border-green-200',
 }
 
-export function OrderDetail({ order, currentUser, generationCounts = {} }: OrderDetailProps) {
+export function OrderDetail({ order, currentUser, generationCounts = {}, completedConfigs = {} }: OrderDetailProps) {
   const router = useRouter()
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false)
   const [currentStatus, setCurrentStatus] = useState<OrderStatus>(order.status)
   const [expandedBookId, setExpandedBookId] = useState<string | null>(null)
+  const [isSendingNotifications, setIsSendingNotifications] = useState(false)
+  const [notificationProgress, setNotificationProgress] = useState('')
 
   const isAdmin = currentUser.role === 'admin'
   const isViewer = currentUser.role === 'viewer'
@@ -74,6 +77,60 @@ export function OrderDetail({ order, currentUser, generationCounts = {} }: Order
       console.error('Error updating status:', error)
     } finally {
       setIsUpdatingStatus(false)
+    }
+  }
+
+  // Check if all book configs have completed generations
+  const allBookConfigIds = order.line_items?.flatMap((item: any) =>
+    item.book_configurations?.map((bc: any) => bc.id) || []
+  ) || []
+  const allConfigsCompleted = allBookConfigIds.length > 0 &&
+    allBookConfigIds.every((id: string) => completedConfigs[id] === true)
+  const completedCount = allBookConfigIds.filter((id: string) => completedConfigs[id] === true).length
+
+  // Check if order is in validation pending state
+  const isValidationPending = currentStatus === 'VALIDATION_PENDING'
+
+  const handleSendNotifications = async () => {
+    if (!isAdmin || !allConfigsCompleted || isValidationPending) return
+
+    if (
+      !confirm(
+        'Ще бъдат генерирани PDF прегледи и изпратени известия (Telegram + Email). Продължавате ли?'
+      )
+    ) {
+      return
+    }
+
+    setIsSendingNotifications(true)
+    setNotificationProgress('Генериране на PDF прегледи...')
+
+    try {
+      const response = await fetch(`/api/orders/${order.id}/send-notifications`, {
+        method: 'POST',
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to send notifications')
+      }
+
+      setNotificationProgress('Известията са изпратени успешно!')
+      router.refresh()
+
+      // Clear progress message after a delay
+      setTimeout(() => {
+        setNotificationProgress('')
+      }, 3000)
+    } catch (error) {
+      console.error('Error sending notifications:', error)
+      setNotificationProgress(error instanceof Error ? error.message : 'Грешка при изпращане')
+      setTimeout(() => {
+        setNotificationProgress('')
+      }, 5000)
+    } finally {
+      setIsSendingNotifications(false)
     }
   }
 
@@ -161,6 +218,98 @@ export function OrderDetail({ order, currentUser, generationCounts = {} }: Order
           </div>
         )}
       </div>
+
+      {/* Send Notifications Section (Admin Only) */}
+      {isAdmin && allBookConfigIds.length > 0 && (
+        <div className="bg-white rounded-2xl shadow-warm p-4 border border-purple-100">
+          <h3 className="text-lg font-bold text-purple-900 mb-3">Изпращане на прегледи</h3>
+
+          <div className="space-y-3">
+            {/* Completion Status */}
+            <div className="flex items-center gap-2">
+              <span className={`inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-bold ${
+                allConfigsCompleted
+                  ? 'bg-green-100 text-green-800 border border-green-200'
+                  : 'bg-yellow-100 text-yellow-800 border border-yellow-200'
+              }`}>
+                {allConfigsCompleted ? (
+                  <>
+                    <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    Всички книги готови
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    {completedCount} от {allBookConfigIds.length} книги готови
+                  </>
+                )}
+              </span>
+            </div>
+
+            {/* Progress Message */}
+            {notificationProgress && (
+              <div className={`flex items-center gap-2 p-3 rounded-lg ${
+                notificationProgress.includes('успешно')
+                  ? 'bg-green-50 text-green-800'
+                  : notificationProgress.includes('Грешка')
+                  ? 'bg-red-50 text-red-800'
+                  : 'bg-blue-50 text-blue-800'
+              }`}>
+                {isSendingNotifications && (
+                  <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                )}
+                <span className="text-sm font-medium">{notificationProgress}</span>
+              </div>
+            )}
+
+            {/* Send Button */}
+            <button
+              onClick={handleSendNotifications}
+              disabled={!allConfigsCompleted || isSendingNotifications || isValidationPending}
+              className={`w-full px-4 py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 ${
+                allConfigsCompleted && !isSendingNotifications && !isValidationPending
+                  ? 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                  : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+              }`}
+            >
+              {isSendingNotifications ? (
+                <>
+                  <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <span>Генериране и изпращане...</span>
+                </>
+              ) : (
+                <>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                  </svg>
+                  <span>Генерирай PDF и изпрати известия</span>
+                </>
+              )}
+            </button>
+
+            {!allConfigsCompleted && (
+              <p className="text-xs text-neutral-500">
+                Бутонът ще бъде активен когато всички книги имат завършени генерации.
+              </p>
+            )}
+            {allConfigsCompleted && isValidationPending && (
+              <p className="text-xs text-neutral-500">
+                Бутонът ще бъде активен когато поръчката не е в състояние &quot;Очаква валидация&quot;.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Order Information */}
       <div className="bg-white rounded-2xl shadow-warm p-4 border border-purple-100">
@@ -389,16 +538,26 @@ export function OrderDetail({ order, currentUser, generationCounts = {} }: Order
               {item.book_configurations && item.book_configurations.length > 0 && (
                 <div className="mt-3 space-y-3">
                   {item.book_configurations.map((config: any) => (
-                    <div key={config.id} className="bg-white rounded-xl p-3 border-2 border-purple-200">
+                    <div key={config.id} className={`bg-white rounded-xl p-3 border-2 ${completedConfigs[config.id] ? 'border-green-300' : 'border-purple-200'}`}>
                       <div className="flex items-center justify-between mb-3">
-                        <div>
-                          <h5 className="text-sm font-bold text-purple-900">
-                            Персонализация на книгата
-                          </h5>
-                          {generationCounts[config.id] !== undefined && generationCounts[config.id] > 0 && (
-                            <p className="text-xs text-neutral-600 mt-1">
-                              {generationCounts[config.id]} {generationCounts[config.id] === 1 ? 'генерация' : 'генерации'}
-                            </p>
+                        <div className="flex items-center gap-2">
+                          <div>
+                            <h5 className="text-sm font-bold text-purple-900">
+                              Персонализация на книгата
+                            </h5>
+                            {generationCounts[config.id] !== undefined && generationCounts[config.id] > 0 && (
+                              <p className="text-xs text-neutral-600 mt-1">
+                                {generationCounts[config.id]} {generationCounts[config.id] === 1 ? 'генерация' : 'генерации'}
+                              </p>
+                            )}
+                          </div>
+                          {completedConfigs[config.id] && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-800">
+                              <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
+                              Готова
+                            </span>
                           )}
                         </div>
                         <div className="flex gap-2">

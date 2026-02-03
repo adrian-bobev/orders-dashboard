@@ -30,7 +30,7 @@ user_prompt: |
       - composition/framing/perspective (e.g., medium shot, eye-level, 3/4 view)
       - lighting/atmosphere/color palette
       - props/symbols/repeating motifs
-      - **style marker**: "3D Disney-Pixar style, vibrant, soft shading, clean line art, kid-safe, no text in image, original characters"
+      - **style marker**: "3D Pixar-style animation, vibrant, soft shading, clean line art, kid-safe, no text in image, original characters"
   4. Formulate one consolidated `imagePrompt` (in **English** for broader compatibility with image models) that contains the above elements in 1-2 paragraphs.
   5. Maintain **kid-safe** tone; do not use protected IP/characters; do not embed text in the image.
 
@@ -42,7 +42,7 @@ user_prompt: |
   {
     "bookTitle": "<copy>",
     "bookCover": {
-      "imagePrompt": "<ENGLISH: a single, self-contained prompt for the FRONT book cover. MUST include the book title text to be displayed on the cover. Include style tags and all necessary details.>"
+      "imagePrompt": "<ENGLISH: a single, self-contained prompt for the FRONT book cover. MUST include the book title text to be displayed on the cover. Do NOT include the word 'Disney' or any brand names as text on the cover. Include style tags and all necessary details.>"
     },
     "backCover": {
       "imagePrompt": "<ENGLISH: a single, self-contained prompt for the BACK cover. This should depict ONLY the environment/background from the front cover - remove ALL text, characters, and people. Keep the same setting, lighting, color palette, and atmosphere as the front cover, but show an empty scene without any characters or text. Include style tags.>"

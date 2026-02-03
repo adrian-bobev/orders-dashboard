@@ -43,13 +43,16 @@ export default async function OrderDetailPage({
     redirect('/orders')
   }
 
-  // Fetch generation counts for each book configuration
+  // Fetch generation counts and completion status for each book configuration
   const generationCounts: Record<string, number> = {}
+  const completedConfigs: Record<string, boolean> = {}
   if (currentUser.role === 'admin') {
     const allBookConfigs = order.line_items?.flatMap((item: any) => item.book_configurations || []) || []
     for (const config of allBookConfigs) {
       const generations = await generationService.getGenerationsByBookConfigId(config.id)
       generationCounts[config.id] = generations.length
+      // Check if any generation is completed
+      completedConfigs[config.id] = generations.some((g: any) => g.status === 'completed')
     }
   }
 
@@ -77,7 +80,12 @@ export default async function OrderDetailPage({
       </Link>
 
       {/* Order Details */}
-      <OrderDetail order={order} currentUser={currentUser} generationCounts={generationCounts} />
+      <OrderDetail
+        order={order}
+        currentUser={currentUser}
+        generationCounts={generationCounts}
+        completedConfigs={completedConfigs}
+      />
     </div>
   )
 }

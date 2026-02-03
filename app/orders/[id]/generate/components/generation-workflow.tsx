@@ -79,6 +79,12 @@ export function GenerationWorkflow({
       console.error('Failed to update step:', error)
     }
 
+    // If step 5 is completed, redirect to order page
+    if (stepNumber === 5) {
+      router.push(`/orders/${orderId}`)
+      return
+    }
+
     // Refresh the page data
     router.refresh()
   }

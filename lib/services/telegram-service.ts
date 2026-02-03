@@ -1,4 +1,5 @@
 import { postJson } from '@/lib/services/http-client'
+import { generateApprovalUrl } from '@/lib/services/approval-token'
 
 /**
  * Order notification data structure
@@ -26,6 +27,7 @@ export interface BookInfo {
  */
 export interface AllBooksReadyNotificationData {
   orderId: string;
+  wooOrderId: string;
   orderNumber: string;
   bookCount: number;
   books: BookInfo[];
@@ -54,6 +56,7 @@ function formatOrderMessage(data: OrderNotificationData): string {
 function formatAllBooksReadyMessage(data: AllBooksReadyNotificationData): string {
   const dashboardUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
   const orderUrl = `${dashboardUrl}/orders/${data.orderId}`;
+  const approvalUrl = generateApprovalUrl(data.wooOrderId);
 
   const bookList = data.books.map((book, i) => `  ${i + 1}. ${book.childName} – „${book.storyName}"`).join('\n');
 
@@ -65,7 +68,8 @@ function formatAllBooksReadyMessage(data: AllBooksReadyNotificationData): string
 <b>Книги:</b>
 ${bookList}
 
-<a href="${orderUrl}">🔗 Преглед на поръчката</a>`;
+<a href="${orderUrl}">🔗 Преглед на поръчката</a>
+<a href="${approvalUrl}">✓ Линк за одобрение от клиента</a>`;
 }
 
 /**
@@ -150,7 +154,7 @@ export async function sendAllBooksReadyNotification(
       return;
     }
 
-    console.log('✅ "All Books Ready" notification sent successfully');
+    console.log('✅ "All Books Ready" Telegram notification sent successfully');
   } catch (error) {
     console.error('❌ Failed to send "All Books Ready" notification:', error);
     // Don't throw - this is a non-critical operation

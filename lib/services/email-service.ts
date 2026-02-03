@@ -3,6 +3,7 @@ import * as nodemailer from 'nodemailer'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as yaml from 'yaml'
+import { generateApprovalUrl } from '@/lib/services/approval-token'
 
 /**
  * Book info for email
@@ -17,6 +18,7 @@ export interface BookInfo {
  */
 export interface BooksReadyEmailData {
   orderId: string
+  wooOrderId: string
   orderNumber: string
   customerEmail: string
   customerName: string
@@ -49,6 +51,7 @@ function replacePlaceholders(template: string, data: Record<string, string>): st
 function buildEmailContent(data: BooksReadyEmailData): { subject: string; body: string } {
   const template = loadEmailTemplate('books-ready')
   const isSingleBook = data.books.length === 1
+  const approvalUrl = generateApprovalUrl(data.wooOrderId)
 
   // Determine subject and body based on book count
   const subjectTemplate = isSingleBook ? template.subject_single : template.subject_multiple
@@ -59,6 +62,18 @@ function buildEmailContent(data: BooksReadyEmailData): { subject: string; body: 
     .map((book) => `• ${book.childName} – „${book.storyName}"`)
     .join('\n')
 
+  // Build children names list (e.g., "Иван, Мария и Петър")
+  const childrenNames = data.books.map((book) => book.childName)
+  let childrenNamesFormatted: string
+  if (childrenNames.length === 1) {
+    childrenNamesFormatted = childrenNames[0]
+  } else if (childrenNames.length === 2) {
+    childrenNamesFormatted = `${childrenNames[0]} и ${childrenNames[1]}`
+  } else {
+    const lastChild = childrenNames.pop()
+    childrenNamesFormatted = `${childrenNames.join(', ')} и ${lastChild}`
+  }
+
   // Prepare placeholder data
   const placeholderData: Record<string, string> = {
     orderNumber: data.orderNumber,
@@ -66,6 +81,8 @@ function buildEmailContent(data: BooksReadyEmailData): { subject: string; body: 
     childName: data.books[0]?.childName || '',
     storyName: data.books[0]?.storyName || '',
     booksList,
+    childrenNames: childrenNamesFormatted,
+    approvalUrl,
   }
 
   return {

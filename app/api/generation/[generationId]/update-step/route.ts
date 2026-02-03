@@ -1,8 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/services/user-service'
 import { createClient } from '@/lib/supabase/server'
-import { sendAllBooksReadyNotification } from '@/lib/services/telegram-service'
-import { sendBooksReadyEmail } from '@/lib/services/email-service'
 
 export async function PATCH(
   request: NextRequest,
@@ -46,12 +44,6 @@ export async function PATCH(
       throw new Error(`Failed to update generation: ${error.message}`)
     }
 
-    // If generation was marked as completed, check if all books in the order are ready
-    if (isCompletingStep5) {
-      console.log('📝 Checking if all books are ready...')
-      await checkAndNotifyAllBooksReady(supabase, generationId)
-    }
-
     return NextResponse.json({ generation: data })
   } catch (error) {
     console.error('Error updating generation step:', error)
@@ -59,149 +51,5 @@ export async function PATCH(
       { error: error instanceof Error ? error.message : 'Failed to update generation step' },
       { status: 500 }
     )
-  }
-}
-
-/**
- * Check if all book configurations in the order have completed generations
- * and send a Telegram notification if so
- */
-async function checkAndNotifyAllBooksReady(supabase: any, generationId: string) {
-  try {
-    console.log('📝 checkAndNotifyAllBooksReady started for generation:', generationId)
-
-    // Get the generation with its book_config
-    const { data: generation, error: genError } = await supabase
-      .from('book_generations')
-      .select('book_config_id')
-      .eq('id', generationId)
-      .single()
-
-    console.log('📝 Generation:', generation, 'Error:', genError)
-    if (!generation) return
-
-    // Get the book_config with line_item
-    const { data: bookConfig, error: bcError } = await supabase
-      .from('book_configurations')
-      .select('line_item_id')
-      .eq('id', generation.book_config_id)
-      .single()
-
-    console.log('📝 BookConfig:', bookConfig, 'Error:', bcError)
-    if (!bookConfig) return
-
-    // Get the line_item with order_id
-    const { data: lineItem, error: liError } = await supabase
-      .from('line_items')
-      .select('order_id')
-      .eq('id', bookConfig.line_item_id)
-      .single()
-
-    console.log('📝 LineItem:', lineItem, 'Error:', liError)
-    if (!lineItem) return
-
-    // Get the order with all its line_items and book_configurations
-    const { data: order, error: orderError } = await supabase
-      .from('orders')
-      .select(`
-        id,
-        order_number,
-        woocommerce_order_id,
-        billing_first_name,
-        billing_last_name,
-        billing_email,
-        line_items!line_items_order_id_fkey (
-          id,
-          product_name,
-          book_configurations!book_configurations_line_item_id_fkey (
-            id,
-            name,
-            content
-          )
-        )
-      `)
-      .eq('id', lineItem.order_id)
-      .single()
-
-    console.log('📝 Order:', JSON.stringify(order, null, 2), 'Error:', orderError)
-    if (!order) return
-
-    // Get all book_config_ids for this order
-    const allBookConfigIds: string[] = []
-    const books: { childName: string; storyName: string }[] = []
-    for (const li of order.line_items || []) {
-      for (const bc of li.book_configurations || []) {
-        allBookConfigIds.push(bc.id)
-        // Extract story title from content JSON, fallback to product_name
-        const content = bc.content as { title?: string } | null
-        books.push({
-          childName: bc.name,
-          storyName: content?.title || li.product_name,
-        })
-      }
-    }
-
-    console.log('📝 All book config IDs:', allBookConfigIds)
-    console.log('📝 Books:', books)
-
-    if (allBookConfigIds.length === 0) return
-
-    // Check if all book configs have at least one completed generation
-    const { data: completedGenerations, error: cgError } = await supabase
-      .from('book_generations')
-      .select('book_config_id')
-      .in('book_config_id', allBookConfigIds)
-      .eq('status', 'completed')
-
-    console.log('📝 Completed generations:', completedGenerations, 'Error:', cgError)
-
-    const completedBookConfigIds = new Set(
-      (completedGenerations || []).map((g: any) => g.book_config_id)
-    )
-
-    console.log('📝 Completed book config IDs:', Array.from(completedBookConfigIds))
-
-    // Check if all book configs have completed generations
-    const allReady = allBookConfigIds.every((id) => completedBookConfigIds.has(id))
-
-    console.log('📝 All ready:', allReady)
-
-    if (allReady) {
-      console.log('📝 All books ready! Updating order status to VALIDATION_PENDING...')
-
-      // Update order status to VALIDATION_PENDING
-      const { error: statusError } = await supabase
-        .from('orders')
-        .update({ status: 'VALIDATION_PENDING' })
-        .eq('id', order.id)
-
-      if (statusError) {
-        console.error('📝 Error updating order status:', statusError)
-      } else {
-        console.log('📝 Order status updated to VALIDATION_PENDING')
-      }
-
-      console.log('📝 Sending Telegram notification...')
-      // Send Telegram notification
-      await sendAllBooksReadyNotification({
-        orderId: order.id,
-        orderNumber: order.order_number || order.woocommerce_order_id?.toString() || 'Unknown',
-        bookCount: allBookConfigIds.length,
-        books,
-      })
-
-      console.log('📝 Sending email notification...')
-      // Send email notification to customer
-      await sendBooksReadyEmail({
-        orderId: order.id,
-        orderNumber: order.order_number || order.woocommerce_order_id?.toString() || 'Unknown',
-        customerEmail: order.billing_email,
-        customerName: order.billing_first_name,
-        books,
-      })
-    }
-  } catch (error) {
-    console.error('Error checking all books ready:', error)
-    // Don't throw - this is a non-critical operation
   }
 }
