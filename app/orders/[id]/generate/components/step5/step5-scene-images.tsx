@@ -33,6 +33,7 @@ export function Step5SceneImages({ generationId, onComplete }: Step5SceneImagesP
   const [showSceneSelector, setShowSceneSelector] = useState(false)
   const [selectedScenes, setSelectedScenes] = useState<Set<string>>(new Set())
   const [scenesWithoutImages, setScenesWithoutImages] = useState<string[]>([])
+  const [storyContent, setStoryContent] = useState<any>(null)
 
   // Provider configuration
   const [providers, setProviders] = useState<ProviderOption[]>([])
@@ -54,6 +55,7 @@ export function Step5SceneImages({ generationId, onComplete }: Step5SceneImagesP
       loadReferences(),
       loadSceneCharacters(),
       loadCosts(),
+      loadStoryContent(),
     ])
   }
 
@@ -144,6 +146,21 @@ export function Step5SceneImages({ generationId, onComplete }: Step5SceneImagesP
       }
     } catch (error) {
       console.error('Failed to load scene characters:', error)
+    }
+  }
+
+  const loadStoryContent = async () => {
+    try {
+      const response = await fetch(`/api/generation/${generationId}/step2/proofread`)
+      if (response.ok) {
+        const data = await response.json()
+        // Use manually edited content if available, otherwise use corrected_content from correctedContent object
+        const content =
+          data.manuallyEditedContent || data.correctedContent?.corrected_content || null
+        setStoryContent(content)
+      }
+    } catch (error) {
+      console.error('Failed to load story content:', error)
     }
   }
 
@@ -354,6 +371,42 @@ export function Step5SceneImages({ generationId, onComplete }: Step5SceneImagesP
       }
     } catch (error) {
       console.error('Error updating prompt:', error)
+    }
+  }
+
+  const handleSceneTextUpdate = async (scenePromptId: string, newText: string) => {
+    try {
+      // Find the scene number for this prompt
+      const prompt = prompts.find((p) => p.id === scenePromptId)
+      if (!prompt?.scene_number) {
+        console.error('Scene number not found for prompt:', scenePromptId)
+        return
+      }
+
+      // Update the corrected content (single source of truth)
+      const response = await fetch(`/api/generation/${generationId}/step2/proofread`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sceneNumber: prompt.scene_number,
+          sceneText: newText,
+        }),
+      })
+
+      if (response.ok) {
+        // Update local state
+        const sceneIndex = prompt.scene_number - 1
+        setStoryContent((prev: any) => {
+          if (!prev?.scenes) return prev
+          const updatedScenes = [...prev.scenes]
+          if (updatedScenes[sceneIndex]) {
+            updatedScenes[sceneIndex] = { ...updatedScenes[sceneIndex], text: newText }
+          }
+          return { ...prev, scenes: updatedScenes }
+        })
+      }
+    } catch (error) {
+      console.error('Error updating scene text:', error)
     }
   }
 
@@ -661,6 +714,10 @@ export function Step5SceneImages({ generationId, onComplete }: Step5SceneImagesP
             const selectedObjects = characterIds.filter((id) =>
               entities.some((e) => e.id === id && e.character_type === 'object')
             )
+            // Get scene text from corrected content (single source of truth)
+            // Scenes array is 0-indexed, scene_number is 1-indexed
+            const sceneIndex = (prompt.scene_number || 1) - 1
+            const sceneText = storyContent?.scenes?.[sceneIndex]?.text
 
             return (
               <SceneCard
@@ -679,6 +736,8 @@ export function Step5SceneImages({ generationId, onComplete }: Step5SceneImagesP
                 onPromptUpdate={handlePromptUpdate}
                 onSelectVersion={handleSelectVersion}
                 onDeleteVersion={handleDeleteVersion}
+                sceneText={sceneText}
+                onSceneTextUpdate={handleSceneTextUpdate}
               />
             )
           })}

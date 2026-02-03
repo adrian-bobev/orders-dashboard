@@ -134,16 +134,29 @@ export async function PATCH(
     const authResult = await requireAdmin()
     if (authResult instanceof NextResponse) return authResult
 
-    const { promptId, imagePrompt } = await request.json()
+    const { promptId, imagePrompt, sceneText } = await request.json()
 
-    if (!promptId || !imagePrompt) {
+    if (!promptId) {
       return NextResponse.json(
-        { error: 'promptId and imagePrompt are required' },
+        { error: 'promptId is required' },
         { status: 400 }
       )
     }
 
-    const prompt = await step3Service.updateScenePrompt(promptId, imagePrompt)
+    if (!imagePrompt && sceneText === undefined) {
+      return NextResponse.json(
+        { error: 'imagePrompt or sceneText is required' },
+        { status: 400 }
+      )
+    }
+
+    let prompt
+    if (imagePrompt) {
+      prompt = await step3Service.updateScenePrompt(promptId, imagePrompt)
+    }
+    if (sceneText !== undefined) {
+      prompt = await step3Service.updateSceneText(promptId, sceneText)
+    }
 
     return NextResponse.json({ prompt })
   } catch (error) {

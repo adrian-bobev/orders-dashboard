@@ -126,6 +126,7 @@ export class Step3ScenePromptsService {
           image_prompt: scene.imagePrompt,
           prompt_metadata: {
             characters: scene.characters,
+            sceneText: scene.text || null,
           },
         })
       })
@@ -460,6 +461,46 @@ export class Step3ScenePromptsService {
     if (error) {
       console.error('Error updating scene prompt:', error)
       throw new Error(`Failed to update scene prompt: ${error.message}`)
+    }
+
+    return data
+  }
+
+  /**
+   * Update scene text in prompt_metadata
+   */
+  async updateSceneText(promptId: string, sceneText: string): Promise<any> {
+    const supabase = await createClient()
+
+    // First get the current prompt to preserve existing metadata
+    const { data: currentPrompt, error: fetchError } = await supabase
+      .from('generation_scene_prompts')
+      .select('prompt_metadata')
+      .eq('id', promptId)
+      .single()
+
+    if (fetchError) {
+      console.error('Error fetching scene prompt:', fetchError)
+      throw new Error(`Failed to fetch scene prompt: ${fetchError.message}`)
+    }
+
+    // Update prompt_metadata with new sceneText
+    const existingMetadata = (currentPrompt?.prompt_metadata as Record<string, any>) || {}
+    const updatedMetadata = {
+      ...existingMetadata,
+      sceneText,
+    }
+
+    const { data, error } = await supabase
+      .from('generation_scene_prompts')
+      .update({ prompt_metadata: updatedMetadata })
+      .eq('id', promptId)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Error updating scene text:', error)
+      throw new Error(`Failed to update scene text: ${error.message}`)
     }
 
     return data

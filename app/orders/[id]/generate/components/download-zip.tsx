@@ -24,11 +24,6 @@ interface ExportData {
       scenes: Array<{ text: string }>
     }
   } | null
-  scenePrompts: Array<{
-    id: string
-    scene_number: number
-    scene_type: string
-  }>
   sceneImages: Array<{
     image_key: string
     is_selected: boolean
@@ -87,11 +82,11 @@ export function DownloadZip({ generationId }: DownloadZipProps) {
         throw new Error('Failed to create images folder')
       }
 
-      // Get corrected content (from step 2)
+      // Get corrected content (from step 2) - single source of truth for scene texts
       const correctedContent = data.correctedContent?.corrected_content
 
       // Build simple book.json with scenes from corrected content
-      const scenes = (correctedContent?.scenes || []).map((scene, index) => ({
+      const scenes = (correctedContent?.scenes || []).map((scene: any, index: number) => ({
         sceneNumber: index + 1,
         sourceText_bg: scene.text || '',
       }))
@@ -122,8 +117,14 @@ export function DownloadZip({ generationId }: DownloadZipProps) {
 
           const sceneType = img.generation_scene_prompts.scene_type
           const sceneNumber = img.generation_scene_prompts.scene_number
-          const fileName =
-            sceneType === 'cover' ? 'cover.jpg' : `scene_${sceneNumber}.jpg`
+          let fileName: string
+          if (sceneType === 'cover') {
+            fileName = 'cover.jpg'
+          } else if (sceneType === 'back_cover') {
+            fileName = 'back.jpg'
+          } else {
+            fileName = `scene_${sceneNumber}.jpg`
+          }
 
           imagesFolder.file(fileName, arrayBuffer)
         } catch (e) {

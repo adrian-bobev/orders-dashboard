@@ -55,7 +55,7 @@ export async function GET(
       orderNumber = String(order?.order_number || order?.woocommerce_order_id || 'unknown')
     }
 
-    // Get corrected content (step 2) - this has the scene texts
+    // Get corrected content (step 2) - single source of truth for scene texts
     const { data: correctedContent } = await supabase
       .from('generation_corrected_content')
       .select('corrected_content')

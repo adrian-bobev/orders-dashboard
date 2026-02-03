@@ -66,7 +66,9 @@ interface SceneCardProps {
   onPromptUpdate: (scenePromptId: string, newPrompt: string) => void
   onSelectVersion: (scenePromptId: string, imageId: string) => void
   onDeleteVersion: (imageId: string) => void
+  onSceneTextUpdate?: (scenePromptId: string, newText: string) => void
   disabled?: boolean
+  sceneText?: string
 }
 
 export function SceneCard({
@@ -84,10 +86,14 @@ export function SceneCard({
   onPromptUpdate,
   onSelectVersion,
   onDeleteVersion,
+  onSceneTextUpdate,
   disabled = false,
+  sceneText,
 }: SceneCardProps) {
   const [showPrompt, setShowPrompt] = useState(false)
+  const [showSceneText, setShowSceneText] = useState(false)
   const [editedPrompt, setEditedPrompt] = useState(prompt.image_prompt)
+  const [editedSceneText, setEditedSceneText] = useState(sceneText || '')
   const [previewImage, setPreviewImage] = useState<SceneImage | null>(null)
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
   const [characterReferences, setCharacterReferences] = useState<Reference[]>([])
@@ -96,6 +102,10 @@ export function SceneCard({
   useEffect(() => {
     loadCharacterReferences()
   }, [generationId])
+
+  useEffect(() => {
+    setEditedSceneText(sceneText || '')
+  }, [sceneText])
 
   const loadCharacterReferences = async () => {
     try {
@@ -239,6 +249,55 @@ export function SceneCard({
           </div>
         )}
       </div>
+
+      {/* Scene Text Display (Collapsible) - Only for scenes, not covers */}
+      {prompt.scene_type === 'scene' && (
+        <div className="mb-3">
+          <div className="flex items-center justify-between">
+            <button
+              onClick={() => setShowSceneText(!showSceneText)}
+              className="flex items-center gap-2 text-xs font-bold text-neutral-700 hover:text-green-700 transition-colors"
+            >
+              <svg
+                className={`w-3 h-3 transition-transform ${showSceneText ? 'rotate-90' : ''}`}
+                fill="currentColor"
+                viewBox="0 0 20 20"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
+                  clipRule="evenodd"
+                />
+              </svg>
+              Текст на сцената
+            </button>
+          </div>
+
+          {showSceneText && (
+            <div className="mt-2">
+              <div className="space-y-2">
+                <textarea
+                  value={editedSceneText}
+                  onChange={(e) => setEditedSceneText(e.target.value)}
+                  className="w-full p-3 bg-white rounded-lg border-2 border-green-300 text-xs text-neutral-700 focus:outline-none focus:border-green-500"
+                  rows={4}
+                  placeholder="Текст на сцената..."
+                />
+                {onSceneTextUpdate && (
+                  <div className="flex gap-2 justify-end">
+                    <button
+                      onClick={() => onSceneTextUpdate(prompt.id, editedSceneText)}
+                      className="px-3 py-1 bg-green-600 text-white rounded font-bold hover:bg-green-700 transition-colors text-xs"
+                    >
+                      Запази текст
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Character/Object Selection Section - Not shown for back cover */}
       {!isBackCover && (

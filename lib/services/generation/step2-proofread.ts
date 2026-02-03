@@ -247,6 +247,60 @@ export class Step2ProofreadService {
       throw new Error('Failed to delete corrected content')
     }
   }
+
+  /**
+   * Update a single scene's text in the corrected content
+   * This is the single source of truth for scene texts
+   */
+  async updateSceneText(generationId: string, sceneNumber: number, newText: string): Promise<any> {
+    const supabase = await createClient()
+
+    // Get current corrected content
+    const { data: existing, error: fetchError } = await supabase
+      .from('generation_corrected_content')
+      .select('corrected_content')
+      .eq('generation_id', generationId)
+      .single()
+
+    if (fetchError || !existing) {
+      console.error('Error fetching corrected content:', fetchError)
+      throw new Error('Corrected content not found. Please complete Step 2 first.')
+    }
+
+    // Update the scene text (sceneNumber is 1-indexed, array is 0-indexed)
+    const content = existing.corrected_content as Record<string, any>
+    const scenes = content?.scenes || []
+    const sceneIndex = sceneNumber - 1
+
+    if (sceneIndex < 0 || sceneIndex >= scenes.length) {
+      throw new Error(`Invalid scene number: ${sceneNumber}`)
+    }
+
+    scenes[sceneIndex] = {
+      ...scenes[sceneIndex],
+      text: newText,
+    }
+
+    const updatedContent = {
+      ...content,
+      scenes,
+    }
+
+    // Save the updated content
+    const { data, error } = await supabase
+      .from('generation_corrected_content')
+      .update({ corrected_content: updatedContent })
+      .eq('generation_id', generationId)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Error updating scene text:', error)
+      throw new Error('Failed to update scene text')
+    }
+
+    return data
+  }
 }
 
 // Singleton instance

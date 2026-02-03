@@ -93,8 +93,20 @@ export async function PATCH(
     if (authResult instanceof NextResponse) return authResult
 
     const { generationId } = await params
-    const { correctedContent } = await request.json()
+    const body = await request.json()
 
+    // Check if this is a single scene text update
+    if (body.sceneNumber !== undefined && body.sceneText !== undefined) {
+      const updated = await step2Service.updateSceneText(
+        generationId,
+        body.sceneNumber,
+        body.sceneText
+      )
+      return NextResponse.json({ correctedContent: updated })
+    }
+
+    // Otherwise, it's a full corrected content update
+    const { correctedContent } = body
     if (!correctedContent) {
       return NextResponse.json({ error: 'correctedContent is required' }, { status: 400 })
     }
