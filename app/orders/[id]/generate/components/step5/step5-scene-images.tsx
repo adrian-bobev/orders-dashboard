@@ -257,25 +257,32 @@ export function Step5SceneImages({ generationId, onComplete }: Step5SceneImagesP
         }
       }
 
-      // Step 1: Generate front cover first if selected (back cover depends on it)
-      if (frontCover) {
-        await generateSingleScene(frontCover)
-      }
-
-      // Step 2: Generate back cover after front cover is done (if both are selected)
-      // Back cover uses front cover as reference
-      if (backCover) {
-        await generateSingleScene(backCover)
-      }
-
-      // Step 3: Generate remaining scenes in parallel batches of 6
+      // Generate scenes, front cover, and back cover in parallel
+      // Back cover depends on front cover, so we handle that separately
       const CONCURRENCY_LIMIT = 6
 
-      for (let i = 0; i < scenes.length; i += CONCURRENCY_LIMIT) {
-        const batch = scenes.slice(i, i + CONCURRENCY_LIMIT)
-        const batchPromises = batch.map(generateSingleScene)
-        await Promise.all(batchPromises)
-      }
+      // Start all scene generations in parallel batches
+      const sceneGenerationPromise = (async () => {
+        for (let i = 0; i < scenes.length; i += CONCURRENCY_LIMIT) {
+          const batch = scenes.slice(i, i + CONCURRENCY_LIMIT)
+          const batchPromises = batch.map(generateSingleScene)
+          await Promise.all(batchPromises)
+        }
+      })()
+
+      // Handle covers: front cover first (if selected), then back cover (if selected)
+      const coverGenerationPromise = (async () => {
+        if (frontCover) {
+          await generateSingleScene(frontCover)
+        }
+        // Back cover uses front cover as reference, so it must wait
+        if (backCover) {
+          await generateSingleScene(backCover)
+        }
+      })()
+
+      // Wait for both to complete
+      await Promise.all([sceneGenerationPromise, coverGenerationPromise])
 
       setGeneratingScene(null)
     } catch (error) {
