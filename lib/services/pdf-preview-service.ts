@@ -130,7 +130,14 @@ async function generateZipForGeneration(generationId: string): Promise<Buffer> {
 
       const sceneType = img.generation_scene_prompts.scene_type
       const sceneNumber = img.generation_scene_prompts.scene_number
-      const fileName = sceneType === 'cover' ? 'cover.jpg' : `scene_${sceneNumber}.jpg`
+      let fileName: string
+      if (sceneType === 'cover') {
+        fileName = 'cover.jpg'
+      } else if (sceneType === 'back_cover') {
+        fileName = 'back.jpg'
+      } else {
+        fileName = `scene_${sceneNumber}.jpg`
+      }
       const sizeMB = (imageData.body.length / 1024 / 1024).toFixed(2)
       console.log(`📄   ${fileName}: ${sizeMB}MB (fetched in ${imgDuration}ms)`)
 

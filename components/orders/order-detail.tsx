@@ -88,8 +88,11 @@ export function OrderDetail({ order, currentUser, generationCounts = {}, complet
     allBookConfigIds.every((id: string) => completedConfigs[id] === true)
   const completedCount = allBookConfigIds.filter((id: string) => completedConfigs[id] === true).length
 
+  // Check if order is in validation pending state
+  const isValidationPending = currentStatus === 'VALIDATION_PENDING'
+
   const handleSendNotifications = async () => {
-    if (!isAdmin || !allConfigsCompleted) return
+    if (!isAdmin || !allConfigsCompleted || isValidationPending) return
 
     if (
       !confirm(
@@ -269,9 +272,9 @@ export function OrderDetail({ order, currentUser, generationCounts = {}, complet
             {/* Send Button */}
             <button
               onClick={handleSendNotifications}
-              disabled={!allConfigsCompleted || isSendingNotifications}
+              disabled={!allConfigsCompleted || isSendingNotifications || isValidationPending}
               className={`w-full px-4 py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 ${
-                allConfigsCompleted && !isSendingNotifications
+                allConfigsCompleted && !isSendingNotifications && !isValidationPending
                   ? 'bg-indigo-600 hover:bg-indigo-700 text-white'
                   : 'bg-gray-200 text-gray-500 cursor-not-allowed'
               }`}
@@ -297,6 +300,11 @@ export function OrderDetail({ order, currentUser, generationCounts = {}, complet
             {!allConfigsCompleted && (
               <p className="text-xs text-neutral-500">
                 Бутонът ще бъде активен когато всички книги имат завършени генерации.
+              </p>
+            )}
+            {allConfigsCompleted && isValidationPending && (
+              <p className="text-xs text-neutral-500">
+                Бутонът ще бъде активен когато поръчката не е в състояние &quot;Очаква валидация&quot;.
               </p>
             )}
           </div>
