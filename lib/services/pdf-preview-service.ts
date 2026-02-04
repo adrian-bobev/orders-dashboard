@@ -302,6 +302,7 @@ export async function generateOrderPreviews(orderId: string): Promise<void> {
   }
 
   const wooOrderId = order.woocommerce_order_id.toString()
+  const errors: Array<{ bookName: string; error: unknown }> = []
 
   for (const lineItem of order.line_items || []) {
     for (const bookConfig of lineItem.book_configurations || []) {
@@ -320,8 +321,14 @@ export async function generateOrderPreviews(orderId: string): Promise<void> {
         await generatePreviewImages(completedGen.id, wooOrderId, bookConfigId)
       } catch (e) {
         console.error(`Failed to generate preview images for ${bookConfig.name}:`, e)
-        // Continue with other books even if one fails
+        errors.push({ bookName: bookConfig.name, error: e })
       }
     }
+  }
+
+  // If any book failed, throw an error with details
+  if (errors.length > 0) {
+    const failedBooks = errors.map(e => e.bookName).join(', ')
+    throw new Error(`Failed to generate preview images for: ${failedBooks}`)
   }
 }

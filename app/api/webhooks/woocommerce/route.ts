@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { spawn } from 'child_process';
+import path from 'path';
 import { createOrderFromWebhook, updateOrderStatusByWooCommerceId } from '@/lib/services/order-service';
-import { sendOrderNotification } from '@/lib/services/telegram-service';
+import { sendOrderNotification, sendSentToPrintNotification } from '@/lib/services/telegram-service';
+import { generateOrderForPrint } from '@/lib/services/print-service';
 import { get } from '@/lib/services/http-client';
 
 /**
@@ -180,14 +182,51 @@ export async function POST(request: NextRequest) {
     // Handle order.updated webhook
     if (webhookTopic === 'order.updated') {
       console.log('📝 Order update webhook received');
+      console.log('📋 WooCommerce order status:', orderData.status);
 
-      // If WooCommerce order status is "processing", update our order to READY_FOR_PRINT
+      // If WooCommerce order status is "processing", generate books and send to print
       let statusUpdateResult = null;
+      let printResult = null;
+
       if (orderData.status === 'processing') {
         console.log('🔄 Order status is "processing", updating to READY_FOR_PRINT...');
         statusUpdateResult = await updateOrderStatusByWooCommerceId(orderData.id, 'READY_FOR_PRINT');
+
         if (statusUpdateResult.success) {
           console.log(`✅ Order ${statusUpdateResult.orderId} marked as READY_FOR_PRINT`);
+
+          // Generate print-ready books and download to webhook-logs folder
+          try {
+            console.log('🖨️ Generating print-ready books...');
+            const outputDir = path.join(process.cwd(), 'webhook-logs');
+            printResult = await generateOrderForPrint(orderData.id, outputDir);
+
+            if (printResult.success) {
+              console.log(`✅ Generated ${printResult.books.length} book(s) for printing`);
+
+              // Send Telegram notification
+              try {
+                await sendSentToPrintNotification({
+                  orderId: printResult.orderId,
+                  orderNumber: printResult.orderNumber,
+                  bookCount: printResult.books.length,
+                  books: printResult.books.map(b => ({
+                    childName: b.childName,
+                    storyName: b.storyName,
+                  })),
+                  outputDir: path.join(outputDir, `order-${printResult.orderNumber}`),
+                });
+                console.log('📱 "Sent to Print" Telegram notification sent');
+              } catch (notificationError) {
+                console.error('⚠️ Failed to send Telegram notification (non-critical):', notificationError);
+              }
+            } else {
+              console.error(`❌ Failed to generate books: ${printResult.error}`);
+            }
+          } catch (printError) {
+            console.error('❌ Error generating print-ready books:', printError);
+            printResult = { success: false, error: printError instanceof Error ? printError.message : 'Unknown error' };
+          }
         } else {
           console.error(`❌ Failed to update order status: ${statusUpdateResult.error}`);
         }
@@ -198,6 +237,7 @@ export async function POST(request: NextRequest) {
         message: 'Order update webhook processed',
         orderId: orderData.id,
         statusUpdate: statusUpdateResult,
+        printResult: printResult,
       });
     }
 

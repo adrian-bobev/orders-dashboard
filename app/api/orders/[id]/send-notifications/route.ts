@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/services/user-service'
 import { createClient } from '@/lib/supabase/server'
-import { sendAllBooksReadyNotification } from '@/lib/services/telegram-service'
+import { sendAllBooksReadyNotification, sendErrorNotification } from '@/lib/services/telegram-service'
 import { sendBooksReadyEmail } from '@/lib/services/email-service'
 import { generateOrderPreviews } from '@/lib/services/pdf-preview-service'
 
@@ -135,6 +135,15 @@ export async function POST(
       console.log('📄 Preview images generated and uploaded to R2')
     } catch (previewError) {
       console.error('📄 Failed to generate preview images:', previewError)
+
+      // Send Telegram error notification (but not email)
+      await sendErrorNotification({
+        orderId: order.id,
+        orderNumber: order.order_number || wooOrderId,
+        errorMessage: previewError instanceof Error ? previewError.message : 'Unknown error',
+        context: 'Генериране на preview изображения',
+      })
+
       return NextResponse.json(
         { error: `Failed to generate preview images: ${previewError instanceof Error ? previewError.message : 'Unknown error'}` },
         { status: 500 }
