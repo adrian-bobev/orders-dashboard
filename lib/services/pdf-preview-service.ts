@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createServiceRoleClient } from '@/lib/supabase/server'
 import { fetchImageFromStorage } from '@/lib/r2-client'
 import JSZip from 'jszip'
 
@@ -32,7 +32,7 @@ interface ProgressResponse {
  * Generate ZIP file for a generation (server-side version of download-zip.tsx logic)
  */
 async function generateZipForGeneration(generationId: string): Promise<Buffer> {
-  const supabase = await createClient()
+  const supabase = createServiceRoleClient()
 
   // Get the generation with book config
   const { data: generation, error: genError } = await supabase
@@ -268,7 +268,7 @@ export async function generatePreviewImages(
  * Uses WooCommerce order ID and book config_id for R2 folder structure
  */
 export async function generateOrderPreviews(orderId: string): Promise<void> {
-  const supabase = await createClient()
+  const supabase = createServiceRoleClient()
 
   // Get all completed generations for this order
   const { data: order } = await supabase
