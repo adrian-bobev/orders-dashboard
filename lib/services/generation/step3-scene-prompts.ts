@@ -126,6 +126,7 @@ export class Step3ScenePromptsService {
           image_prompt: scene.imagePrompt,
           prompt_metadata: {
             characters: scene.characters,
+            objects: scene.objects,
             sceneText: scene.text || null,
           },
         })
@@ -606,8 +607,9 @@ export class Step3ScenePromptsService {
         continue
       }
 
-      // Get characters from prompt_metadata for regular scenes
+      // Get characters and objects from prompt_metadata for regular scenes
       const characters = scenePrompt.prompt_metadata?.characters || []
+      const objects = scenePrompt.prompt_metadata?.objects || []
 
       // Always add main character first to every scene
       if (mainCharacter) {
@@ -628,6 +630,23 @@ export class Step3ScenePromptsService {
         const entity = entityMap.get(characterName.toLowerCase())
         // Skip if it's the main character (already added) or doesn't exist
         if (entity && !entity.is_main_character) {
+          associationsToInsert.push({
+            scene_prompt_id: scenePrompt.id,
+            character_list_id: entity.id,
+            sort_order: sortOrder++,
+          })
+        }
+      }
+
+      // Then add objects from the scene metadata
+      for (const object of objects) {
+        // Handle both string format and object format { name: 'Name' }
+        const objectName = typeof object === 'string' ? object : object?.name
+
+        if (!objectName) continue
+
+        const entity = entityMap.get(objectName.toLowerCase())
+        if (entity) {
           associationsToInsert.push({
             scene_prompt_id: scenePrompt.id,
             character_list_id: entity.id,

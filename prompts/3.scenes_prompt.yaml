@@ -70,6 +70,11 @@ user_prompt: |
             "name": "<string>"
           }
         ],
+        "objects": [
+          {
+            "name": "<string>"
+          }
+        ],
         "imagePrompt": "<ENGLISH: a single, self-contained prompt with style tags and all necessary details>"
       }
     ]
