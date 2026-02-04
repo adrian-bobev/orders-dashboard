@@ -349,3 +349,41 @@ export async function updateOrderStatus(
   }
 }
 
+/**
+ * Update order status by WooCommerce order ID (for webhook use)
+ * Uses service role client to bypass RLS
+ */
+export async function updateOrderStatusByWooCommerceId(
+  woocommerceOrderId: number,
+  newStatus: OrderStatus
+): Promise<{ success: boolean; orderId?: string; error?: string }> {
+  const supabase = createServiceRoleClient()
+
+  // First find the order by WooCommerce ID
+  const { data: order, error: findError } = await supabase
+    .from('orders')
+    .select('id, status')
+    .eq('woocommerce_order_id', woocommerceOrderId)
+    .single()
+
+  if (findError) {
+    if (findError.code === 'PGRST116') {
+      return { success: false, error: `Order with WooCommerce ID ${woocommerceOrderId} not found` }
+    }
+    return { success: false, error: `Failed to find order: ${findError.message}` }
+  }
+
+  // Update the status
+  const { error: updateError } = await supabase
+    .from('orders')
+    .update({ status: newStatus })
+    .eq('id', order.id)
+
+  if (updateError) {
+    return { success: false, error: `Failed to update order status: ${updateError.message}` }
+  }
+
+  console.log(`✅ Order ${order.id} status updated from ${order.status} to ${newStatus}`)
+  return { success: true, orderId: order.id }
+}
+

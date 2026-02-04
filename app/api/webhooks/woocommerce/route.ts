@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { spawn } from 'child_process';
-import { createOrderFromWebhook } from '@/lib/services/order-service';
+import { createOrderFromWebhook, updateOrderStatusByWooCommerceId } from '@/lib/services/order-service';
 import { sendOrderNotification } from '@/lib/services/telegram-service';
 import { get } from '@/lib/services/http-client';
 
@@ -168,10 +168,38 @@ export async function POST(request: NextRequest) {
       console.log('✅ Signature verified');
     }
 
+    // Check the webhook topic from headers
+    const webhookTopic = request.headers.get('x-wc-webhook-topic');
+    console.log('📌 Webhook topic:', webhookTopic);
+
     // Parse the order data
     const orderData = JSON.parse(body);
     console.log('📋 Order ID:', orderData.id);
     console.log('📋 Order Number:', orderData.number);
+
+    // Handle order.updated webhook
+    if (webhookTopic === 'order.updated') {
+      console.log('📝 Order update webhook received');
+
+      // If WooCommerce order status is "processing", update our order to READY_FOR_PRINT
+      let statusUpdateResult = null;
+      if (orderData.status === 'processing') {
+        console.log('🔄 Order status is "processing", updating to READY_FOR_PRINT...');
+        statusUpdateResult = await updateOrderStatusByWooCommerceId(orderData.id, 'READY_FOR_PRINT');
+        if (statusUpdateResult.success) {
+          console.log(`✅ Order ${statusUpdateResult.orderId} marked as READY_FOR_PRINT`);
+        } else {
+          console.error(`❌ Failed to update order status: ${statusUpdateResult.error}`);
+        }
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: 'Order update webhook processed',
+        orderId: orderData.id,
+        statusUpdate: statusUpdateResult,
+      });
+    }
 
     // Fetch book configurations if available
     console.log('📚 Fetching book configurations...');
