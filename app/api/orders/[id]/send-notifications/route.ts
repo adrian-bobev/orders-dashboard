@@ -1,14 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/services/user-service'
 import { createClient } from '@/lib/supabase/server'
-import { sendAllBooksReadyNotification, sendErrorNotification } from '@/lib/services/telegram-service'
-import { sendBooksReadyEmail } from '@/lib/services/email-service'
-import { generateOrderPreviews } from '@/lib/services/pdf-preview-service'
+import { queueJob } from '@/lib/queue/client'
 
 /**
  * POST /api/orders/[id]/send-notifications
  *
- * Generates preview images (uploaded to R2) and sends notifications (Telegram + Email) for an order.
+ * Queues a job to generate preview images (uploaded to R2) and send notifications (Telegram + Email).
  * Also updates order status to VALIDATION_PENDING.
  *
  * Prerequisites:
@@ -91,7 +89,7 @@ export async function POST(
     }
 
     const completedBookConfigIds = new Set(
-      (completedGenerations || []).map((g: any) => g.book_config_id)
+      (completedGenerations || []).map((g: { book_config_id: string }) => g.book_config_id)
     )
 
     const allReady = allBookConfigIds.every((id) => completedBookConfigIds.has(id))
@@ -104,7 +102,7 @@ export async function POST(
       )
     }
 
-    console.log('📤 All books ready! Processing...')
+    console.log('📤 All books ready! Queuing preview generation job...')
 
     // Ensure we have a WooCommerce order ID for the approval URL
     if (!order.woocommerce_order_id) {
@@ -128,60 +126,29 @@ export async function POST(
       console.log('📤 Order status updated to VALIDATION_PENDING')
     }
 
-    // Generate preview images and upload to R2
-    console.log('📄 Generating preview images...')
-    try {
-      await generateOrderPreviews(order.id)
-      console.log('📄 Preview images generated and uploaded to R2')
-    } catch (previewError) {
-      console.error('📄 Failed to generate preview images:', previewError)
-
-      // Send Telegram error notification (but not email)
-      await sendErrorNotification({
-        orderId: order.id,
-        orderNumber: order.order_number || wooOrderId,
-        errorMessage: previewError instanceof Error ? previewError.message : 'Unknown error',
-        context: 'Генериране на preview изображения',
-      })
-
-      return NextResponse.json(
-        { error: `Failed to generate preview images: ${previewError instanceof Error ? previewError.message : 'Unknown error'}` },
-        { status: 500 }
-      )
-    }
-
-    // Send Telegram notification
-    console.log('📱 Sending Telegram notification...')
-    await sendAllBooksReadyNotification({
+    // Queue preview generation job with notification details
+    const { jobId } = await queueJob('PREVIEW_GENERATION', {
       orderId: order.id,
       wooOrderId,
       orderNumber: order.order_number || wooOrderId,
-      bookCount: allBookConfigIds.length,
-      books,
-    })
-
-    // Send email notification to customer
-    console.log('📧 Sending email notification...')
-    await sendBooksReadyEmail({
-      orderId: order.id,
-      wooOrderId,
-      orderNumber: order.order_number || wooOrderId,
+      sendNotifications: true,
       customerEmail: order.billing_email,
       customerName: order.billing_first_name,
       books,
-    })
+    }, { priority: 5 })
 
-    console.log('📤 Notifications sent successfully')
+    console.log(`📤 Preview generation job queued: ${jobId}`)
 
     return NextResponse.json({
       success: true,
-      message: 'Notifications sent successfully',
+      message: 'Preview generation and notifications job queued',
+      jobId,
       booksCount: allBookConfigIds.length,
     })
   } catch (error) {
-    console.error('Error sending notifications:', error)
+    console.error('Error queuing notifications job:', error)
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to send notifications' },
+      { error: error instanceof Error ? error.message : 'Failed to queue notifications job' },
       { status: 500 }
     )
   }

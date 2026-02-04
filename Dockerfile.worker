@@ -1,0 +1,21 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install dependencies
+COPY package.json package-lock.json* ./
+RUN npm ci
+
+# Copy source files
+COPY lib ./lib
+COPY worker ./worker
+COPY tsconfig.worker.json ./
+
+# Build the worker
+RUN npm run build:worker
+
+# Create logs directory
+RUN mkdir -p webhook-logs
+
+# Start the worker
+CMD ["node", "dist/worker/index.js"]

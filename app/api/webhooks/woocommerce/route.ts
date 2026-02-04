@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { spawn } from 'child_process';
-import path from 'path';
 import { createOrderFromWebhook, updateOrderStatusByWooCommerceId } from '@/lib/services/order-service';
-import { sendOrderNotification, sendSentToPrintNotification, sendErrorNotification } from '@/lib/services/telegram-service';
-import { generateOrderForPrint } from '@/lib/services/print-service';
+import { sendOrderNotification } from '@/lib/services/telegram-service';
+import { queueJob } from '@/lib/queue/client';
 import { get } from '@/lib/services/http-client';
 
 /**
@@ -184,9 +183,9 @@ export async function POST(request: NextRequest) {
       console.log('📝 Order update webhook received');
       console.log('📋 WooCommerce order status:', orderData.status);
 
-      // If WooCommerce order status is "processing", generate books and send to print
+      // If WooCommerce order status is "processing", queue print generation job
       let statusUpdateResult = null;
-      let printResult = null;
+      let jobId = null;
 
       if (orderData.status === 'processing') {
         console.log('🔄 Order status is "processing", updating to READY_FOR_PRINT...');
@@ -195,63 +194,19 @@ export async function POST(request: NextRequest) {
         if (statusUpdateResult.success) {
           console.log(`✅ Order ${statusUpdateResult.orderId} marked as READY_FOR_PRINT`);
 
-          // Generate print-ready books and download to webhook-logs folder
+          // Queue print generation job instead of executing synchronously
           try {
-            console.log('🖨️ Generating print-ready books...');
-            const outputDir = path.join(process.cwd(), 'webhook-logs');
-            printResult = await generateOrderForPrint(orderData.id, outputDir);
-
-            if (printResult.success) {
-              console.log(`✅ Generated ${printResult.books.length} book(s) for printing`);
-
-              // Send Telegram notification
-              try {
-                await sendSentToPrintNotification({
-                  orderId: printResult.orderId,
-                  orderNumber: printResult.orderNumber,
-                  bookCount: printResult.books.length,
-                  books: printResult.books.map(b => ({
-                    childName: b.childName,
-                    storyName: b.storyName,
-                  })),
-                  outputDir: path.join(outputDir, `order-${printResult.orderNumber}`),
-                });
-                console.log('📱 "Sent to Print" Telegram notification sent');
-              } catch (notificationError) {
-                console.error('⚠️ Failed to send Telegram notification (non-critical):', notificationError);
-              }
-
-              // If there was a partial failure (some books failed), also send error notification
-              if (printResult.error) {
-                console.log('⚠️ Some books failed to generate, sending error notification...');
-                await sendErrorNotification({
-                  orderId: printResult.orderId,
-                  orderNumber: printResult.orderNumber,
-                  errorMessage: printResult.error,
-                  context: 'Генериране на книги за печат (частичен неуспех)',
-                });
-              }
-            } else {
-              console.error(`❌ Failed to generate books: ${printResult.error}`);
-              // Send error notification
-              await sendErrorNotification({
-                orderId: statusUpdateResult.orderId || '',
-                orderNumber: orderData.number?.toString() || orderData.id.toString(),
-                errorMessage: printResult.error || 'Unknown error',
-                context: 'Генериране на книги за печат',
-              });
-            }
-          } catch (printError) {
-            console.error('❌ Error generating print-ready books:', printError);
-            printResult = { success: false, error: printError instanceof Error ? printError.message : 'Unknown error' };
-
-            // Send error notification
-            await sendErrorNotification({
+            console.log('🖨️ Queuing print generation job...');
+            const result = await queueJob('PRINT_GENERATION', {
+              woocommerceOrderId: orderData.id,
               orderId: statusUpdateResult.orderId || '',
-              orderNumber: orderData.number?.toString() || orderData.id.toString(),
-              errorMessage: printError instanceof Error ? printError.message : 'Unknown error',
-              context: 'Генериране на книги за печат',
-            });
+              orderNumber: orderData.number?.toString(),
+            }, { priority: 5 });
+
+            jobId = result.jobId;
+            console.log(`✅ Print generation job queued: ${jobId}`);
+          } catch (queueError) {
+            console.error('❌ Failed to queue print generation job:', queueError);
           }
         } else {
           console.error(`❌ Failed to update order status: ${statusUpdateResult.error}`);
@@ -263,7 +218,7 @@ export async function POST(request: NextRequest) {
         message: 'Order update webhook processed',
         orderId: orderData.id,
         statusUpdate: statusUpdateResult,
-        printResult: printResult,
+        jobId: jobId,
       });
     }
 

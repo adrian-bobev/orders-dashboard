@@ -48,7 +48,6 @@ const ENV_VARS: EnvVar[] = [
 
   // Order Approval - Optional
   { name: 'APPROVAL_SECRET_KEY', required: false, description: 'Secret key for HMAC-SHA256 token generation for order approval URLs' },
-  { name: 'WORDPRESS_URL', required: false, description: 'WordPress site URL for order approval links (default: https://prikazkosite.com)' },
 ]
 
 export interface EnvValidationResult {

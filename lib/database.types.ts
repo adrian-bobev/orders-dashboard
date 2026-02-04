@@ -437,6 +437,63 @@ export type Database = {
           },
         ]
       }
+      jobs: {
+        Row: {
+          id: string
+          type: Database["public"]["Enums"]["job_type"]
+          status: Database["public"]["Enums"]["job_status"]
+          payload: Json
+          result: Json | null
+          error: string | null
+          retry_count: number
+          max_retries: number
+          locked_by: string | null
+          locked_at: string | null
+          created_at: string
+          updated_at: string
+          started_at: string | null
+          completed_at: string | null
+          scheduled_for: string
+          priority: number
+        }
+        Insert: {
+          id?: string
+          type: Database["public"]["Enums"]["job_type"]
+          status?: Database["public"]["Enums"]["job_status"]
+          payload?: Json
+          result?: Json | null
+          error?: string | null
+          retry_count?: number
+          max_retries?: number
+          locked_by?: string | null
+          locked_at?: string | null
+          created_at?: string
+          updated_at?: string
+          started_at?: string | null
+          completed_at?: string | null
+          scheduled_for?: string
+          priority?: number
+        }
+        Update: {
+          id?: string
+          type?: Database["public"]["Enums"]["job_type"]
+          status?: Database["public"]["Enums"]["job_status"]
+          payload?: Json
+          result?: Json | null
+          error?: string | null
+          retry_count?: number
+          max_retries?: number
+          locked_by?: string | null
+          locked_at?: string | null
+          created_at?: string
+          updated_at?: string
+          started_at?: string | null
+          completed_at?: string | null
+          scheduled_for?: string
+          priority?: number
+        }
+        Relationships: []
+      }
       line_items: {
         Row: {
           created_at: string
@@ -751,9 +808,55 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      claim_next_job: {
+        Args: {
+          p_worker_id: string
+          p_stale_timeout_minutes?: number
+        }
+        Returns: {
+          id: string
+          type: Database["public"]["Enums"]["job_type"]
+          status: Database["public"]["Enums"]["job_status"]
+          payload: Json
+          result: Json | null
+          error: string | null
+          retry_count: number
+          max_retries: number
+          locked_by: string | null
+          locked_at: string | null
+          created_at: string
+          updated_at: string
+          started_at: string | null
+          completed_at: string | null
+          scheduled_for: string
+          priority: number
+        }[]
+      }
+      complete_job: {
+        Args: {
+          p_job_id: string
+          p_result?: Json
+        }
+        Returns: undefined
+      }
+      fail_job: {
+        Args: {
+          p_job_id: string
+          p_error: string
+          p_should_retry?: boolean
+        }
+        Returns: undefined
+      }
+      cancel_job: {
+        Args: {
+          p_job_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
+      job_status: "pending" | "processing" | "completed" | "failed" | "cancelled"
+      job_type: "PRINT_GENERATION" | "PREVIEW_GENERATION" | "CONTENT_GENERATION"
       order_status:
         | "NEW"
         | "VALIDATION_PENDING"
@@ -891,6 +994,18 @@ export const Constants = {
   },
   public: {
     Enums: {
+      job_status: [
+        "pending",
+        "processing",
+        "completed",
+        "failed",
+        "cancelled",
+      ],
+      job_type: [
+        "PRINT_GENERATION",
+        "PREVIEW_GENERATION",
+        "CONTENT_GENERATION",
+      ],
       order_status: [
         "NEW",
         "VALIDATION_PENDING",
