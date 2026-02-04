@@ -3,7 +3,7 @@ import crypto from 'crypto';
 import { spawn } from 'child_process';
 import path from 'path';
 import { createOrderFromWebhook, updateOrderStatusByWooCommerceId } from '@/lib/services/order-service';
-import { sendOrderNotification, sendSentToPrintNotification } from '@/lib/services/telegram-service';
+import { sendOrderNotification, sendSentToPrintNotification, sendErrorNotification } from '@/lib/services/telegram-service';
 import { generateOrderForPrint } from '@/lib/services/print-service';
 import { get } from '@/lib/services/http-client';
 
@@ -220,12 +220,38 @@ export async function POST(request: NextRequest) {
               } catch (notificationError) {
                 console.error('⚠️ Failed to send Telegram notification (non-critical):', notificationError);
               }
+
+              // If there was a partial failure (some books failed), also send error notification
+              if (printResult.error) {
+                console.log('⚠️ Some books failed to generate, sending error notification...');
+                await sendErrorNotification({
+                  orderId: printResult.orderId,
+                  orderNumber: printResult.orderNumber,
+                  errorMessage: printResult.error,
+                  context: 'Генериране на книги за печат (частичен неуспех)',
+                });
+              }
             } else {
               console.error(`❌ Failed to generate books: ${printResult.error}`);
+              // Send error notification
+              await sendErrorNotification({
+                orderId: statusUpdateResult.orderId || '',
+                orderNumber: orderData.number?.toString() || orderData.id.toString(),
+                errorMessage: printResult.error || 'Unknown error',
+                context: 'Генериране на книги за печат',
+              });
             }
           } catch (printError) {
             console.error('❌ Error generating print-ready books:', printError);
             printResult = { success: false, error: printError instanceof Error ? printError.message : 'Unknown error' };
+
+            // Send error notification
+            await sendErrorNotification({
+              orderId: statusUpdateResult.orderId || '',
+              orderNumber: orderData.number?.toString() || orderData.id.toString(),
+              errorMessage: printError instanceof Error ? printError.message : 'Unknown error',
+              context: 'Генериране на книги за печат',
+            });
           }
         } else {
           console.error(`❌ Failed to update order status: ${statusUpdateResult.error}`);

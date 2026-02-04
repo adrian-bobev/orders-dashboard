@@ -349,6 +349,8 @@ export async function generateOrderForPrint(
     downloadPath: string
   }> = []
 
+  const errors: Array<{ bookName: string; error: unknown }> = []
+
   for (const lineItem of lineItems || []) {
     for (const bookConfig of lineItem.book_configurations || []) {
       // Find completed generation
@@ -382,8 +384,21 @@ export async function generateOrderForPrint(
         })
       } catch (e) {
         console.error(`[Print] Failed to generate book for ${bookConfig.name}:`, e)
-        // Continue with other books even if one fails
+        errors.push({ bookName: bookConfig.name, error: e })
       }
+    }
+  }
+
+  // If any books failed, include error info in result
+  if (errors.length > 0) {
+    const failedBooks = errors.map(e => e.bookName).join(', ')
+    return {
+      success: completedBooks.length > 0,
+      orderId: order.id,
+      orderNumber,
+      wooOrderId: woocommerceOrderId.toString(),
+      books: completedBooks,
+      error: `Failed to generate books for: ${failedBooks}`,
     }
   }
 

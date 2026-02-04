@@ -2,16 +2,19 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/services/user-service'
 import { step5Service, type ProviderConfig } from '@/lib/services/generation/step5-scene-images'
 import { step5SceneCharactersService } from '@/lib/services/generation/step5-scene-characters-service'
+import { getOrderInfoFromGeneration } from '@/lib/services/generation/generation-service'
+import { sendErrorNotification } from '@/lib/services/telegram-service'
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ generationId: string; scenePromptId: string }> }
 ) {
+  const { generationId, scenePromptId } = await params
+
   try {
     const authResult = await requireAdmin()
     if (authResult instanceof NextResponse) return authResult
 
-    const { generationId, scenePromptId } = await params
     const { imagePrompt, characterReferenceIds, providerConfig } = await request.json()
 
     if (!imagePrompt) {
@@ -38,6 +41,18 @@ export async function POST(
     return NextResponse.json({ image })
   } catch (error) {
     console.error('Error generating scene image:', error)
+
+    // Send Telegram error notification
+    const orderInfo = await getOrderInfoFromGeneration(generationId)
+    if (orderInfo) {
+      await sendErrorNotification({
+        orderId: orderInfo.orderId,
+        orderNumber: orderInfo.orderNumber,
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+        context: `Step 5 (Single Scene Image) - ${orderInfo.bookName}`,
+      })
+    }
+
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to generate scene image' },
       { status: 500 }
