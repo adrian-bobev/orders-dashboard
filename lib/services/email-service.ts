@@ -46,8 +46,8 @@ async function buildEmailContent(data: BooksReadyEmailData): Promise<{ subject: 
 
   // Generate subject
   const subject = isSingleBook
-    ? `✨ ${data.books[0].childName} е главният герой! Вижте персоналната книжка преди печат`
-    : `✨ Книжките за ${childrenNamesFormatted} са готови за преглед!`
+    ? `[${data.orderNumber}] 📚 ${data.books[0].childName} е главният герой! Вижте персоналната книжка преди печат`
+    : `[${data.orderNumber}] 📚 Книжките за ${childrenNamesFormatted} са готови за преглед!`
 
   // Render React Email template
   const html = await render(
