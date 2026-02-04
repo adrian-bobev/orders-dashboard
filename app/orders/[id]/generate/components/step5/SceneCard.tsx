@@ -51,6 +51,9 @@ interface Reference {
   generation_character_list: CharacterListInfo
 }
 
+// Generation status for bulk operations
+type SceneGenerationStatus = 'queued' | 'generating' | 'completed' | 'failed' | 'idle'
+
 interface SceneCardProps {
   prompt: ScenePrompt
   images: SceneImage[]
@@ -60,6 +63,7 @@ interface SceneCardProps {
   references: Reference[]
   generationId: string
   isGenerating: boolean
+  generationStatus?: SceneGenerationStatus
   onGenerateSingle: (scenePromptId: string, imagePrompt: string) => void
   onAddCharacter: (sceneId: string, characterId: string) => void
   onRemoveCharacter: (sceneId: string, characterId: string) => void
@@ -80,6 +84,7 @@ export function SceneCard({
   references,
   generationId,
   isGenerating,
+  generationStatus = 'idle',
   onGenerateSingle,
   onAddCharacter,
   onRemoveCharacter,
@@ -97,7 +102,10 @@ export function SceneCard({
   const [previewImage, setPreviewImage] = useState<SceneImage | null>(null)
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
   const [characterReferences, setCharacterReferences] = useState<Reference[]>([])
-  const hasImages = images.length > 0
+
+  // Only count completed images
+  const completedImages = images.filter((img) => img.generation_status === 'completed')
+  const hasImages = completedImages.length > 0
 
   useEffect(() => {
     loadCharacterReferences()
@@ -161,15 +169,47 @@ export function SceneCard({
   const isBackCover = prompt.scene_type === 'back_cover'
   const isCoverType = isCover || isBackCover
 
+  // Determine the border color based on generation status and image presence
+  const getBorderStyle = () => {
+    if (generationStatus === 'generating') {
+      return 'border-purple-500 ring-2 ring-purple-200 ring-opacity-50'
+    }
+    if (generationStatus === 'queued') {
+      return 'border-amber-400'
+    }
+    if (generationStatus === 'completed' || (generationStatus === 'idle' && hasImages)) {
+      return isCoverType
+        ? isBackCover
+          ? 'border-amber-300'
+          : 'border-purple-300'
+        : 'border-emerald-300'
+    }
+    if (generationStatus === 'failed') {
+      return 'border-red-400'
+    }
+    return isCoverType
+      ? isBackCover
+        ? 'border-amber-300'
+        : 'border-purple-300'
+      : 'border-neutral-200'
+  }
+
+  // Get background style based on type and status
+  const getBackgroundStyle = () => {
+    if (isCoverType) {
+      return isBackCover
+        ? 'bg-gradient-to-br from-amber-50 to-orange-50'
+        : 'bg-gradient-to-br from-purple-50 to-pink-50'
+    }
+    if (hasImages) {
+      return 'bg-gradient-to-br from-white to-emerald-50/30'
+    }
+    return 'bg-white'
+  }
+
   return (
     <div
-      className={`rounded-xl p-4 border-2 ${
-        isCoverType
-          ? isBackCover
-            ? 'bg-gradient-to-br from-amber-50 to-orange-50 border-amber-300'
-            : 'bg-gradient-to-br from-purple-50 to-pink-50 border-purple-300'
-          : 'bg-white border-purple-200'
-      } ${disabled ? 'opacity-60' : ''}`}
+      className={`rounded-xl p-4 border-2 transition-all duration-300 ${getBackgroundStyle()} ${getBorderStyle()} ${disabled ? 'opacity-60' : ''}`}
     >
       {/* Scene Header */}
       <div className="flex items-center justify-between mb-3">
@@ -196,13 +236,68 @@ export function SceneCard({
               Сцена {prompt.scene_number}
             </>
           )}
+
+          {/* Image Status Badge */}
+          {generationStatus === 'generating' ? (
+            <span className="inline-flex items-center gap-1.5 text-xs bg-purple-100 text-purple-700 px-2.5 py-1 rounded-full font-semibold animate-pulse">
+              <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+              Генериране...
+            </span>
+          ) : generationStatus === 'queued' ? (
+            <span className="inline-flex items-center gap-1.5 text-xs bg-amber-100 text-amber-700 px-2.5 py-1 rounded-full font-semibold">
+              <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+              </svg>
+              На опашка
+            </span>
+          ) : generationStatus === 'completed' ? (
+            <span className="inline-flex items-center gap-1.5 text-xs bg-emerald-100 text-emerald-700 px-2.5 py-1 rounded-full font-semibold">
+              <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+              </svg>
+              Готово
+            </span>
+          ) : generationStatus === 'failed' ? (
+            <span className="inline-flex items-center gap-1.5 text-xs bg-red-100 text-red-700 px-2.5 py-1 rounded-full font-semibold">
+              <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+              Грешка
+            </span>
+          ) : (
+            <span className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full font-semibold ${
+              hasImages
+                ? 'bg-emerald-100 text-emerald-700'
+                : 'bg-amber-100 text-amber-700'
+            }`}>
+              <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
+              </svg>
+              {completedImages.length} изобр.
+            </span>
+          )}
         </h4>
         <button
           onClick={() => onGenerateSingle(prompt.id, prompt.image_prompt)}
           disabled={isGenerating || disabled}
-          className="px-3 py-1.5 bg-purple-600 text-white rounded-lg font-bold hover:bg-purple-700 transition-colors disabled:opacity-50 text-sm"
+          className="px-3 py-1.5 bg-purple-600 text-white rounded-lg font-bold hover:bg-purple-700 transition-colors disabled:opacity-50 text-sm flex items-center gap-2"
         >
-          {isGenerating ? 'Генериране...' : hasImages ? 'Нова версия' : 'Генерирай'}
+          {isGenerating ? (
+            <>
+              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+              Генериране...
+            </>
+          ) : hasImages ? (
+            'Нова версия'
+          ) : (
+            'Генерирай'
+          )}
         </button>
       </div>
 
@@ -321,21 +416,33 @@ export function SceneCard({
       )}
 
       {/* Generated Images Grid */}
-      {hasImages ? (
+      {hasImages || isGenerating ? (
         <div className="mt-4">
           <h5 className="text-sm font-bold text-neutral-900 mb-2">
-            Генерирани изображения ({images.length})
+            Генерирани изображения ({completedImages.length})
           </h5>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {images.map((img) => (
-              <div key={img.id} className="relative">
+            {/* Show generating placeholder when actively generating */}
+            {isGenerating && (
+              <div className="relative rounded-xl overflow-hidden border-4 border-purple-400 border-dashed bg-gradient-to-br from-purple-50 to-pink-50 h-48 flex flex-col items-center justify-center">
+                <div className="relative">
+                  <div className="w-12 h-12 rounded-full border-4 border-purple-200 border-t-purple-600 animate-spin" />
+                </div>
+                <p className="text-sm font-semibold text-purple-700 mt-3">Генериране...</p>
+                <p className="text-xs text-purple-500 mt-1">Моля, изчакайте</p>
+              </div>
+            )}
+
+            {/* Show only completed images */}
+            {completedImages.map((img) => (
+              <div key={img.id} className="relative group">
                 <button
                   onClick={() => !img.is_selected && onSelectVersion(prompt.id, img.id)}
                   disabled={img.is_selected}
-                  className={`relative rounded-lg overflow-hidden border-4 transition-all w-full ${
+                  className={`relative rounded-xl overflow-hidden border-4 transition-all w-full ${
                     img.is_selected
-                      ? 'border-green-500 ring-4 ring-green-200 cursor-default'
-                      : 'border-neutral-200 hover:border-purple-400 cursor-pointer'
+                      ? 'border-emerald-500 ring-4 ring-emerald-200 cursor-default shadow-lg'
+                      : 'border-neutral-200 hover:border-purple-400 cursor-pointer hover:shadow-md'
                   }`}
                 >
                   <SmartImage
@@ -351,8 +458,8 @@ export function SceneCard({
 
                   {/* Top-left: Selected icon */}
                   {img.is_selected && (
-                    <div className="absolute top-2 left-2 bg-green-500 text-white rounded-full p-1">
-                      <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                    <div className="absolute top-2 left-2 bg-emerald-500 text-white rounded-full p-1.5 shadow-lg">
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
                         <path
                           fillRule="evenodd"
                           d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
@@ -363,8 +470,8 @@ export function SceneCard({
                   )}
 
                   {!img.is_selected && (
-                    <div className="absolute inset-0 bg-black bg-opacity-0 hover:bg-opacity-10 transition-all flex items-center justify-center">
-                      <span className="text-white text-xs font-bold opacity-0 group-hover:opacity-100 bg-purple-600 px-2 py-1 rounded">
+                    <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all flex items-center justify-center">
+                      <span className="text-white text-xs font-bold opacity-0 group-hover:opacity-100 bg-purple-600 px-3 py-1.5 rounded-lg shadow-lg transition-opacity">
                         Избери
                       </span>
                     </div>
@@ -378,7 +485,7 @@ export function SceneCard({
                     setPreviewImage(img)
                     setIsPreviewOpen(true)
                   }}
-                  className="absolute top-2 right-2 z-10 bg-white hover:bg-neutral-100 text-purple-900 rounded-full p-2 shadow-lg transition-colors"
+                  className="absolute top-2 right-2 z-10 bg-white hover:bg-neutral-100 text-purple-900 rounded-full p-2 shadow-lg transition-all opacity-0 group-hover:opacity-100 hover:scale-110"
                   title="Преглед"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -393,7 +500,7 @@ export function SceneCard({
                     e.stopPropagation()
                     onDeleteVersion(img.id)
                   }}
-                  className="absolute bottom-2 right-2 z-10 bg-red-600 hover:bg-red-700 text-white rounded-full p-1.5 shadow-lg transition-colors"
+                  className="absolute bottom-2 right-2 z-10 bg-red-600 hover:bg-red-700 text-white rounded-full p-1.5 shadow-lg transition-all opacity-0 group-hover:opacity-100 hover:scale-110"
                   title="Изтрий версия"
                 >
                   <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
@@ -410,7 +517,12 @@ export function SceneCard({
         </div>
       ) : (
         <div className="mt-4">
-          <p className="text-sm text-neutral-500 italic">Няма генерирани изображения</p>
+          <div className="flex items-center gap-2 p-4 bg-neutral-50 rounded-xl border-2 border-dashed border-neutral-200">
+            <svg className="w-5 h-5 text-neutral-400" fill="currentColor" viewBox="0 0 20 20">
+              <path fillRule="evenodd" d="M4 3a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V5a2 2 0 00-2-2H4zm12 12H4l4-8 3 6 2-4 3 6z" clipRule="evenodd" />
+            </svg>
+            <p className="text-sm text-neutral-500">Няма генерирани изображения</p>
+          </div>
         </div>
       )}
 

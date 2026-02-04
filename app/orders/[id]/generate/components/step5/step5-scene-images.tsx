@@ -17,6 +17,9 @@ interface ProviderOption {
   name: string
 }
 
+// Generation status for bulk operations
+type SceneGenerationStatus = 'queued' | 'generating' | 'completed' | 'failed' | 'idle'
+
 interface Step5SceneImagesProps {
   generationId: string
   onComplete: () => void
@@ -34,6 +37,11 @@ export function Step5SceneImages({ generationId, onComplete }: Step5SceneImagesP
   const [selectedScenes, setSelectedScenes] = useState<Set<string>>(new Set())
   const [scenesWithoutImages, setScenesWithoutImages] = useState<string[]>([])
   const [storyContent, setStoryContent] = useState<any>(null)
+
+  // Track generation status for each scene during bulk generation
+  const [sceneStatuses, setSceneStatuses] = useState<Record<string, SceneGenerationStatus>>({})
+  // Track which scenes completed successfully during current batch
+  const [completedInBatch, setCompletedInBatch] = useState<Set<string>>(new Set())
 
   // Provider configuration
   const [providers, setProviders] = useState<ProviderOption[]>([])
@@ -205,6 +213,14 @@ export function Step5SceneImages({ generationId, onComplete }: Step5SceneImagesP
     setIsGenerating(true)
     setShowSceneSelector(false)
 
+    // Initialize all selected scenes as queued
+    const initialStatuses: Record<string, SceneGenerationStatus> = {}
+    selectedScenes.forEach((id) => {
+      initialStatuses[id] = 'queued'
+    })
+    setSceneStatuses(initialStatuses)
+    setCompletedInBatch(new Set())
+
     try {
       const providerConfig: ProviderConfig = {
         provider: selectedProvider,
@@ -226,7 +242,10 @@ export function Step5SceneImages({ generationId, onComplete }: Step5SceneImagesP
       // Helper function to generate a single scene
       const generateSingleScene = async (prompt: any) => {
         try {
+          // Update status to generating
           setGeneratingScene(prompt.id)
+          setSceneStatuses((prev) => ({ ...prev, [prompt.id]: 'generating' }))
+
           const response = await fetch(
             `/api/generation/${generationId}/step5/generate-scene/${prompt.id}`,
             {
@@ -243,6 +262,10 @@ export function Step5SceneImages({ generationId, onComplete }: Step5SceneImagesP
             throw new Error('Failed to generate scene')
           }
 
+          // Update status to completed
+          setSceneStatuses((prev) => ({ ...prev, [prompt.id]: 'completed' }))
+          setCompletedInBatch((prev) => new Set([...prev, prompt.id]))
+
           // Reload images after each successful generation to show progress
           await loadImages()
           await loadCosts()
@@ -253,6 +276,7 @@ export function Step5SceneImages({ generationId, onComplete }: Step5SceneImagesP
           return { success: true, scenePromptId: prompt.id }
         } catch (error) {
           console.error(`Error generating scene ${prompt.scene_number}:`, error)
+          setSceneStatuses((prev) => ({ ...prev, [prompt.id]: 'failed' }))
           return { success: false, scenePromptId: prompt.id, error }
         }
       }
@@ -290,11 +314,17 @@ export function Step5SceneImages({ generationId, onComplete }: Step5SceneImagesP
     } finally {
       setIsGenerating(false)
       setGeneratingScene(null)
+      // Clear statuses after a delay to show final state
+      setTimeout(() => {
+        setSceneStatuses({})
+        setCompletedInBatch(new Set())
+      }, 3000)
     }
   }
 
   const handleGenerateSingle = async (scenePromptId: string, imagePrompt: string) => {
     setGeneratingScene(scenePromptId)
+    setSceneStatuses((prev) => ({ ...prev, [scenePromptId]: 'generating' }))
     try {
       const providerConfig: ProviderConfig = {
         provider: selectedProvider,
@@ -313,6 +343,8 @@ export function Step5SceneImages({ generationId, onComplete }: Step5SceneImagesP
         throw new Error('Failed to generate scene')
       }
 
+      setSceneStatuses((prev) => ({ ...prev, [scenePromptId]: 'completed' }))
+
       // Reload images and costs after generation
       await loadImages()
       await loadCosts()
@@ -321,8 +353,17 @@ export function Step5SceneImages({ generationId, onComplete }: Step5SceneImagesP
       window.dispatchEvent(new CustomEvent('generation-cost-updated'))
     } catch (error) {
       console.error('Error generating scene:', error)
+      setSceneStatuses((prev) => ({ ...prev, [scenePromptId]: 'failed' }))
     } finally {
       setGeneratingScene(null)
+      // Clear status after a delay
+      setTimeout(() => {
+        setSceneStatuses((prev) => {
+          const newStatuses = { ...prev }
+          delete newStatuses[scenePromptId]
+          return newStatuses
+        })
+      }, 2000)
     }
   }
 
@@ -463,15 +504,17 @@ export function Step5SceneImages({ generationId, onComplete }: Step5SceneImagesP
     setSelectedScenes(newSelection)
   }
 
-  // Group images by scene prompt
+  // Group images by scene prompt - only include completed images
   const imagesByPrompt: Record<string, any[]> = {}
-  images.forEach((img) => {
-    const promptId = img.generation_scene_prompts.id
-    if (!imagesByPrompt[promptId]) {
-      imagesByPrompt[promptId] = []
-    }
-    imagesByPrompt[promptId].push(img)
-  })
+  images
+    .filter((img) => img.generation_status === 'completed')
+    .forEach((img) => {
+      const promptId = img.generation_scene_prompts.id
+      if (!imagesByPrompt[promptId]) {
+        imagesByPrompt[promptId] = []
+      }
+      imagesByPrompt[promptId].push(img)
+    })
 
   const coverPrompt = prompts.find((p) => p.scene_type === 'cover')
   const backCoverPrompt = prompts.find((p) => p.scene_type === 'back_cover')
@@ -576,13 +619,84 @@ export function Step5SceneImages({ generationId, onComplete }: Step5SceneImagesP
         </button>
       </div>
 
+      {/* Bulk Generation Progress Bar */}
+      {isGenerating && Object.keys(sceneStatuses).length > 0 && (
+        <div className="bg-gradient-to-r from-purple-50 to-pink-50 rounded-xl p-4 border border-purple-200">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center">
+                <svg className="w-5 h-5 text-purple-600 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+              </div>
+              <div>
+                <h4 className="font-bold text-purple-900">Генериране на изображения</h4>
+                <p className="text-sm text-purple-600">Моля, изчакайте...</p>
+              </div>
+            </div>
+            <div className="text-right">
+              <div className="text-2xl font-bold text-purple-900">
+                {Object.values(sceneStatuses).filter((s) => s === 'completed').length} / {Object.keys(sceneStatuses).length}
+              </div>
+              <div className="text-xs text-purple-600">завършени</div>
+            </div>
+          </div>
+
+          {/* Progress bar */}
+          <div className="h-2 bg-purple-100 rounded-full overflow-hidden mb-3">
+            <div
+              className="h-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-500 ease-out"
+              style={{
+                width: `${(Object.values(sceneStatuses).filter((s) => s === 'completed').length / Object.keys(sceneStatuses).length) * 100}%`,
+              }}
+            />
+          </div>
+
+          {/* Status legend */}
+          <div className="flex flex-wrap gap-4 text-xs">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-amber-400" />
+              <span className="text-neutral-600">
+                На опашка: {Object.values(sceneStatuses).filter((s) => s === 'queued').length}
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-purple-500 animate-pulse" />
+              <span className="text-neutral-600">
+                Генериране: {Object.values(sceneStatuses).filter((s) => s === 'generating').length}
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full bg-emerald-500" />
+              <span className="text-neutral-600">
+                Готови: {Object.values(sceneStatuses).filter((s) => s === 'completed').length}
+              </span>
+            </div>
+            {Object.values(sceneStatuses).filter((s) => s === 'failed').length > 0 && (
+              <div className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-red-500" />
+                <span className="text-red-600">
+                  Грешки: {Object.values(sceneStatuses).filter((s) => s === 'failed').length}
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Scene Selector Dialog */}
       {showSceneSelector && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto p-6">
-            <h3 className="text-xl font-bold text-purple-900 mb-4">Изберете сцени за генериране</h3>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b border-neutral-200 p-6 pb-4 z-10">
+              <h3 className="text-xl font-bold text-purple-900">Изберете сцени за генериране</h3>
+              <p className="text-sm text-neutral-500 mt-1">
+                Маркирайте сцените, които искате да генерирате
+              </p>
+            </div>
 
-            <div className="space-y-2 mb-6">
+            <div className="p-6 pt-4 space-y-2">
               {allPrompts.map((prompt) => {
                 const hasImage = imagesByPrompt[prompt.id] && imagesByPrompt[prompt.id].length > 0
                 const isSelected = selectedScenes.has(prompt.id)
@@ -590,21 +704,21 @@ export function Step5SceneImages({ generationId, onComplete }: Step5SceneImagesP
                 return (
                   <label
                     key={prompt.id}
-                    className={`flex items-center gap-3 p-3 rounded-lg border-2 cursor-pointer transition-all ${
+                    className={`flex items-center gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${
                       isSelected
-                        ? 'border-purple-600 bg-purple-50'
-                        : 'border-neutral-200 hover:border-purple-300'
-                    } ${prompt.scene_type === 'back_cover' && !frontCoverHasImage ? 'opacity-50' : ''}`}
+                        ? 'border-purple-500 bg-purple-50 shadow-sm'
+                        : 'border-neutral-200 hover:border-purple-300 hover:bg-neutral-50'
+                    } ${prompt.scene_type === 'back_cover' && !frontCoverHasImage ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     <input
                       type="checkbox"
                       checked={isSelected}
                       onChange={() => toggleSceneSelection(prompt.id)}
                       disabled={prompt.scene_type === 'back_cover' && !frontCoverHasImage}
-                      className="w-5 h-5 text-purple-600 rounded focus:ring-2 focus:ring-purple-200"
+                      className="w-5 h-5 text-purple-600 rounded-md border-2 border-neutral-300 focus:ring-2 focus:ring-purple-200 focus:ring-offset-0"
                     />
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-bold text-purple-900">
                           {prompt.scene_type === 'cover'
                             ? 'Корица (предна)'
@@ -612,38 +726,56 @@ export function Step5SceneImages({ generationId, onComplete }: Step5SceneImagesP
                               ? 'Корица (задна)'
                               : `Сцена ${prompt.scene_number}`}
                         </span>
-                        {hasImage && (
-                          <span className="text-xs bg-green-100 text-green-800 px-2 py-0.5 rounded-full font-bold">
+                        {hasImage ? (
+                          <span className="inline-flex items-center gap-1 text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-semibold">
+                            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                            </svg>
                             Има изображение
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold">
+                            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                            </svg>
+                            Няма изображение
                           </span>
                         )}
                         {prompt.scene_type === 'back_cover' && !frontCoverHasImage && (
-                          <span className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-bold">
+                          <span className="inline-flex items-center gap-1 text-xs bg-neutral-200 text-neutral-600 px-2 py-0.5 rounded-full font-semibold">
+                            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+                            </svg>
                             Изчаква предна корица
                           </span>
                         )}
                       </div>
-                      <p className="text-sm text-neutral-600 truncate mt-1">{prompt.image_prompt}</p>
+                      <p className="text-sm text-neutral-500 truncate mt-1">{prompt.image_prompt}</p>
                     </div>
                   </label>
                 )
               })}
             </div>
 
-            <div className="flex gap-3 justify-end">
-              <button
-                onClick={() => setShowSceneSelector(false)}
-                className="px-4 py-2 bg-neutral-300 text-neutral-700 rounded-xl font-bold hover:bg-neutral-400 transition-colors"
-              >
-                Отказ
-              </button>
-              <button
-                onClick={handleBatchGenerate}
-                disabled={selectedScenes.size === 0}
-                className="px-4 py-2 bg-purple-600 text-white rounded-xl font-bold hover:bg-purple-700 transition-colors disabled:opacity-50"
-              >
-                Генерирай ({selectedScenes.size})
-              </button>
+            <div className="sticky bottom-0 bg-white border-t border-neutral-200 p-6 pt-4 flex gap-3 justify-between items-center">
+              <span className="text-sm text-neutral-500">
+                {selectedScenes.size} от {allPrompts.length} избрани
+              </span>
+              <div className="flex gap-3">
+                <button
+                  onClick={() => setShowSceneSelector(false)}
+                  className="px-4 py-2.5 bg-neutral-100 text-neutral-700 rounded-xl font-bold hover:bg-neutral-200 transition-colors"
+                >
+                  Отказ
+                </button>
+                <button
+                  onClick={handleBatchGenerate}
+                  disabled={selectedScenes.size === 0}
+                  className="px-5 py-2.5 bg-purple-600 text-white rounded-xl font-bold hover:bg-purple-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-purple-200"
+                >
+                  Генерирай ({selectedScenes.size})
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -669,6 +801,7 @@ export function Step5SceneImages({ generationId, onComplete }: Step5SceneImagesP
             references={references}
             generationId={generationId}
             isGenerating={generatingScene === coverPrompt.id}
+            generationStatus={sceneStatuses[coverPrompt.id] || 'idle'}
             onGenerateSingle={handleGenerateSingle}
             onAddCharacter={handleAddCharacter}
             onRemoveCharacter={handleRemoveCharacter}
@@ -697,6 +830,7 @@ export function Step5SceneImages({ generationId, onComplete }: Step5SceneImagesP
             references={references}
             generationId={generationId}
             isGenerating={generatingScene === backCoverPrompt.id}
+            generationStatus={sceneStatuses[backCoverPrompt.id] || 'idle'}
             onGenerateSingle={handleGenerateSingle}
             onAddCharacter={handleAddCharacter}
             onRemoveCharacter={handleRemoveCharacter}
@@ -737,6 +871,7 @@ export function Step5SceneImages({ generationId, onComplete }: Step5SceneImagesP
                 references={references}
                 generationId={generationId}
                 isGenerating={generatingScene === prompt.id}
+                generationStatus={sceneStatuses[prompt.id] || 'idle'}
                 onGenerateSingle={handleGenerateSingle}
                 onAddCharacter={handleAddCharacter}
                 onRemoveCharacter={handleRemoveCharacter}
