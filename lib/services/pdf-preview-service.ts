@@ -107,47 +107,58 @@ async function generateZipForGeneration(generationId: string): Promise<Buffer> {
 
   zip.file('book.json', JSON.stringify(bookJson, null, 2))
 
-  // Download and add images
+  // Download and add images in parallel
   const selectedImages = sceneImages || []
-  console.log(`📄 Fetching ${selectedImages.length} images from R2...`)
+  console.log(`📄 Fetching ${selectedImages.length} images from R2 (parallel)...`)
   const fetchStart = Date.now()
 
-  for (const img of selectedImages) {
-    const imageKey = img.image_key
-    if (!imageKey) continue
-
-    try {
-      // Fetch image directly from R2 storage
+  // Fetch all images in parallel
+  const fetchPromises = selectedImages
+    .filter((img) => img.image_key)
+    .map(async (img) => {
+      const imageKey = img.image_key!
       const imgStart = Date.now()
-      const imageData = await fetchImageFromStorage(imageKey)
-      const imgDuration = Date.now() - imgStart
-
-      if (!imageData) {
-        console.warn(`Failed to fetch image ${imageKey}: not found in storage`)
-        continue
+      try {
+        const imageData = await fetchImageFromStorage(imageKey)
+        const imgDuration = Date.now() - imgStart
+        return { img, imageData, imgDuration, error: null }
+      } catch (e) {
+        return { img, imageData: null, imgDuration: 0, error: e }
       }
+    })
 
-      const sceneType = img.generation_scene_prompts.scene_type
-      const sceneNumber = img.generation_scene_prompts.scene_number
-      let fileName: string
-      if (sceneType === 'cover') {
-        fileName = 'cover.jpg'
-      } else if (sceneType === 'back_cover') {
-        fileName = 'back.jpg'
-      } else {
-        fileName = `scene_${sceneNumber}.jpg`
-      }
-      const sizeMB = (imageData.body.length / 1024 / 1024).toFixed(2)
-      console.log(`📄   ${fileName}: ${sizeMB}MB (fetched in ${imgDuration}ms)`)
+  const results = await Promise.all(fetchPromises)
 
-      imagesFolder.file(fileName, imageData.body)
-    } catch (e) {
-      console.warn(`Failed to download image ${imageKey}:`, e)
+  // Process results and add to ZIP
+  for (const { img, imageData, imgDuration, error } of results) {
+    if (error) {
+      console.warn(`Failed to download image ${img.image_key}:`, error)
+      continue
     }
+
+    if (!imageData) {
+      console.warn(`Failed to fetch image ${img.image_key}: not found in storage`)
+      continue
+    }
+
+    const sceneType = img.generation_scene_prompts.scene_type
+    const sceneNumber = img.generation_scene_prompts.scene_number
+    let fileName: string
+    if (sceneType === 'cover') {
+      fileName = 'cover.jpg'
+    } else if (sceneType === 'back_cover') {
+      fileName = 'back.jpg'
+    } else {
+      fileName = `scene_${sceneNumber}.jpg`
+    }
+    const sizeMB = (imageData.body.length / 1024 / 1024).toFixed(2)
+    console.log(`📄   ${fileName}: ${sizeMB}MB (fetched in ${imgDuration}ms)`)
+
+    imagesFolder.file(fileName, imageData.body)
   }
 
   const fetchDuration = ((Date.now() - fetchStart) / 1000).toFixed(2)
-  console.log(`📄 All images fetched in ${fetchDuration}s`)
+  console.log(`📄 All images fetched in ${fetchDuration}s (parallel)`)
 
   // Generate ZIP as buffer
   console.log(`📄 Compressing ZIP...`)
@@ -205,8 +216,8 @@ async function uploadZipForPreviewImages(
  * Poll for preview progress
  */
 async function pollProgress(workId: string): Promise<void> {
-  const maxAttempts = 600 // 10 minutes max
-  const pollInterval = 1000 // 1 second
+  const maxAttempts = 120 // 10 minutes max
+  const pollInterval = 5000 // 5 seconds - less intensive polling
 
   for (let i = 0; i < maxAttempts; i++) {
     const response = await fetch(`${PDF_SERVICE_URL}/progress/${workId}`, {

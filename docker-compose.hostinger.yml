@@ -1,3 +1,11 @@
+# Production Docker Compose for Hostinger VPS + Supabase Cloud
+# Usage: docker compose -f docker-compose.hostinger.yml up -d
+#
+# Differences from docker-compose.prod.yml:
+# - No extra_hosts (not needed with Supabase Cloud)
+# - No SUPABASE_URL override (uses NEXT_PUBLIC_SUPABASE_URL directly)
+# - Ports 4000/4001 not exposed externally (internal only)
+
 services:
   app:
     build:
@@ -7,9 +15,6 @@ services:
         - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
         - NEXT_PUBLIC_SUPABASE_ANON_KEY=${NEXT_PUBLIC_SUPABASE_ANON_KEY}
         - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
-    extra_hosts:
-      - "localhost:host-gateway"
-      - "prikazko.local:host-gateway"
     ports:
       - "3000:3000"
     environment:
@@ -66,8 +71,9 @@ services:
     build:
       context: ./packages/pdf-create
       dockerfile: Dockerfile
-    ports:
-      - "4001:4001"
+    # Port not exposed externally - only accessible within Docker network
+    expose:
+      - "4001"
     environment:
       - PORT=4001
       - ACCESS_TOKEN=${PDF_SERVICE_ACCESS_TOKEN}
@@ -101,11 +107,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.worker
-    extra_hosts:
-      - "localhost:host-gateway"
-      - "prikazko.local:host-gateway"
-    ports:
-      - "4000:4000"
+    # Port not exposed externally - only accessible within Docker network
+    expose:
+      - "4000"
     environment:
       - NODE_ENV=production
       - PDF_SERVICE_URL=http://pdf-create:4001
@@ -113,7 +117,6 @@ services:
       - WORKER_POLL_INTERVAL_MS=3600000
       - WORKER_HTTP_PORT=4000
       - WORKER_WAKE_TOKEN=${WORKER_WAKE_TOKEN}
-      - SUPABASE_URL=http://host.docker.internal:54321
       - NEXT_PUBLIC_SUPABASE_URL=${NEXT_PUBLIC_SUPABASE_URL}
       - SUPABASE_SERVICE_ROLE_KEY=${SUPABASE_SERVICE_ROLE_KEY}
       - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}

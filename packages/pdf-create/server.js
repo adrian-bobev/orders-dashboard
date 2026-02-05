@@ -27,9 +27,6 @@ console.log(`🐍 Using Python: ${pythonExec}`);
 
 const uploadsRoot = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsRoot)) fs.mkdirSync(uploadsRoot);
-// Global CMYK exports root for easy inspection of generated TIFFs across jobs
-const globalTiffRoot = path.join(__dirname, 'generated_cmyk_tiffs');
-if (!fs.existsSync(globalTiffRoot)) fs.mkdirSync(globalTiffRoot);
 
 app.use(express.static(path.join(__dirname, 'public')));
 // Expose generated job folders (including cmyk_tiff_images) for inspection/download.
@@ -62,6 +59,11 @@ function requireToken(req, res, next) {
 
 // In-memory progress store
 const progress = {}; // workId -> { stage, message, percent }
+
+// Health check endpoint for Docker
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
 
 // R2 Storage Client
 function getR2Client() {
@@ -131,32 +133,6 @@ async function uploadPreviewImagesToR2(folderPath, imageFiles) {
   const results = await Promise.all(uploadPromises);
   return results;
 }
-
-// Cleanup scheduler (runs every hour) - removes job folders older than 24h (configurable via JOB_MAX_AGE_HOURS)
-const MAX_AGE_HOURS = parseInt(process.env.JOB_MAX_AGE_HOURS || '24', 10);
-function scheduleCleanup() {
-  const now = Date.now();
-  const cutoff = now - MAX_AGE_HOURS * 60 * 60 * 1000;
-  const scanAndDelete = (root) => {
-    if (!fs.existsSync(root)) return;
-    fs.readdirSync(root).forEach(dir => {
-      const full = path.join(root, dir);
-      try {
-        const stat = fs.statSync(full);
-        if (stat.isDirectory() && stat.mtimeMs < cutoff) {
-          fs.rmSync(full, { recursive: true, force: true });
-          delete progress[dir];
-          console.log(`🧹 Cleaned old job folder: ${full}`);
-        }
-      } catch (e) {
-        console.warn('Cleanup error:', e.message);
-      }
-    });
-  };
-  scanAndDelete(uploadsRoot);
-  scanAndDelete(globalTiffRoot);
-}
-setInterval(scheduleCleanup, 60 * 60 * 1000); // hourly
 
 // Helper to write or update manifest
 function writeManifest(workDir, data) {
@@ -294,6 +270,7 @@ async function processJob(workId, workDir, options = {}) {
     const skipUpscaleFlag = skipUpscale ? ' --skip-upscale' : '';
 
     await new Promise((resolve) => {
+      let stderrBuffer = '';
       const pipeline = exec(`node index.js --input "${rgbImagesDir}" --upscaled "${path.join(workDir, 'upscaled_images')}" --cmyk "${path.join(workDir, 'cmyk_tiff_images')}" --icc "${iccProfile}" --mr${skipUpscaleFlag}`, { cwd: __dirname });
       pipeline.stdout.on('data', (chunk) => {
         const lines = chunk.toString().trim().split(/\n+/);
@@ -313,9 +290,14 @@ async function processJob(workId, workDir, options = {}) {
           }
         });
       });
+      pipeline.stderr.on('data', (chunk) => {
+        stderrBuffer += chunk.toString();
+      });
       pipeline.on('exit', (code) => {
         if (progress[workId].stage !== 'error' && code !== 0) {
-          progress[workId] = { stage: 'error', message: 'Pipeline failed' };
+          const errorMsg = stderrBuffer.trim() || 'Pipeline failed';
+          console.error(`Pipeline failed with code ${code}:`, errorMsg);
+          progress[workId] = { stage: 'error', message: errorMsg.split('\n')[0] || 'Pipeline failed' };
         }
         resolve();
       });
@@ -325,20 +307,6 @@ async function processJob(workId, workDir, options = {}) {
 
     const pipelineDurationSec = ((Date.now() - pipelineStart) / 1000).toFixed(2);
     writeManifest(workDir, { pipelineDurationSec });
-
-    // Copy TIFFs to global folder
-    try {
-      const cmykDirLocal = path.join(workDir, 'cmyk_tiff_images');
-      const targetDir = path.join(globalTiffRoot, workId);
-      if (!fs.existsSync(targetDir)) fs.mkdirSync(targetDir);
-      const tiffs = fs.readdirSync(cmykDirLocal).filter(f => f.toLowerCase().match(/\.(tiff|tif)$/));
-      tiffs.forEach(f => {
-        fs.copyFileSync(path.join(cmykDirLocal, f), path.join(targetDir, f));
-      });
-      writeManifest(workDir, { tiffCount: tiffs.length });
-    } catch (copyErr) {
-      console.warn('Could not copy TIFFs to global folder:', copyErr.message);
-    }
 
     const imagesDir = path.join(workDir, 'cmyk_tiff_images');
 
@@ -423,16 +391,16 @@ async function generatePreviewImages(workId, workDir, coverPdf, outPdf, backPdf,
     // Convert PDFs to PNGs
     if (fs.existsSync(coverPdf)) {
       console.log(`[PreviewImages] Converting cover.pdf to PNG`);
-      await execAsync(`magick "${coverPdf}" "${path.join(previewDir, 'cover.png')}"`);
+      await execAsync(`convert "${coverPdf}" "${path.join(previewDir, 'cover.png')}"`);
     }
 
     // Convert book PDF pages to PNGs
     console.log(`[PreviewImages] Converting book-output.pdf pages to PNGs`);
-    await execAsync(`magick "${outPdf}" "${path.join(previewDir, 'page-%d.png')}"`);
+    await execAsync(`convert "${outPdf}" "${path.join(previewDir, 'page-%d.png')}"`);
 
     if (backPdf && fs.existsSync(backPdf)) {
       console.log(`[PreviewImages] Converting back.pdf to PNG`);
-      await execAsync(`magick "${backPdf}" "${path.join(previewDir, 'back.png')}"`);
+      await execAsync(`convert "${backPdf}" "${path.join(previewDir, 'back.png')}"`);
     }
 
     progress[workId] = { stage: 'watermark', message: 'Adding watermarks', percent: 30 };
@@ -448,7 +416,7 @@ async function generatePreviewImages(workId, workDir, coverPdf, outPdf, backPdf,
     for (let i = 0; i < pngFiles.length; i++) {
       const img = pngFiles[i];
       const imgPath = path.join(previewDir, img);
-      await execAsync(`magick "${imgPath}" -gravity center -pointsize 80 -fill 'rgba(255,255,255,0.4)' -annotate +0+0 'Приказко БГ' "${imgPath}"`);
+      await execAsync(`convert "${imgPath}" -gravity center -pointsize 80 -fill 'rgba(255,255,255,0.4)' -annotate +0+0 'Приказко БГ' "${imgPath}"`);
       const percent = 30 + Math.round((i / pngFiles.length) * 30);
       progress[workId] = { stage: 'watermark', message: `Adding watermark (${i + 1}/${pngFiles.length})`, percent };
     }

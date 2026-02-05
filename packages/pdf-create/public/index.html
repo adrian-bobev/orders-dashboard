@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Book Generator</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <style>
+    body { font-family: system-ui, sans-serif; margin: 2rem; background:#f8f9fb; color:#222; }
+    h1 { font-weight:600; }
+    form { border:1px solid #ddd; padding:1.5rem; border-radius:8px; background:#fff; max-width:520px; }
+    input[type=file] { width:100%; margin:1rem 0; }
+    input[type=text] { padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; font-size: 0.9rem; }
+    .form-row { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+    .form-row input { flex: 1; }
+    .token-row { display: flex; gap: 0.5rem; margin-bottom: 0.5rem; }
+    .token-row input { flex: 1; padding: 0.5rem; border: 1px solid #ddd; border-radius: 4px; font-size: 0.9rem; }
+    .token-row button { padding: 0.5rem 0.75rem; border: 1px solid #ddd; border-radius: 4px; background: #f8f9fb; cursor: pointer; }
+    .token-row button:hover { background: #e2e8f0; }
+    .mode-selector { display: flex; gap: 0.5rem; margin: 1rem 0; }
+    .mode-btn { flex: 1; padding: 0.75rem; border: 2px solid #e2e8f0; border-radius: 6px; background: #fff; cursor: pointer; text-align: center; transition: all 0.2s; }
+    .mode-btn:hover { border-color: #94a3b8; }
+    .mode-btn.active { border-color: #2563eb; background: #eff6ff; }
+    .mode-btn .icon { font-size: 1.5rem; display: block; margin-bottom: 0.25rem; }
+    .mode-btn .label { font-weight: 500; font-size: 0.9rem; }
+    .mode-btn .desc { font-size: 0.75rem; color: #64748b; margin-top: 0.25rem; }
+    button { background:#2563eb; color:#fff; border:none; padding:.75rem 1.25rem; border-radius:6px; cursor:pointer; font-size:1rem; transition: all 0.2s; width: 100%; }
+    button:hover:not(:disabled) { background:#1d4ed8; transform: translateY(-1px); box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+    button:disabled { opacity:.5; cursor:not-allowed; }
+    #status { margin-top:1rem; white-space:pre-wrap; font-family:monospace; font-size: 0.9rem; color: #555; }
+    a.download { display:inline-block; margin-top:0.5rem; padding: 0.75rem 1.25rem; background: #059669; color: white; text-decoration: none; border-radius: 6px; font-weight: 500; transition: all 0.2s; }
+    a.download:hover { background: #047857; transform: translateY(-1px); box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+    button.download { display:inline-block; margin-top:0.5rem; padding: 0.75rem 1.25rem; background: #059669; color: white; text-decoration: none; border-radius: 6px; font-weight: 500; transition: all 0.2s; border: none; cursor: pointer; font-size: 1rem; }
+    button.download:hover { background: #047857; transform: translateY(-1px); box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+    #progressContainer { margin-top:1rem; padding:1rem; background:#f1f5f9; border-radius:6px; }
+    #stageLabel { margin-bottom:.5rem; font-weight:500; font-size:0.95rem; color:#334155; }
+    #progressBar { background:#e2e8f0; border-radius:8px; overflow:hidden; height:24px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.06); }
+    #bar { background: linear-gradient(90deg, #2563eb 0%, #3b82f6 100%); height:100%; transition:width .4s ease; display: flex; align-items: center; justify-content: flex-end; padding-right: 8px; color: white; font-size: 0.75rem; font-weight: 600; }
+    #timeInfo { margin-top: 0.5rem; font-size: 0.85rem; color: #64748b; display: flex; justify-content: space-between; }
+    .success-message { color: #059669; font-weight: 500; }
+    #previewGallery { margin-top: 1rem; display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 0.5rem; }
+    #previewGallery img { width: 100%; border-radius: 4px; border: 1px solid #e2e8f0; cursor: pointer; transition: transform 0.2s; }
+    #previewGallery img:hover { transform: scale(1.05); }
+    .preview-item { text-align: center; }
+    .preview-item span { font-size: 0.75rem; color: #64748b; }
+    .r2-info { margin-top: 0.5rem; padding: 0.5rem; background: #f1f5f9; border-radius: 4px; font-size: 0.8rem; color: #475569; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <h1>Book PDF Generator</h1>
+  <p>Upload a .zip containing <code>book.json</code> and an <code>images/</code> folder (cover.jpg, scene_1.jpg ... scene_N.jpg).</p>
+  <form id="uploadForm">
+    <div class="token-row">
+      <input type="password" name="accessToken" placeholder="Access Token" id="tokenInput" />
+      <button type="button" id="saveToken">Save</button>
+    </div>
+    <input type="file" name="archive" accept="application/zip" required />
+
+    <div class="mode-selector">
+      <div class="mode-btn active" data-mode="pdf">
+        <span class="icon">PDF</span>
+        <span class="label">Generate PDF</span>
+        <span class="desc">Full print-ready PDF</span>
+      </div>
+      <div class="mode-btn" data-mode="preview">
+        <span class="icon">IMG</span>
+        <span class="label">Preview Images</span>
+        <span class="desc">Quick preview + R2 upload</span>
+      </div>
+    </div>
+
+    <div id="previewOptions" class="hidden">
+      <div class="form-row">
+        <input type="text" name="orderId" placeholder="Order ID (required)" />
+        <input type="text" name="bookConfigId" placeholder="Book Config ID (required)" />
+      </div>
+    </div>
+
+    <button type="submit">Generate PDF</button>
+    <div id="status"></div>
+    <div id="progressContainer" style="display:none;">
+      <div id="stageLabel"></div>
+      <div id="progressBar">
+        <div id="bar"></div>
+      </div>
+      <div id="timeInfo">
+        <span id="elapsed"></span>
+        <span id="eta"></span>
+      </div>
+    </div>
+    <div id="previewGallery"></div>
+  </form>
+  <script>
+    const form = document.getElementById('uploadForm');
+    const status = document.getElementById('status');
+    const submitBtn = form.querySelector('button[type="submit"]');
+    const previewOptions = document.getElementById('previewOptions');
+    const previewGallery = document.getElementById('previewGallery');
+    const modeBtns = document.querySelectorAll('.mode-btn');
+    const tokenInput = document.getElementById('tokenInput');
+    let currentMode = 'pdf';
+    let pollTimer;
+    let startTime;
+    let lastPercent = 0;
+    let lastPercentTime = 0;
+
+    // Load saved token
+    tokenInput.value = localStorage.getItem('access_token') || '';
+
+    // Save token button
+    document.getElementById('saveToken').addEventListener('click', () => {
+      localStorage.setItem('access_token', tokenInput.value);
+      status.innerHTML = '<div style="color:#059669;">Token saved!</div>';
+      setTimeout(() => { status.textContent = ''; }, 2000);
+    });
+
+    // Download with authentication
+    async function downloadWithAuth(url, filename) {
+      const token = tokenInput.value || localStorage.getItem('access_token') || '';
+      const headers = token ? { 'x-access-token': token } : {};
+
+      try {
+        const response = await fetch(url, { headers });
+        if (!response.ok) {
+          const err = await response.json().catch(() => ({ error: 'Download failed' }));
+          alert('Download failed: ' + (err.error || response.statusText));
+          return;
+        }
+
+        const blob = await response.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = blobUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(blobUrl);
+      } catch (err) {
+        alert('Download failed: ' + err.message);
+      }
+    }
+    window.downloadWithAuth = downloadWithAuth;
+
+    // Mode selector
+    modeBtns.forEach(btn => {
+      btn.addEventListener('click', () => {
+        modeBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentMode = btn.dataset.mode;
+
+        if (currentMode === 'preview') {
+          previewOptions.classList.remove('hidden');
+          submitBtn.textContent = 'Generate Preview Images';
+        } else {
+          previewOptions.classList.add('hidden');
+          submitBtn.textContent = 'Generate PDF';
+        }
+      });
+    });
+
+    function formatTime(seconds) {
+      if (seconds < 60) return `${Math.round(seconds)}s`;
+      const mins = Math.floor(seconds / 60);
+      const secs = Math.round(seconds % 60);
+      return `${mins}m ${secs}s`;
+    }
+
+    function calculateETA(currentPercent, elapsedMs) {
+      if (currentPercent <= 0 || currentPercent === lastPercent) return null;
+      const progressRate = (currentPercent - lastPercent) / (Date.now() - lastPercentTime);
+      const remainingPercent = 100 - currentPercent;
+      const etaMs = remainingPercent / progressRate;
+      return etaMs / 1000;
+    }
+
+    function startPolling(pollUrl, downloadUrl, token, isPreviewMode, workId) {
+      document.getElementById('progressContainer').style.display = 'block';
+      previewGallery.innerHTML = '';
+      startTime = Date.now();
+      lastPercent = 0;
+      lastPercentTime = startTime;
+
+      let pollInterval = 500;
+      const headers = token ? { 'x-access-token': token } : {};
+
+      const poll = async () => {
+        try {
+          const res = await fetch(pollUrl, { headers });
+          if (!res.ok) throw new Error('Progress fetch failed');
+          const data = await res.json();
+
+          const bar = document.getElementById('bar');
+          const stageLabel = document.getElementById('stageLabel');
+          const elapsed = document.getElementById('elapsed');
+          const eta = document.getElementById('eta');
+
+          const stageEmoji = {
+            'init': '[Starting]',
+            'unzip': '[Unzipping]',
+            'upscale': '[Upscaling]',
+            'convert': '[Converting]',
+            'pdf': '[PDF]',
+            'images': '[Images]',
+            'watermark': '[Watermark]',
+            'upload': '[Upload]',
+            'preview': '[Preview]',
+            'done': '[Done]',
+            'error': '[Error]'
+          };
+          stageLabel.textContent = `${stageEmoji[data.stage] || '[Working]'} ${data.message || data.stage}`;
+
+          if (typeof data.percent === 'number') {
+            bar.style.width = data.percent + '%';
+            bar.textContent = data.percent > 5 ? `${data.percent}%` : '';
+
+            const elapsedSeconds = (Date.now() - startTime) / 1000;
+            elapsed.textContent = `Elapsed: ${formatTime(elapsedSeconds)}`;
+
+            if (data.percent > lastPercent && data.percent < 100) {
+              const etaSeconds = calculateETA(data.percent, Date.now() - startTime);
+              if (etaSeconds && etaSeconds > 0 && etaSeconds < 300) {
+                eta.textContent = `ETA: ${formatTime(etaSeconds)}`;
+              }
+              lastPercent = data.percent;
+              lastPercentTime = Date.now();
+            }
+
+            if (data.percent > 0 && data.percent < 100) {
+              pollInterval = 400;
+            } else {
+              pollInterval = 1000;
+            }
+          }
+
+          if (data.stage === 'done') {
+            clearInterval(pollTimer);
+            const totalTime = (Date.now() - startTime) / 1000;
+            bar.style.background = 'linear-gradient(90deg, #059669 0%, #10b981 100%)';
+            eta.textContent = '';
+
+            if (isPreviewMode) {
+              // Fetch preview images info
+              const infoRes = await fetch(`/preview-images/${workId}`, { headers });
+              const infoData = await infoRes.json();
+
+              if (infoData.ok && infoData.images) {
+                let html = `<div class="success-message">Preview images generated in ${formatTime(totalTime)}!</div>`;
+                html += `<div class="r2-info">R2 Bucket: <strong>${infoData.r2Bucket}</strong> / Folder: <strong>${infoData.r2Folder}</strong></div>`;
+                html += `<button type="button" class="download" onclick="downloadWithAuth('/preview-images/${workId}/download', 'preview-images.zip')">Download Images (ZIP)</button> `;
+                html += `<button type="button" class="download" onclick="downloadWithAuth('/files/${workId}/manifest.json', 'manifest.json')" style="background:#6366f1;">Manifest</button>`;
+                status.innerHTML = html;
+
+                // Show image gallery
+                previewGallery.innerHTML = infoData.images.map(img => `
+                  <div class="preview-item">
+                    <img src="/files/${workId}/preview-images/${img.name}.png"
+                         alt="${img.name}"
+                         onerror="this.parentElement.style.display='none'"
+                         onclick="window.open(this.src, '_blank')" />
+                    <span>${img.name} (${(img.size/1024).toFixed(0)}KB)</span>
+                  </div>
+                `).join('');
+              } else {
+                status.innerHTML = `<div class="success-message">Complete in ${formatTime(totalTime)}!</div>`;
+              }
+            } else {
+              status.innerHTML = `<div class="success-message">Generation complete in ${formatTime(totalTime)}!</div><button type="button" class="download" onclick="downloadWithAuth('${downloadUrl}', 'final-book.zip')">Download Final Book (ZIP)</button>`;
+            }
+            submitBtn.disabled = false;
+          } else if (data.stage === 'error') {
+            clearInterval(pollTimer);
+            bar.style.background = 'linear-gradient(90deg, #dc2626 0%, #ef4444 100%)';
+            status.innerHTML = `<div style="color:#dc2626;font-weight:500;">Error: ${data.message || 'Unknown'}</div>`;
+            submitBtn.disabled = false;
+            eta.textContent = '';
+          } else {
+            pollTimer = setTimeout(poll, pollInterval);
+          }
+        } catch (err) {
+          clearInterval(pollTimer);
+          status.innerHTML = `<div style="color:#dc2626;">Polling error: ${err.message}</div>`;
+          submitBtn.disabled = false;
+        }
+      };
+
+      poll();
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const file = form.archive.files[0];
+      if (!file) return;
+
+      // Validate preview mode inputs
+      if (currentMode === 'preview') {
+        const orderId = form.orderId.value.trim();
+        const bookConfigId = form.bookConfigId.value.trim();
+        if (!orderId) {
+          status.innerHTML = `<div style="color:#dc2626;">Order ID is required for preview mode</div>`;
+          return;
+        }
+        if (!bookConfigId) {
+          status.innerHTML = `<div style="color:#dc2626;">Book Config ID is required for preview mode</div>`;
+          return;
+        }
+      }
+
+      submitBtn.disabled = true;
+      previewGallery.innerHTML = '';
+      status.textContent = `Uploading ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)...`;
+
+      const fd = new FormData();
+      fd.append('archive', file);
+
+      try {
+        const token = tokenInput.value || localStorage.getItem('access_token') || '';
+        const headers = token ? { 'x-access-token': token } : {};
+
+        let endpoint = '/upload';
+        let queryParams = '';
+
+        if (currentMode === 'preview') {
+          endpoint = '/preview-images';
+          const orderId = form.orderId.value.trim();
+          const bookConfigId = form.bookConfigId.value.trim();
+          queryParams = `?orderId=${encodeURIComponent(orderId)}&bookConfigId=${encodeURIComponent(bookConfigId)}`;
+        }
+
+        const res = await fetch(endpoint + queryParams, { method: 'POST', body: fd, headers });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Upload failed');
+        status.textContent = 'Processing...';
+        startPolling(data.poll, data.download, token, currentMode === 'preview', data.workId);
+      } catch (err) {
+        status.innerHTML = `<div style="color:#dc2626;">Error: ${err.message}</div>`;
+        submitBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>

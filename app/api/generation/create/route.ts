@@ -26,7 +26,8 @@ export async function GET(request: NextRequest) {
 
     // Redirect to the new generation page
     const redirectUrl = `/orders/${orderId}/generate?bookConfigId=${bookConfigId}&generationId=${generation.id}`
-    return NextResponse.redirect(new URL(redirectUrl, request.url))
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || request.url
+    return NextResponse.redirect(new URL(redirectUrl, baseUrl))
   } catch (error) {
     console.error('Error creating generation:', error)
     return NextResponse.json(

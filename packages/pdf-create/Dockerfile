@@ -8,7 +8,11 @@ RUN apt-get update && apt-get install -y \
     ghostscript \
     imagemagick \
     poppler-utils \
+    wget \
     && rm -rf /var/lib/apt/lists/*
+
+# Update ImageMagick policy to allow PDF operations
+RUN sed -i 's/<policy domain="coder" rights="none" pattern="PDF" \/>/<policy domain="coder" rights="read|write" pattern="PDF" \/>/g' /etc/ImageMagick-6/policy.xml
 
 WORKDIR /app
 
@@ -25,11 +29,12 @@ COPY package.json package-lock.json* ./
 RUN npm ci --only=production
 
 # Copy application files
-COPY server.js pdf-bleed.py pdf-to-images.py pdf-to-images-wrapper.js ./
+COPY server.js index.js pdf-bleed.py pdf-to-images.py pdf-to-images-wrapper.js PSOcoated_v3.icc ./
 COPY fonts ./fonts
+COPY public ./public
 
-# Create directories for uploads and output
-RUN mkdir -p uploads generated_cmyk_tiffs preview-images
+# Create directories for uploads
+RUN mkdir -p uploads
 
 # Expose port
 EXPOSE 4001

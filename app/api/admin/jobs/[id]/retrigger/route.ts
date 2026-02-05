@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/services/user-service'
 import { retriggerJob } from '@/lib/queue/client'
+import { wakeWorker } from '@/lib/worker/client'
 
 /**
  * POST /api/admin/jobs/[id]/retrigger
@@ -17,6 +18,11 @@ export async function POST(
 
     const { id } = await params
     const { newJobId } = await retriggerJob(id)
+
+    // Wake worker to process immediately (fire-and-forget)
+    wakeWorker().catch((err) => {
+      console.warn('Could not wake worker:', err.message)
+    })
 
     return NextResponse.json({
       success: true,

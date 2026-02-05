@@ -1,7 +1,8 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "lib": ["ES2022"],
+    "jsx": "react-jsx",
+    "lib": ["ES2022", "DOM"],
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "esModuleInterop": true,
@@ -17,7 +18,8 @@
   },
   "include": [
     "worker/**/*.ts",
-    "lib/**/*.ts"
+    "lib/**/*.ts",
+    "emails/**/*.tsx"
   ],
   "exclude": [
     "node_modules",

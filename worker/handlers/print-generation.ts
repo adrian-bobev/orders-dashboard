@@ -28,10 +28,58 @@ export async function handlePrintGeneration(
   const generateOrderForPrint = await getGenerateOrderForPrint()
   const outputDir = path.join(process.cwd(), 'webhook-logs')
 
-  const result = await generateOrderForPrint(woocommerceOrderId, outputDir)
+  let result
+  try {
+    result = await generateOrderForPrint(woocommerceOrderId, outputDir)
+  } catch (error) {
+    // Send error notification on complete failure
+    const errorMessage = error instanceof Error ? error.message : String(error)
+    logger.error('Print generation failed', {
+      jobId: job.id,
+      error: errorMessage,
+    })
+
+    try {
+      const { sendErrorNotification } = await import(
+        '../../lib/services/telegram-service'
+      )
+      await sendErrorNotification({
+        orderId: orderId || 'unknown',
+        orderNumber: orderNumber || 'unknown',
+        errorMessage: errorMessage,
+        context: 'Генериране на книги за печат',
+      })
+    } catch (notificationError) {
+      logger.warn('Failed to send error notification', {
+        jobId: job.id,
+        error: notificationError instanceof Error ? notificationError.message : String(notificationError),
+      })
+    }
+
+    throw error
+  }
 
   if (!result.success) {
-    throw new Error(result.error || 'Print generation failed')
+    // Send error notification on failure
+    const errorMessage = result.error || 'Print generation failed'
+    try {
+      const { sendErrorNotification } = await import(
+        '../../lib/services/telegram-service'
+      )
+      await sendErrorNotification({
+        orderId: orderId || 'unknown',
+        orderNumber: orderNumber || 'unknown',
+        errorMessage: errorMessage,
+        context: 'Генериране на книги за печат',
+      })
+    } catch (notificationError) {
+      logger.warn('Failed to send error notification', {
+        jobId: job.id,
+        error: notificationError instanceof Error ? notificationError.message : String(notificationError),
+      })
+    }
+
+    throw new Error(errorMessage)
   }
 
   logger.info('Print generation completed', {

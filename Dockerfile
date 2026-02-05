@@ -15,6 +15,16 @@ COPY . .
 
 # Next.js collects anonymous telemetry data about general usage
 ENV NEXT_TELEMETRY_DISABLED=1
+# Set NODE_ENV=production so next.config.ts enables standalone output
+ENV NODE_ENV=production
+
+# Build arguments for NEXT_PUBLIC_* variables (embedded at build time)
+ARG NEXT_PUBLIC_SUPABASE_URL
+ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
+ARG NEXT_PUBLIC_APP_URL
+ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL
+ENV NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY
+ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
 
 RUN npm run build
 

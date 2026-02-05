@@ -53,6 +53,23 @@ function formatDuration(startedAt: string | null, completedAt: string | null): s
   return `${Math.round(durationMs / 3600000)}h`
 }
 
+function getWooOrderId(job: Job): string | null {
+  const payload = job.payload as Record<string, unknown> | null
+  if (!payload) return null
+
+  // Different job types store the WooCommerce order ID in different fields
+  if ('woocommerceOrderId' in payload) {
+    return String(payload.woocommerceOrderId)
+  }
+  if ('wooOrderId' in payload) {
+    return String(payload.wooOrderId)
+  }
+  if ('orderNumber' in payload) {
+    return String(payload.orderNumber)
+  }
+  return null
+}
+
 export function JobsTable({ initialJobs, initialTotal }: JobsTableProps) {
   const [jobs, setJobs] = useState<Job[]>(initialJobs)
   const [total, setTotal] = useState(initialTotal)
@@ -132,6 +149,26 @@ export function JobsTable({ initialJobs, initialTotal }: JobsTableProps) {
     fetchJobs(0)
   }
 
+  const handleWakeWorker = async () => {
+    try {
+      const response = await fetch('/api/admin/worker/wake', {
+        method: 'POST',
+      })
+      const data = await response.json()
+
+      if (response.ok) {
+        alert('Worker събуден успешно! Проверява за чакащи задачи...')
+        // Refresh jobs list after a short delay
+        setTimeout(() => fetchJobs(offset), 2000)
+      } else {
+        alert(`Грешка: ${data.error}`)
+      }
+    } catch (error) {
+      console.error('Failed to wake worker:', error)
+      alert('Грешка при събуждане на worker')
+    }
+  }
+
   return (
     <div className="bg-white rounded-2xl shadow-warm border border-purple-100">
       {/* Filters */}
@@ -172,13 +209,24 @@ export function JobsTable({ initialJobs, initialTotal }: JobsTableProps) {
           </select>
         </div>
 
-        <button
-          onClick={() => fetchJobs(offset)}
-          disabled={loading}
-          className="ml-auto px-4 py-1.5 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700 disabled:opacity-50"
-        >
-          {loading ? 'Зареждане...' : 'Обнови'}
-        </button>
+        <div className="ml-auto flex gap-2">
+          <button
+            onClick={handleWakeWorker}
+            className="px-4 py-1.5 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 flex items-center gap-1.5"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            Стартирай Worker
+          </button>
+          <button
+            onClick={() => fetchJobs(offset)}
+            disabled={loading}
+            className="px-4 py-1.5 bg-purple-600 text-white rounded-lg text-sm hover:bg-purple-700 disabled:opacity-50"
+          >
+            {loading ? 'Зареждане...' : 'Обнови'}
+          </button>
+        </div>
       </div>
 
       {/* Table */}
@@ -187,7 +235,7 @@ export function JobsTable({ initialJobs, initialTotal }: JobsTableProps) {
           <thead className="bg-purple-50">
             <tr>
               <th className="px-4 py-3 text-left text-xs font-medium text-purple-600 uppercase tracking-wider">
-                ID
+                Поръчка
               </th>
               <th className="px-4 py-3 text-left text-xs font-medium text-purple-600 uppercase tracking-wider">
                 Тип
@@ -215,9 +263,9 @@ export function JobsTable({ initialJobs, initialTotal }: JobsTableProps) {
                 <td className="px-4 py-3">
                   <button
                     onClick={() => setSelectedJob(job)}
-                    className="text-sm font-mono text-purple-600 hover:underline"
+                    className="text-sm font-bold text-purple-600 hover:underline"
                   >
-                    {job.id.slice(0, 8)}...
+                    #{getWooOrderId(job) || job.id.slice(0, 8)}
                   </button>
                 </td>
                 <td className="px-4 py-3 text-sm text-neutral-700">
