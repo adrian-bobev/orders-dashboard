@@ -608,10 +608,15 @@ export type Database = {
           billing_state: string | null
           created_at: string
           currency: string | null
+          download_count: number | null
           id: string
+          last_downloaded_at: string | null
           order_number: string | null
           payment_method: string
           payment_method_title: string | null
+          print_file_r2_key: string | null
+          print_file_size_bytes: number | null
+          print_generated_at: string | null
           shipping_method_title: string | null
           shipping_total: number | null
           speedy_delivery_city_id: string | null
@@ -655,10 +660,15 @@ export type Database = {
           billing_state?: string | null
           created_at?: string
           currency?: string | null
+          download_count?: number | null
           id?: string
+          last_downloaded_at?: string | null
           order_number?: string | null
           payment_method: string
           payment_method_title?: string | null
+          print_file_r2_key?: string | null
+          print_file_size_bytes?: number | null
+          print_generated_at?: string | null
           shipping_method_title?: string | null
           shipping_total?: number | null
           speedy_delivery_city_id?: string | null
@@ -702,10 +712,15 @@ export type Database = {
           billing_state?: string | null
           created_at?: string
           currency?: string | null
+          download_count?: number | null
           id?: string
+          last_downloaded_at?: string | null
           order_number?: string | null
           payment_method?: string
           payment_method_title?: string | null
+          print_file_r2_key?: string | null
+          print_file_size_bytes?: number | null
+          print_generated_at?: string | null
           shipping_method_title?: string | null
           shipping_total?: number | null
           speedy_delivery_city_id?: string | null

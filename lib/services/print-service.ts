@@ -1,8 +1,6 @@
 import { createServiceRoleClient } from '@/lib/supabase/server'
 import { fetchImageFromStorage } from '@/lib/r2-client'
 import JSZip from 'jszip'
-import { writeFile, mkdir } from 'fs/promises'
-import path from 'path'
 
 const PDF_SERVICE_URL = process.env.PDF_SERVICE_URL || 'http://localhost:4001'
 const PDF_SERVICE_ACCESS_TOKEN = process.env.PDF_SERVICE_ACCESS_TOKEN
@@ -36,6 +34,13 @@ interface BookInfo {
   generationId: string
 }
 
+interface BookGenerationResult {
+  childName: string
+  storyName: string
+  configId: string
+  zipBuffer: Buffer
+}
+
 interface PrintResult {
   success: boolean
   orderId: string
@@ -44,8 +49,8 @@ interface PrintResult {
   books: Array<{
     childName: string
     storyName: string
-    downloadPath: string
   }>
+  combinedZipBuffer?: Buffer
   error?: string
 }
 
@@ -269,13 +274,12 @@ async function downloadGeneratedBook(workId: string): Promise<Buffer> {
 }
 
 /**
- * Generate print-ready PDF for a single generation and save to disk
+ * Generate print-ready PDF for a single generation and return the ZIP buffer
  */
 async function generateAndDownloadBook(
   generationId: string,
-  outputDir: string,
   bookConfig: { name: string; configId: string }
-): Promise<string> {
+): Promise<Buffer> {
   console.log(`📄 [Print] Generating print-ready PDF for ${bookConfig.name}...`)
 
   // Step 1: Generate ZIP from generation data
@@ -295,25 +299,17 @@ async function generateAndDownloadBook(
   // Step 4: Download the generated book
   console.log('[Print] Step 4: Downloading generated book...')
   const bookData = await downloadGeneratedBook(response.workId)
+  console.log(`[Print] ✅ Book generated: ${(bookData.length / 1024 / 1024).toFixed(2)} MB`)
 
-  // Step 5: Save to disk
-  const sanitizedName = bookConfig.name.replace(/[^a-zA-Z0-9а-яА-Я\s-]/g, '').replace(/\s+/g, '_')
-  const filename = `book-${bookConfig.configId}-${sanitizedName}.zip`
-  const filepath = path.join(outputDir, filename)
-
-  await writeFile(filepath, bookData)
-  console.log(`[Print] ✅ Book saved to: ${filepath} (${(bookData.length / 1024 / 1024).toFixed(2)} MB)`)
-
-  return filepath
+  return bookData
 }
 
 /**
  * Generate print-ready PDFs for all completed books in an order
- * Downloads the generated files to the specified directory
+ * Returns a combined ZIP buffer containing all book ZIPs
  */
 export async function generateOrderForPrint(
-  woocommerceOrderId: number,
-  outputDir: string
+  woocommerceOrderId: number
 ): Promise<PrintResult> {
   const supabase = createServiceRoleClient()
 
@@ -354,17 +350,9 @@ export async function generateOrderForPrint(
     `)
     .eq('order_id', order.id)
 
-  // Ensure output directory exists
   const orderNumber = order.order_number || woocommerceOrderId.toString()
-  const orderDir = path.join(outputDir, `order-${orderNumber}`)
-  await mkdir(orderDir, { recursive: true })
 
-  const completedBooks: Array<{
-    childName: string
-    storyName: string
-    downloadPath: string
-  }> = []
-
+  const completedBooks: BookGenerationResult[] = []
   const errors: Array<{ bookName: string; error: unknown }> = []
 
   for (const lineItem of lineItems || []) {
@@ -380,9 +368,8 @@ export async function generateOrderForPrint(
       }
 
       try {
-        const downloadPath = await generateAndDownloadBook(
+        const bookZipBuffer = await generateAndDownloadBook(
           completedGen.id,
-          orderDir,
           {
             name: bookConfig.name,
             configId: bookConfig.config_id?.toString() || bookConfig.id,
@@ -396,7 +383,8 @@ export async function generateOrderForPrint(
         completedBooks.push({
           childName: bookConfig.name,
           storyName,
-          downloadPath,
+          configId: bookConfig.config_id?.toString() || bookConfig.id,
+          zipBuffer: bookZipBuffer,
         })
       } catch (e) {
         console.error(`[Print] Failed to generate book for ${bookConfig.name}:`, e)
@@ -406,16 +394,54 @@ export async function generateOrderForPrint(
   }
 
   // If any books failed, include error info in result
-  if (errors.length > 0) {
+  if (errors.length > 0 && completedBooks.length === 0) {
     const failedBooks = errors.map(e => e.bookName).join(', ')
     return {
-      success: completedBooks.length > 0,
+      success: false,
       orderId: order.id,
       orderNumber,
       wooOrderId: woocommerceOrderId.toString(),
-      books: completedBooks,
+      books: [],
       error: `Failed to generate books for: ${failedBooks}`,
     }
+  }
+
+  // Combine all book PDFs into a single ZIP
+  // Structure:
+  // - Single book: book.pdf, cover.pdf, back.pdf in root
+  // - Multiple books: <configId>/book.pdf, <configId>/cover.pdf, <configId>/back.pdf
+  let combinedZipBuffer: Buffer | undefined
+  if (completedBooks.length > 0) {
+    console.log(`[Print] Combining ${completedBooks.length} books into single ZIP...`)
+    const combinedZip = new JSZip()
+    const isSingleBook = completedBooks.length === 1
+
+    for (const book of completedBooks) {
+      // Load the book's ZIP to extract its contents
+      const bookZip = await JSZip.loadAsync(book.zipBuffer)
+
+      // Get all files from the book ZIP (book.pdf, cover.pdf, back.pdf, book-preview.pdf)
+      const files = Object.keys(bookZip.files).filter(name => !bookZip.files[name].dir)
+
+      for (const fileName of files) {
+        const fileContent = await bookZip.files[fileName].async('nodebuffer')
+
+        // Determine the target path
+        let targetPath: string
+        if (isSingleBook) {
+          // Single book: put files directly in root
+          targetPath = fileName
+        } else {
+          // Multiple books: put files in configId folder
+          targetPath = `${book.configId}/${fileName}`
+        }
+
+        combinedZip.file(targetPath, fileContent)
+      }
+    }
+
+    combinedZipBuffer = await combinedZip.generateAsync({ type: 'nodebuffer' })
+    console.log(`[Print] ✅ Combined ZIP created: ${(combinedZipBuffer.length / 1024 / 1024).toFixed(2)} MB`)
   }
 
   return {
@@ -423,7 +449,11 @@ export async function generateOrderForPrint(
     orderId: order.id,
     orderNumber,
     wooOrderId: woocommerceOrderId.toString(),
-    books: completedBooks,
-    error: completedBooks.length === 0 ? 'No completed books found for this order' : undefined,
+    books: completedBooks.map(b => ({
+      childName: b.childName,
+      storyName: b.storyName,
+    })),
+    combinedZipBuffer,
+    error: errors.length > 0 ? `Failed to generate some books: ${errors.map(e => e.bookName).join(', ')}` : undefined,
   }
 }

@@ -41,9 +41,42 @@ export function OrderDetail({ order, currentUser, generationCounts = {}, complet
   const [expandedBookId, setExpandedBookId] = useState<string | null>(null)
   const [isSendingNotifications, setIsSendingNotifications] = useState(false)
   const [notificationProgress, setNotificationProgress] = useState('')
+  const [isDownloading, setIsDownloading] = useState(false)
 
   const isAdmin = currentUser.role === 'admin'
   const isViewer = currentUser.role === 'viewer'
+
+  const handleDownload = async () => {
+    setIsDownloading(true)
+
+    try {
+      const response = await fetch(`/api/orders/${order.id}/download`)
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Download failed')
+      }
+
+      // Trigger browser download
+      const link = document.createElement('a')
+      link.href = data.downloadUrl
+      link.download = `order-${order.order_number || order.id}.zip`
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+    } catch (error) {
+      console.error('Download error:', error)
+      alert(error instanceof Error ? error.message : 'Грешка при изтегляне')
+    } finally {
+      setIsDownloading(false)
+    }
+  }
+
+  const formatFileSize = (bytes: number | null) => {
+    if (!bytes) return '-'
+    const mb = bytes / (1024 * 1024)
+    return `${mb.toFixed(2)} MB`
+  }
 
   const handleStatusChange = async (newStatus: OrderStatus) => {
     if (!isAdmin) return
@@ -134,37 +167,95 @@ export function OrderDetail({ order, currentUser, generationCounts = {}, complet
     }
   }
 
-  // Viewer view - only ID, status, and date
+  // Viewer view - only ID, status, date, and print file
   if (isViewer) {
     return (
-      <div className="bg-white rounded-2xl shadow-warm p-4 border border-purple-100">
-        <div className="space-y-4">
-          <div>
-            <p className="text-sm font-bold text-purple-900 mb-1">Номер на поръчка</p>
-            <p className="text-xl font-bold text-neutral-900">{order.woocommerce_order_id}</p>
-          </div>
+      <div className="space-y-4">
+        <div className="bg-white rounded-2xl shadow-warm p-4 border border-purple-100">
+          <div className="space-y-4">
+            <div>
+              <p className="text-sm font-bold text-purple-900 mb-1">Номер на поръчка</p>
+              <p className="text-xl font-bold text-neutral-900">{order.woocommerce_order_id}</p>
+            </div>
 
-          <div>
-            <p className="text-sm font-bold text-purple-900 mb-1">Статус</p>
-            <span
-              className={`inline-flex items-center px-3 py-1.5 rounded-xl text-sm font-bold border-2 ${STATUS_COLORS[currentStatus]}`}
-            >
-              {STATUS_LABELS[currentStatus]}
-            </span>
-          </div>
+            <div>
+              <p className="text-sm font-bold text-purple-900 mb-1">Статус</p>
+              <span
+                className={`inline-flex items-center px-3 py-1.5 rounded-xl text-sm font-bold border-2 ${STATUS_COLORS[currentStatus]}`}
+              >
+                {STATUS_LABELS[currentStatus]}
+              </span>
+            </div>
 
-          <div>
-            <p className="text-sm font-bold text-purple-900 mb-1">Дата на създаване</p>
-            <p className="text-base text-neutral-700">
-              {new Date(order.created_at).toLocaleString('bg-BG', {
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-              })}
-            </p>
+            <div>
+              <p className="text-sm font-bold text-purple-900 mb-1">Дата на създаване</p>
+              <p className="text-base text-neutral-700">
+                {new Date(order.created_at).toLocaleString('bg-BG', {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </p>
+            </div>
           </div>
+        </div>
+
+        {/* Print File Section for Viewer */}
+        <div className="bg-white rounded-2xl shadow-warm p-4 border border-purple-100">
+          <h3 className="text-lg font-bold text-purple-900 mb-3">Файл за печат</h3>
+
+          {order.print_file_r2_key ? (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-xs font-bold text-purple-900 mb-1">Размер</p>
+                  <p className="text-sm text-neutral-700">{formatFileSize(order.print_file_size_bytes)}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-purple-900 mb-1">Генериран на</p>
+                  <p className="text-sm text-neutral-700">
+                    {order.print_generated_at
+                      ? new Date(order.print_generated_at).toLocaleString('bg-BG')
+                      : '-'}
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={handleDownload}
+                disabled={isDownloading}
+                className="w-full px-4 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2"
+              >
+                {isDownloading ? (
+                  <>
+                    <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>Изтегляне...</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    <span>Изтегли файл за печат</span>
+                  </>
+                )}
+              </button>
+            </div>
+          ) : (
+            <div className="text-center py-6">
+              <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
+              <p className="text-sm text-neutral-500">Файлът за печат все още не е генериран</p>
+            </div>
+          )}
         </div>
       </div>
     )
@@ -310,6 +401,75 @@ export function OrderDetail({ order, currentUser, generationCounts = {}, complet
           </div>
         </div>
       )}
+
+      {/* Print File Section (Admin View) */}
+      <div className="bg-white rounded-2xl shadow-warm p-4 border border-purple-100">
+        <h3 className="text-lg font-bold text-purple-900 mb-3">Файл за печат</h3>
+
+        {order.print_file_r2_key ? (
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div>
+                <p className="text-xs font-bold text-purple-900 mb-1">Размер</p>
+                <p className="text-sm text-neutral-700">{formatFileSize(order.print_file_size_bytes)}</p>
+              </div>
+              <div>
+                <p className="text-xs font-bold text-purple-900 mb-1">Генериран на</p>
+                <p className="text-sm text-neutral-700">
+                  {order.print_generated_at
+                    ? new Date(order.print_generated_at).toLocaleString('bg-BG')
+                    : '-'}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs font-bold text-purple-900 mb-1">Изтегляния</p>
+                <p className="text-sm text-neutral-700">{order.download_count || 0}</p>
+              </div>
+              <div>
+                <p className="text-xs font-bold text-purple-900 mb-1">Последно изтегляне</p>
+                <p className="text-sm text-neutral-700">
+                  {order.last_downloaded_at
+                    ? new Date(order.last_downloaded_at).toLocaleString('bg-BG')
+                    : '-'}
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={handleDownload}
+              disabled={isDownloading}
+              className="w-full px-4 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2"
+            >
+              {isDownloading ? (
+                <>
+                  <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <span>Изтегляне...</span>
+                </>
+              ) : (
+                <>
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  <span>Изтегли файл за печат</span>
+                </>
+              )}
+            </button>
+          </div>
+        ) : (
+          <div className="text-center py-6">
+            <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
+              <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </div>
+            <p className="text-sm text-neutral-500">Файлът за печат все още не е генериран</p>
+            <p className="text-xs text-neutral-400 mt-1">Файлът ще бъде достъпен след преминаване в статус &quot;Готова за печат&quot;</p>
+          </div>
+        )}
+      </div>
 
       {/* Order Information */}
       <div className="bg-white rounded-2xl shadow-warm p-4 border border-purple-100">

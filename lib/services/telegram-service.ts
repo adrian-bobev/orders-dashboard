@@ -41,7 +41,6 @@ export interface SentToPrintNotificationData {
   orderNumber: string;
   bookCount: number;
   books: BookInfo[];
-  outputDir: string;
 }
 
 /**
@@ -110,9 +109,7 @@ function formatSentToPrintMessage(data: SentToPrintNotificationData): string {
 <b>Книги:</b>
 ${bookList}
 
-<b>Файлове:</b> ${data.outputDir}
-
-<a href="${orderUrl}">🔗 Преглед на поръчката</a>`;
+<a href="${orderUrl}">🔗 Преглед и изтегляне</a>`;
 }
 
 /**

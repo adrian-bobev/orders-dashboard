@@ -1,4 +1,5 @@
-import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 /**
  * Creates and returns an S3-compatible client (R2 in production, MinIO in local dev)
@@ -84,4 +85,60 @@ export async function fetchImageFromStorage(
 export function getImageUrl(imageKey: string | undefined): string | undefined {
   if (!imageKey) return undefined;
   return `/api/images?key=${encodeURIComponent(imageKey)}`;
+}
+
+/**
+ * Uploads a print-ready ZIP file to R2 storage
+ * Storage: 'prints' bucket, filename is {woocommerceOrderId}.zip
+ *
+ * @returns Object with r2Key and fileSize
+ */
+export async function uploadPrintFile(
+  woocommerceOrderId: number,
+  zipBuffer: Buffer
+): Promise<{ r2Key: string; fileSize: number }> {
+  const client = getStorageClient();
+  const bucket = process.env.R2_PRINTS_BUCKET || 'prints';
+
+  const r2Key = `${woocommerceOrderId}.zip`;
+
+  const command = new PutObjectCommand({
+    Bucket: bucket,
+    Key: r2Key,
+    Body: zipBuffer,
+    ContentType: 'application/zip',
+  });
+
+  await client.send(command);
+
+  return {
+    r2Key,
+    fileSize: zipBuffer.length,
+  };
+}
+
+/**
+ * Generates a presigned URL for downloading a print file from R2
+ *
+ * @param r2Key - The R2 storage key for the file (e.g., "12345.zip")
+ * @param expiresInSeconds - URL expiration time (default: 3600 = 1 hour)
+ * @returns Presigned download URL
+ */
+export async function getSignedPrintDownloadUrl(
+  r2Key: string,
+  expiresInSeconds: number = 3600
+): Promise<string> {
+  const client = getStorageClient();
+  const bucket = process.env.R2_PRINTS_BUCKET || 'prints';
+
+  const command = new GetObjectCommand({
+    Bucket: bucket,
+    Key: r2Key,
+  });
+
+  const signedUrl = await getSignedUrl(client, command, {
+    expiresIn: expiresInSeconds,
+  });
+
+  return signedUrl;
 }
