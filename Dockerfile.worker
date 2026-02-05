@@ -1,0 +1,19 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Install dependencies
+COPY package.json package-lock.json* ./
+RUN npm ci
+
+# Copy source files
+COPY lib ./lib
+COPY worker ./worker
+COPY emails ./emails
+COPY tsconfig.worker.json ./
+
+# Create logs directory
+RUN mkdir -p webhook-logs
+
+# Start the worker using tsx with the correct tsconfig
+CMD ["npx", "tsx", "--tsconfig", "tsconfig.worker.json", "worker/index.ts"]

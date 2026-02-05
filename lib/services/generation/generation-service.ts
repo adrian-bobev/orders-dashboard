@@ -7,6 +7,16 @@ type BookGeneration = any // Will be: Database['public']['Tables']['book_generat
 type BookGenerationInsert = any // Will be: Database['public']['Tables']['book_generations']['Insert']
 
 /**
+ * Info needed for error notifications
+ */
+export interface GenerationOrderInfo {
+  orderId: string
+  orderNumber: string
+  bookName: string
+  storyName: string
+}
+
+/**
  * Get the R2 folder path for a generation
  * Format: {orderNumber}-{configNumber}-{generationId}
  * Example: 12345-1-abc123-def456-ghi789
@@ -63,6 +73,55 @@ export async function getGenerationFolderPath(generationId: string): Promise<str
   const configNumber = bookConfig.config_id
 
   return `${orderNumber}-${configNumber}-${generationId}`
+}
+
+/**
+ * Get order info from a generation ID for error notifications
+ */
+export async function getOrderInfoFromGeneration(generationId: string): Promise<GenerationOrderInfo | null> {
+  try {
+    const supabase = await createClient()
+
+    const { data, error } = await supabase
+      .from('book_generations')
+      .select(`
+        book_configurations!inner (
+          id,
+          name,
+          content,
+          line_items!inner (
+            product_name,
+            orders!inner (
+              id,
+              order_number,
+              woocommerce_order_id
+            )
+          )
+        )
+      `)
+      .eq('id', generationId)
+      .single()
+
+    if (error || !data) {
+      console.error('Error fetching order info for generation:', error)
+      return null
+    }
+
+    const bookConfig = data.book_configurations as any
+    const lineItem = bookConfig.line_items
+    const order = lineItem.orders
+    const content = bookConfig.content as { title?: string } | null
+
+    return {
+      orderId: order.id,
+      orderNumber: order.order_number || order.woocommerce_order_id?.toString() || 'N/A',
+      bookName: bookConfig.name,
+      storyName: content?.title || lineItem.product_name || 'Unknown',
+    }
+  } catch (e) {
+    console.error('Error getting order info from generation:', e)
+    return null
+  }
 }
 
 export class GenerationService {

@@ -1,16 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/services/user-service'
 import { step5Service, type ProviderConfig } from '@/lib/services/generation/step5-scene-images'
+import { getOrderInfoFromGeneration } from '@/lib/services/generation/generation-service'
+import { sendErrorNotification } from '@/lib/services/telegram-service'
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ generationId: string }> }
 ) {
+  const { generationId } = await params
+
   try {
     const authResult = await requireAdmin()
     if (authResult instanceof NextResponse) return authResult
 
-    const { generationId } = await params
     const { scenePromptIds, providerConfig } = await request.json()
 
     if (!scenePromptIds || !Array.isArray(scenePromptIds)) {
@@ -27,6 +30,18 @@ export async function POST(
     return NextResponse.json({ results })
   } catch (error) {
     console.error('Error batch generating scene images:', error)
+
+    // Send Telegram error notification
+    const orderInfo = await getOrderInfoFromGeneration(generationId)
+    if (orderInfo) {
+      await sendErrorNotification({
+        orderId: orderInfo.orderId,
+        orderNumber: orderInfo.orderNumber,
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+        context: `Step 5 (Scene Images) - ${orderInfo.bookName}`,
+      })
+    }
+
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to generate scene images' },
       { status: 500 }

@@ -1,6 +1,9 @@
 import { SignInForm } from '@/components/auth/sign-in-form'
 import Link from 'next/link'
 
+// Force dynamic rendering to avoid Supabase client initialization at build time
+export const dynamic = 'force-dynamic'
+
 export default function SignInPage() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-cream p-6">

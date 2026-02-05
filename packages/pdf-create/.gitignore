@@ -1,0 +1,8 @@
+generated_cmyk_tiffs
+node_modules
+uploads
+.DS_Store
+.venv
+preview_images
+preview-images
+.env

@@ -1,17 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/services/user-service'
 import { step1Service, type ProviderConfig } from '@/lib/services/generation/step1-character-image'
-import { generationService } from '@/lib/services/generation/generation-service'
+import { generationService, getOrderInfoFromGeneration } from '@/lib/services/generation/generation-service'
+import { sendErrorNotification } from '@/lib/services/telegram-service'
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ generationId: string }> }
 ) {
+  const { generationId } = await params
+
   try {
     const authResult = await requireAdmin()
     if (authResult instanceof NextResponse) return authResult
 
-    const { generationId } = await params
     const body = await request.json()
     const { imageKeys, customPrompt, providerConfig } = body
 
@@ -47,6 +49,18 @@ export async function POST(
     })
   } catch (error) {
     console.error('Error generating reference character:', error)
+
+    // Send Telegram error notification
+    const orderInfo = await getOrderInfoFromGeneration(generationId)
+    if (orderInfo) {
+      await sendErrorNotification({
+        orderId: orderInfo.orderId,
+        orderNumber: orderInfo.orderNumber,
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+        context: `Step 1 (Character Reference) - ${orderInfo.bookName}`,
+      })
+    }
+
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to generate reference character' },
       { status: 500 }

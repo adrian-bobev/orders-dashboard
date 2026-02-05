@@ -1,8 +1,8 @@
 import { Resend } from 'resend'
 import * as nodemailer from 'nodemailer'
 import { render } from '@react-email/components'
-import { generateApprovalUrl } from '@/lib/services/approval-token'
-import BooksReadyEmail from '@/emails/templates/books-ready-email'
+import { generateApprovalUrl } from './approval-token'
+import BooksReadyEmail from '../../emails/templates/books-ready-email'
 
 /**
  * Book info for email

@@ -149,6 +149,7 @@ export default async function GeneratePage({
           <h2 className="text-sm font-bold text-purple-900">Генерации:</h2>
           <Link
             href={`/api/generation/create?bookConfigId=${bookConfig.id}&orderId=${orderId}`}
+            prefetch={false}
             className="px-3 py-1.5 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700 transition-colors text-sm flex items-center gap-1.5"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
