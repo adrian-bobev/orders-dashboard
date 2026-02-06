@@ -76,6 +76,7 @@ export function JobsTable({ initialJobs, initialTotal }: JobsTableProps) {
   const [loading, setLoading] = useState(false)
   const [statusFilter, setStatusFilter] = useState<JobStatus | ''>('')
   const [typeFilter, setTypeFilter] = useState<JobType | ''>('')
+  const [orderIdFilter, setOrderIdFilter] = useState('')
   const [offset, setOffset] = useState(0)
   const [selectedJob, setSelectedJob] = useState<Job | null>(null)
   const limit = 20
@@ -88,6 +89,7 @@ export function JobsTable({ initialJobs, initialTotal }: JobsTableProps) {
       params.set('offset', String(newOffset))
       if (statusFilter) params.set('status', statusFilter)
       if (typeFilter) params.set('type', typeFilter)
+      if (orderIdFilter.trim()) params.set('orderId', orderIdFilter.trim())
 
       const response = await fetch(`/api/admin/jobs?${params.toString()}`)
       const data = await response.json()
@@ -102,7 +104,7 @@ export function JobsTable({ initialJobs, initialTotal }: JobsTableProps) {
     } finally {
       setLoading(false)
     }
-  }, [statusFilter, typeFilter])
+  }, [statusFilter, typeFilter, orderIdFilter])
 
   const handleRetrigger = async (jobId: string) => {
     try {
@@ -207,6 +209,28 @@ export function JobsTable({ initialJobs, initialTotal }: JobsTableProps) {
             <option value="PREVIEW_GENERATION">Preview</option>
             <option value="CONTENT_GENERATION">Съдържание</option>
           </select>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <label className="text-sm text-neutral-600">Поръчка №:</label>
+          <input
+            type="text"
+            value={orderIdFilter}
+            onChange={(e) => setOrderIdFilter(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                handleFilterChange()
+              }
+            }}
+            placeholder="напр. 12345"
+            className="border border-purple-200 rounded-lg px-3 py-1.5 text-sm w-28 focus:outline-none focus:ring-2 focus:ring-purple-400"
+          />
+          <button
+            onClick={handleFilterChange}
+            className="px-2 py-1.5 bg-purple-100 text-purple-700 rounded-lg text-sm hover:bg-purple-200"
+          >
+            Търси
+          </button>
         </div>
 
         <div className="ml-auto flex gap-2">

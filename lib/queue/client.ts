@@ -116,6 +116,7 @@ export async function cancelJob(jobId: string): Promise<boolean> {
 export async function listJobs(options?: {
   status?: Job['status']
   type?: JobType
+  orderId?: string
   limit?: number
   offset?: number
 }): Promise<{ jobs: Job[]; total: number }> {
@@ -132,6 +133,19 @@ export async function listJobs(options?: {
 
   if (options?.type) {
     query = query.eq('type', options.type)
+  }
+
+  // Filter by order ID in the payload JSON
+  // The order ID can be stored as woocommerceOrderId, wooOrderId, or orderNumber
+  if (options?.orderId) {
+    query = query.or(
+      `payload->woocommerceOrderId.eq.${options.orderId},` +
+      `payload->wooOrderId.eq.${options.orderId},` +
+      `payload->orderNumber.eq.${options.orderId},` +
+      `payload->>woocommerceOrderId.eq.${options.orderId},` +
+      `payload->>wooOrderId.eq.${options.orderId},` +
+      `payload->>orderNumber.eq.${options.orderId}`
+    )
   }
 
   if (options?.limit) {
