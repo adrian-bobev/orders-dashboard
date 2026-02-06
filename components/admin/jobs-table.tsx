@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import type { Job, JobType, JobStatus } from '@/lib/queue/types'
 
 interface JobsTableProps {
@@ -80,8 +80,10 @@ export function JobsTable({ initialJobs, initialTotal }: JobsTableProps) {
   const [offset, setOffset] = useState(0)
   const [selectedJob, setSelectedJob] = useState<Job | null>(null)
   const limit = 20
+  const debounceRef = useRef<NodeJS.Timeout | null>(null)
+  const isInitialMount = useRef(true)
 
-  const fetchJobs = useCallback(async (newOffset: number = 0) => {
+  const fetchJobs = useCallback(async (newOffset: number = 0, currentOrderIdFilter?: string) => {
     setLoading(true)
     try {
       const params = new URLSearchParams()
@@ -89,7 +91,8 @@ export function JobsTable({ initialJobs, initialTotal }: JobsTableProps) {
       params.set('offset', String(newOffset))
       if (statusFilter) params.set('status', statusFilter)
       if (typeFilter) params.set('type', typeFilter)
-      if (orderIdFilter.trim()) params.set('orderId', orderIdFilter.trim())
+      const orderFilter = currentOrderIdFilter !== undefined ? currentOrderIdFilter : orderIdFilter
+      if (orderFilter.trim()) params.set('orderId', orderFilter.trim())
 
       const response = await fetch(`/api/admin/jobs?${params.toString()}`)
       const data = await response.json()
@@ -105,6 +108,29 @@ export function JobsTable({ initialJobs, initialTotal }: JobsTableProps) {
       setLoading(false)
     }
   }, [statusFilter, typeFilter, orderIdFilter])
+
+  // Debounced effect for order ID filter
+  useEffect(() => {
+    // Skip the initial mount
+    if (isInitialMount.current) {
+      isInitialMount.current = false
+      return
+    }
+
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current)
+    }
+
+    debounceRef.current = setTimeout(() => {
+      fetchJobs(0, orderIdFilter)
+    }, 300)
+
+    return () => {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current)
+      }
+    }
+  }, [orderIdFilter, fetchJobs])
 
   const handleRetrigger = async (jobId: string) => {
     try {
@@ -217,20 +243,9 @@ export function JobsTable({ initialJobs, initialTotal }: JobsTableProps) {
             type="text"
             value={orderIdFilter}
             onChange={(e) => setOrderIdFilter(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                handleFilterChange()
-              }
-            }}
             placeholder="напр. 12345"
             className="border border-purple-200 rounded-lg px-3 py-1.5 text-sm w-28 focus:outline-none focus:ring-2 focus:ring-purple-400"
           />
-          <button
-            onClick={handleFilterChange}
-            className="px-2 py-1.5 bg-purple-100 text-purple-700 rounded-lg text-sm hover:bg-purple-200"
-          >
-            Търси
-          </button>
         </div>
 
         <div className="ml-auto flex gap-2">

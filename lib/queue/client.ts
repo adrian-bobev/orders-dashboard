@@ -137,14 +137,12 @@ export async function listJobs(options?: {
 
   // Filter by order ID in the payload JSON
   // The order ID can be stored as woocommerceOrderId, wooOrderId, or orderNumber
+  // Use ->> for text extraction and ilike for partial matching
   if (options?.orderId) {
     query = query.or(
-      `payload->woocommerceOrderId.eq.${options.orderId},` +
-      `payload->wooOrderId.eq.${options.orderId},` +
-      `payload->orderNumber.eq.${options.orderId},` +
-      `payload->>woocommerceOrderId.eq.${options.orderId},` +
-      `payload->>wooOrderId.eq.${options.orderId},` +
-      `payload->>orderNumber.eq.${options.orderId}`
+      `payload->>woocommerceOrderId.ilike.%${options.orderId}%,` +
+      `payload->>wooOrderId.ilike.%${options.orderId}%,` +
+      `payload->>orderNumber.ilike.%${options.orderId}%`
     )
   }
 
