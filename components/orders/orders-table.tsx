@@ -340,7 +340,7 @@ export function OrdersTable({ initialOrders, currentUser }: OrdersTableProps) {
             </>
           )}
 
-          {/* Viewer Table View - Only ID, Status, Date, Download */}
+          {/* Viewer Table View - Only ID, Status, Date, File Size, Download */}
           {isViewer && (
             <>
               {/* Desktop/Tablet View */}
@@ -357,18 +357,19 @@ export function OrdersTable({ initialOrders, currentUser }: OrdersTableProps) {
                       <th className="px-4 py-3 text-right text-xs font-bold text-purple-900 uppercase">
                         Дата
                       </th>
+                      <th className="px-4 py-3 text-right text-xs font-bold text-purple-900 uppercase">
+                        Размер
+                      </th>
                       <th className="px-4 py-3 text-center text-xs font-bold text-purple-900 uppercase">
                         Изтегли
                       </th>
-                      <th className="px-4 py-3 w-8"></th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-purple-100">
                     {filteredOrders.map((order) => (
                       <tr
                         key={order.id}
-                        className="hover:bg-purple-50 transition-colors cursor-pointer group"
-                        onClick={() => router.push(`/orders/${order.id}`)}
+                        className="hover:bg-purple-50/50 transition-colors"
                       >
                         <td className="px-4 py-4 whitespace-nowrap">
                           <span className="text-base font-bold text-purple-900">
@@ -391,23 +392,15 @@ export function OrdersTable({ initialOrders, currentUser }: OrdersTableProps) {
                             })}
                           </span>
                         </td>
+                        <td className="px-4 py-4 text-right whitespace-nowrap">
+                          <span className="text-sm text-neutral-600">
+                            {order.print_file_size_bytes
+                              ? `${(order.print_file_size_bytes / (1024 * 1024)).toFixed(1)} MB`
+                              : '-'}
+                          </span>
+                        </td>
                         <td className="px-4 py-4 text-center">
                           <DownloadButton order={order} />
-                        </td>
-                        <td className="px-4 py-4 text-right">
-                          <svg
-                            className="w-5 h-5 text-purple-600 group-hover:translate-x-1 transition-transform"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2.5}
-                              d="M9 5l7 7-7 7"
-                            />
-                          </svg>
                         </td>
                       </tr>
                     ))}
@@ -420,8 +413,7 @@ export function OrdersTable({ initialOrders, currentUser }: OrdersTableProps) {
                 {filteredOrders.map((order) => (
                   <div
                     key={order.id}
-                    onClick={() => router.push(`/orders/${order.id}`)}
-                    className="p-4 hover:bg-purple-50 transition-colors cursor-pointer"
+                    className="p-4"
                   >
                     <div className="flex items-start justify-between gap-3 mb-2">
                       <div className="font-bold text-purple-900 text-lg">
@@ -437,9 +429,14 @@ export function OrdersTable({ initialOrders, currentUser }: OrdersTableProps) {
                       <div className="text-sm text-neutral-600">
                         {new Date(order.created_at).toLocaleDateString('bg-BG', {
                           year: 'numeric',
-                          month: 'long',
+                          month: 'short',
                           day: 'numeric',
                         })}
+                        {order.print_file_size_bytes && (
+                          <span className="ml-2 text-neutral-500">
+                            • {(order.print_file_size_bytes / (1024 * 1024)).toFixed(1)} MB
+                          </span>
+                        )}
                       </div>
                       <DownloadButton order={order} />
                     </div>
