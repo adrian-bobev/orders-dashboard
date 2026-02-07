@@ -42,6 +42,21 @@ export function OrderDetail({ order, currentUser, generationCounts = {}, complet
   const [isSendingNotifications, setIsSendingNotifications] = useState(false)
   const [notificationProgress, setNotificationProgress] = useState('')
   const [isDownloading, setIsDownloading] = useState(false)
+  const [isCreatingLabel, setIsCreatingLabel] = useState(false)
+  const [shippingLabelError, setShippingLabelError] = useState<string | null>(null)
+  const [shippingLabel, setShippingLabel] = useState<{
+    shipmentId: string
+    trackingUrl: string
+    createdAt: string
+  } | null>(
+    order.speedy_shipment_id
+      ? {
+          shipmentId: order.speedy_shipment_id,
+          trackingUrl: `https://www.speedy.bg/bg/track-shipment?shipmentNumber=${order.speedy_shipment_id}`,
+          createdAt: order.speedy_label_created_at,
+        }
+      : null
+  )
 
   const isAdmin = currentUser.role === 'admin'
   const isViewer = currentUser.role === 'viewer'
@@ -164,6 +179,45 @@ export function OrderDetail({ order, currentUser, generationCounts = {}, complet
       }, 5000)
     } finally {
       setIsSendingNotifications(false)
+    }
+  }
+
+  const handleCreateShippingLabel = async () => {
+    if (!isAdmin || isCreatingLabel) return
+
+    if (
+      !confirm(
+        'Ще бъде създадена товарителница в Speedy. Продължавате ли?'
+      )
+    ) {
+      return
+    }
+
+    setIsCreatingLabel(true)
+    setShippingLabelError(null)
+
+    try {
+      const response = await fetch(`/api/orders/${order.id}/shipping-label`, {
+        method: 'POST',
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || data.details || 'Failed to create shipping label')
+      }
+
+      setShippingLabel({
+        shipmentId: data.shipmentId,
+        trackingUrl: data.trackingUrl,
+        createdAt: new Date().toISOString(),
+      })
+      router.refresh()
+    } catch (error) {
+      console.error('Error creating shipping label:', error)
+      setShippingLabelError(error instanceof Error ? error.message : 'Грешка при създаване на товарителница')
+    } finally {
+      setIsCreatingLabel(false)
     }
   }
 
@@ -668,6 +722,98 @@ export function OrderDetail({ order, currentUser, generationCounts = {}, complet
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {/* Speedy Shipping Label Section (Admin Only) */}
+      {isAdmin && order.bg_carriers_carrier === 'speedy' && (
+        <div className="bg-white rounded-2xl shadow-warm p-4 border border-orange-100">
+          <h3 className="text-lg font-bold text-orange-900 mb-3">
+            Товарителница Speedy
+          </h3>
+
+          {shippingLabelError && (
+            <div className="mb-3 p-3 bg-red-50 text-red-800 rounded-lg text-sm">
+              {shippingLabelError}
+            </div>
+          )}
+
+          {shippingLabel ? (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-green-700">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                <span className="font-bold">Товарителницата е създадена</span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-xs font-bold text-orange-900 mb-1">Номер</p>
+                  <p className="text-sm font-mono text-neutral-700">{shippingLabel.shipmentId}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-orange-900 mb-1">Създадена на</p>
+                  <p className="text-sm text-neutral-700">
+                    {shippingLabel.createdAt
+                      ? new Date(shippingLabel.createdAt).toLocaleString('bg-BG', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: '2-digit',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })
+                      : '-'}
+                  </p>
+                </div>
+              </div>
+
+              <a
+                href={shippingLabel.trackingUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold rounded-xl transition-all text-sm"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                </svg>
+                Проследи пратката
+              </a>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-sm text-neutral-600">
+                Товарителница все още не е създадена за тази поръчка.
+              </p>
+
+              <button
+                onClick={handleCreateShippingLabel}
+                disabled={isCreatingLabel}
+                className={`w-full px-4 py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 ${
+                  isCreatingLabel
+                    ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                    : 'bg-orange-500 hover:bg-orange-600 text-white'
+                }`}
+              >
+                {isCreatingLabel ? (
+                  <>
+                    <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>Създаване...</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 4H6a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-2m-4-1v8m0 0l3-3m-3 3L9 8m-5 5h2.586a1 1 0 01.707.293l2.414 2.414a1 1 0 00.707.293h3.172a1 1 0 00.707-.293l2.414-2.414a1 1 0 01.707-.293H20" />
+                    </svg>
+                    <span>Генерирай товарителница</span>
+                  </>
+                )}
+              </button>
+            </div>
+          )}
         </div>
       )}
 

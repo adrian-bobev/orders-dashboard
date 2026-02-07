@@ -46,6 +46,8 @@ services:
       - APPROVAL_SECRET_KEY=${APPROVAL_SECRET_KEY}
       - WORKER_URL=http://worker:4000
       - WORKER_WAKE_TOKEN=${WORKER_WAKE_TOKEN}
+      - SPEEDY_USERNAME=${SPEEDY_USERNAME}
+      - SPEEDY_PASSWORD=${SPEEDY_PASSWORD}
     depends_on:
       pdf-create:
         condition: service_healthy

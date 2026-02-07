@@ -634,6 +634,8 @@ export type Database = {
           speedy_pickup_location_name: string | null
           speedy_pickup_location_postcode: string | null
           speedy_pickup_location_type: string | null
+          speedy_shipment_id: string | null
+          speedy_label_created_at: string | null
           status: Database["public"]["Enums"]["order_status"]
           total: number
           updated_at: string
@@ -686,6 +688,8 @@ export type Database = {
           speedy_pickup_location_name?: string | null
           speedy_pickup_location_postcode?: string | null
           speedy_pickup_location_type?: string | null
+          speedy_shipment_id?: string | null
+          speedy_label_created_at?: string | null
           status?: Database["public"]["Enums"]["order_status"]
           total: number
           updated_at?: string
@@ -738,6 +742,8 @@ export type Database = {
           speedy_pickup_location_name?: string | null
           speedy_pickup_location_postcode?: string | null
           speedy_pickup_location_type?: string | null
+          speedy_shipment_id?: string | null
+          speedy_label_created_at?: string | null
           status?: Database["public"]["Enums"]["order_status"]
           total?: number
           updated_at?: string

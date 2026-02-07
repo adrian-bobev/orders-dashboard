@@ -1,9 +1,57 @@
 import { createServiceRoleClient } from '@/lib/supabase/server'
 import { fetchImageFromStorage } from '@/lib/r2-client'
 import JSZip from 'jszip'
+import { Agent, fetch as undiciFetch } from 'undici'
 
 const PDF_SERVICE_URL = process.env.PDF_SERVICE_URL || 'http://localhost:4001'
 const PDF_SERVICE_ACCESS_TOKEN = process.env.PDF_SERVICE_ACCESS_TOKEN
+
+/**
+ * Update WooCommerce order meta data
+ */
+async function updateWooCommerceOrderMeta(
+  woocommerceOrderId: number,
+  metaData: Array<{ key: string; value: string }>
+): Promise<void> {
+  const storeUrl = process.env.WOOCOMMERCE_STORE_URL
+  const consumerKey = process.env.WOOCOMMERCE_CONSUMER_KEY
+  const consumerSecret = process.env.WOOCOMMERCE_CONSUMER_SECRET
+
+  if (!storeUrl || !consumerKey || !consumerSecret) {
+    console.warn('[Print] WooCommerce API credentials not configured, skipping meta update')
+    return
+  }
+
+  const url = `${storeUrl}/wp-json/wc/v3/orders/${woocommerceOrderId}`
+  const auth = Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64')
+
+  const fetchOptions: Parameters<typeof undiciFetch>[1] = {
+    method: 'PUT',
+    headers: {
+      'Authorization': `Basic ${auth}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ meta_data: metaData }),
+  }
+
+  // Allow self-signed certificates for local development
+  if (process.env.ALLOW_SELF_SIGNED_CERTS === 'true') {
+    fetchOptions.dispatcher = new Agent({
+      connect: {
+        rejectUnauthorized: false,
+      },
+    })
+  }
+
+  const response = await undiciFetch(url, fetchOptions)
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    console.error(`[Print] Failed to update WooCommerce order meta: ${response.status} ${errorText}`)
+  } else {
+    console.log(`[Print] Updated WooCommerce order ${woocommerceOrderId} meta:`, metaData.map(m => m.key).join(', '))
+  }
+}
 
 interface BookJson {
   title: string
@@ -313,10 +361,34 @@ export async function generateOrderForPrint(
 ): Promise<PrintResult> {
   const supabase = createServiceRoleClient()
 
-  // Find order by WooCommerce ID
+  // Find order by WooCommerce ID - include shipping label info
   const { data: order, error: orderError } = await supabase
     .from('orders')
-    .select('id, order_number, woocommerce_order_id')
+    .select(`
+      id,
+      order_number,
+      woocommerce_order_id,
+      speedy_shipment_id,
+      bg_carriers_carrier,
+      billing_first_name,
+      billing_last_name,
+      billing_phone,
+      billing_email,
+      billing_city,
+      billing_address_1,
+      billing_postcode,
+      total,
+      payment_method,
+      bg_carriers_service_type,
+      speedy_pickup_location_id,
+      speedy_delivery_city_id,
+      speedy_delivery_city_name,
+      speedy_delivery_postcode,
+      speedy_delivery_street_id,
+      speedy_delivery_street_name,
+      speedy_delivery_street_number,
+      speedy_delivery_full_address
+    `)
     .eq('woocommerce_order_id', woocommerceOrderId)
     .single()
 
@@ -410,6 +482,7 @@ export async function generateOrderForPrint(
   // Structure:
   // - Single book: book.pdf, cover.pdf, back.pdf in root
   // - Multiple books: <configId>/book.pdf, <configId>/cover.pdf, <configId>/back.pdf
+  // - Shipping label: <wooOrderId>-shipping-label.pdf in root
   let combinedZipBuffer: Buffer | undefined
   if (completedBooks.length > 0) {
     console.log(`[Print] Combining ${completedBooks.length} books into single ZIP...`)
@@ -437,6 +510,88 @@ export async function generateOrderForPrint(
         }
 
         combinedZip.file(targetPath, fileContent)
+      }
+    }
+
+    // Add shipping label PDF if order uses Speedy
+    if (order.bg_carriers_carrier === 'speedy') {
+      try {
+        const { createShippingLabel, downloadShippingLabelPdf } = await import('./speedy-service')
+
+        let shipmentId = order.speedy_shipment_id
+
+        // If shipping label doesn't exist, generate it first
+        if (!shipmentId) {
+          console.log(`[Print] Shipping label not found, generating...`)
+
+          // Fetch line items for the shipping label
+          const { data: lineItemsForShipping } = await supabase
+            .from('line_items')
+            .select('id, product_name, quantity, total')
+            .eq('order_id', order.id)
+
+          const orderData = {
+            id: order.id,
+            woocommerce_order_id: order.woocommerce_order_id,
+            billing_first_name: order.billing_first_name,
+            billing_last_name: order.billing_last_name,
+            billing_phone: order.billing_phone,
+            billing_email: order.billing_email,
+            billing_city: order.billing_city,
+            billing_address_1: order.billing_address_1,
+            billing_postcode: order.billing_postcode,
+            total: order.total,
+            payment_method: order.payment_method,
+            bg_carriers_service_type: order.bg_carriers_service_type as 'office' | 'apm' | 'home',
+            speedy_pickup_location_id: order.speedy_pickup_location_id,
+            speedy_delivery_city_id: order.speedy_delivery_city_id,
+            speedy_delivery_city_name: order.speedy_delivery_city_name,
+            speedy_delivery_postcode: order.speedy_delivery_postcode,
+            speedy_delivery_street_id: order.speedy_delivery_street_id,
+            speedy_delivery_street_name: order.speedy_delivery_street_name,
+            speedy_delivery_street_number: order.speedy_delivery_street_number,
+            speedy_delivery_full_address: order.speedy_delivery_full_address,
+            line_items: (lineItemsForShipping || []).map(item => ({
+              id: item.id,
+              product_name: item.product_name,
+              quantity: item.quantity,
+              total: item.total,
+            })),
+          }
+
+          const result = await createShippingLabel(orderData)
+          shipmentId = result.shipmentId
+
+          // Save shipment ID to database
+          await supabase
+            .from('orders')
+            .update({
+              speedy_shipment_id: shipmentId,
+              speedy_label_created_at: new Date().toISOString(),
+            })
+            .eq('id', order.id)
+
+          // Update WooCommerce order meta (non-blocking)
+          updateWooCommerceOrderMeta(order.woocommerce_order_id, [
+            { key: '_speedy_shipment_id', value: shipmentId },
+          ]).catch(err => {
+            console.error('[Print] Failed to update WooCommerce order meta:', err)
+          })
+
+          console.log(`[Print] Shipping label generated: ${shipmentId}`)
+        }
+
+        // Download shipping label PDF
+        console.log(`[Print] Downloading shipping label PDF for shipment ${shipmentId}...`)
+        const shippingLabelPdf = await downloadShippingLabelPdf(shipmentId)
+
+        // Add to ZIP with name <wooOrderId>-shipping-label.pdf
+        const shippingLabelFileName = `${woocommerceOrderId}-shipping-label.pdf`
+        combinedZip.file(shippingLabelFileName, shippingLabelPdf)
+        console.log(`[Print] ✅ Shipping label added: ${shippingLabelFileName}`)
+      } catch (shippingError) {
+        console.error(`[Print] Failed to add shipping label:`, shippingError)
+        // Don't fail the whole process - just log the error
       }
     }
 
