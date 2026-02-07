@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server'
+import { createClient, createServiceRoleClient } from '@/lib/supabase/server'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 export interface SpeedySettings {
@@ -55,9 +55,11 @@ export async function setSetting<T>(key: string, value: T, userId?: string): Pro
 
 /**
  * Get all Speedy-related settings
+ * Uses service role client to work in both request context and worker context
  */
 export async function getSpeedySettings(): Promise<SpeedySettings> {
-  const supabase = await createClient()
+  // Use service role client to avoid cookies requirement (works in worker context)
+  const supabase = createServiceRoleClient()
 
   const { data, error } = await getSettingsTable(supabase)
     .select('key, value')

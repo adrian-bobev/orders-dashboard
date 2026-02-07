@@ -484,6 +484,8 @@ export async function generateOrderForPrint(
   // - Multiple books: <configId>/book.pdf, <configId>/cover.pdf, <configId>/back.pdf
   // - Shipping label: <wooOrderId>-shipping-label.pdf in root
   let combinedZipBuffer: Buffer | undefined
+  let shippingLabelError: string | undefined
+
   if (completedBooks.length > 0) {
     console.log(`[Print] Combining ${completedBooks.length} books into single ZIP...`)
     const combinedZip = new JSZip()
@@ -590,13 +592,24 @@ export async function generateOrderForPrint(
         combinedZip.file(shippingLabelFileName, shippingLabelPdf)
         console.log(`[Print] ✅ Shipping label added: ${shippingLabelFileName}`)
       } catch (shippingError) {
+        const errorMsg = shippingError instanceof Error ? shippingError.message : String(shippingError)
         console.error(`[Print] Failed to add shipping label:`, shippingError)
+        shippingLabelError = `Failed to add shipping label: ${errorMsg}`
         // Don't fail the whole process - just log the error
       }
     }
 
     combinedZipBuffer = await combinedZip.generateAsync({ type: 'nodebuffer' })
     console.log(`[Print] ✅ Combined ZIP created: ${(combinedZipBuffer.length / 1024 / 1024).toFixed(2)} MB`)
+  }
+
+  // Combine all errors
+  const allErrors: string[] = []
+  if (errors.length > 0) {
+    allErrors.push(`Failed to generate some books: ${errors.map(e => e.bookName).join(', ')}`)
+  }
+  if (shippingLabelError) {
+    allErrors.push(shippingLabelError)
   }
 
   return {
@@ -609,6 +622,6 @@ export async function generateOrderForPrint(
       storyName: b.storyName,
     })),
     combinedZipBuffer,
-    error: errors.length > 0 ? `Failed to generate some books: ${errors.map(e => e.bookName).join(', ')}` : undefined,
+    error: allErrors.length > 0 ? allErrors.join('; ') : undefined,
   }
 }

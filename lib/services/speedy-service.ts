@@ -542,7 +542,6 @@ export async function createShippingLabel(order: OrderData): Promise<{
   const request = await buildShipmentRequest(credentials, order)
 
   console.log('[Speedy] Creating shipment for order:', order.woocommerce_order_id)
-  console.log('[Speedy] Request payload:', JSON.stringify(request, null, 2))
 
   const response = await fetch(`${SPEEDY_API_URL}/shipment`, {
     method: 'POST',
@@ -553,9 +552,6 @@ export async function createShippingLabel(order: OrderData): Promise<{
   })
 
   const data = await response.json()
-
-  // Log full response for debugging
-  console.log('[Speedy] API Response:', JSON.stringify(data, null, 2))
 
   if (!response.ok || data.error) {
     const errorData = data as SpeedyErrorResponse
