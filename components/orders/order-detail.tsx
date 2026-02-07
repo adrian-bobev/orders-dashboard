@@ -403,166 +403,264 @@ export function OrderDetail({ order, currentUser, generationCounts = {}, complet
         )}
       </div>
 
-      {/* Send Notifications Section (Admin Only) */}
-      {isAdmin && allBookConfigIds.length > 0 && (
+      {/* Actions Section (Admin Only) - Grouped Preview, Print File, and Shipping Label */}
+      {isAdmin && (
         <div className="bg-white rounded-2xl shadow-warm p-4 border border-purple-100">
-          <h3 className="text-lg font-bold text-purple-900 mb-3">Изпращане на прегледи</h3>
+          <h3 className="text-lg font-bold text-purple-900 mb-4">Действия</h3>
 
-          <div className="space-y-3">
-            {/* Completion Status */}
-            <div className="flex items-center gap-2">
-              <span className={`inline-flex items-center px-3 py-1.5 rounded-lg text-sm font-bold ${
-                allConfigsCompleted
-                  ? 'bg-green-100 text-green-800 border border-green-200'
-                  : 'bg-yellow-100 text-yellow-800 border border-yellow-200'
-              }`}>
-                {allConfigsCompleted ? (
-                  <>
-                    <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            {/* Send for Preview */}
+            {allBookConfigIds.length > 0 && (
+              <div className="bg-indigo-50 rounded-xl p-4 border border-indigo-200">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center">
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
                     </svg>
-                    Всички книги готови
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    {completedCount} от {allBookConfigIds.length} книги готови
-                  </>
-                )}
-              </span>
-            </div>
+                  </div>
+                  <h4 className="font-bold text-indigo-900">Изпращане на прегледи</h4>
+                </div>
 
-            {/* Progress Message */}
-            {notificationProgress && (
-              <div className={`flex items-center gap-2 p-3 rounded-lg ${
-                notificationProgress.includes('успешно')
-                  ? 'bg-green-50 text-green-800'
-                  : notificationProgress.includes('Грешка')
-                  ? 'bg-red-50 text-red-800'
-                  : 'bg-blue-50 text-blue-800'
-              }`}>
-                {isSendingNotifications && (
-                  <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
+                {/* Completion Status */}
+                <div className="mb-3">
+                  <span className={`inline-flex items-center px-2.5 py-1 rounded-lg text-xs font-bold ${
+                    allConfigsCompleted
+                      ? 'bg-green-100 text-green-800 border border-green-200'
+                      : 'bg-yellow-100 text-yellow-800 border border-yellow-200'
+                  }`}>
+                    {allConfigsCompleted ? (
+                      <>
+                        <svg className="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        Всички книги готови
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-3.5 h-3.5 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        {completedCount} / {allBookConfigIds.length} готови
+                      </>
+                    )}
+                  </span>
+                </div>
+
+                {/* Progress Message */}
+                {notificationProgress && (
+                  <div className={`flex items-center gap-2 p-2 rounded-lg mb-3 text-xs ${
+                    notificationProgress.includes('успешно')
+                      ? 'bg-green-100 text-green-800'
+                      : notificationProgress.includes('Грешка')
+                      ? 'bg-red-100 text-red-800'
+                      : 'bg-blue-100 text-blue-800'
+                  }`}>
+                    {isSendingNotifications && (
+                      <svg className="animate-spin h-3.5 w-3.5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                    )}
+                    <span className="font-medium">{notificationProgress}</span>
+                  </div>
                 )}
-                <span className="text-sm font-medium">{notificationProgress}</span>
+
+                {/* Send Button */}
+                <button
+                  onClick={handleSendNotifications}
+                  disabled={!allConfigsCompleted || isSendingNotifications || isValidationPending}
+                  className={`w-full px-3 py-2.5 rounded-lg font-bold transition-all flex items-center justify-center gap-2 text-sm ${
+                    allConfigsCompleted && !isSendingNotifications && !isValidationPending
+                      ? 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                      : 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                  }`}
+                >
+                  {isSendingNotifications ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      <span>Изпращане...</span>
+                    </>
+                  ) : (
+                    <span>Изпрати за преглед</span>
+                  )}
+                </button>
+
+                {!allConfigsCompleted && (
+                  <p className="text-xs text-indigo-600 mt-2">
+                    Изисква завършени генерации
+                  </p>
+                )}
+                {allConfigsCompleted && isValidationPending && (
+                  <p className="text-xs text-indigo-600 mt-2">
+                    Поръчката е в &quot;Очаква валидация&quot;
+                  </p>
+                )}
               </div>
             )}
 
-            {/* Send Button */}
-            <button
-              onClick={handleSendNotifications}
-              disabled={!allConfigsCompleted || isSendingNotifications || isValidationPending}
-              className={`w-full px-4 py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 ${
-                allConfigsCompleted && !isSendingNotifications && !isValidationPending
-                  ? 'bg-indigo-600 hover:bg-indigo-700 text-white'
-                  : 'bg-gray-200 text-gray-500 cursor-not-allowed'
-              }`}
-            >
-              {isSendingNotifications ? (
-                <>
-                  <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            {/* Print File */}
+            <div className="bg-green-50 rounded-xl p-4 border border-green-200">
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-8 h-8 bg-green-600 rounded-lg flex items-center justify-center">
+                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
                   </svg>
-                  <span>Генериране и изпращане...</span>
+                </div>
+                <h4 className="font-bold text-green-900">Файл за печат</h4>
+              </div>
+
+              {order.print_file_r2_key ? (
+                <>
+                  <div className="grid grid-cols-2 gap-2 mb-3 text-xs">
+                    <div>
+                      <p className="font-bold text-green-800">Размер</p>
+                      <p className="text-green-700">{formatFileSize(order.print_file_size_bytes)}</p>
+                    </div>
+                    <div>
+                      <p className="font-bold text-green-800">Изтегляния</p>
+                      <p className="text-green-700">{order.download_count || 0}</p>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={handleDownload}
+                    disabled={isDownloading}
+                    className="w-full px-3 py-2.5 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg transition-all flex items-center justify-center gap-2 text-sm"
+                  >
+                    {isDownloading ? (
+                      <>
+                        <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <span>Изтегляне...</span>
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        <span>Изтегли</span>
+                      </>
+                    )}
+                  </button>
                 </>
               ) : (
-                <>
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                  </svg>
-                  <span>Генерирай PDF и изпрати известия</span>
-                </>
+                <div className="text-center py-4">
+                  <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                    <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                  </div>
+                  <p className="text-xs text-green-700">Все още не е генериран</p>
+                </div>
               )}
-            </button>
+            </div>
 
-            {!allConfigsCompleted && (
-              <p className="text-xs text-neutral-500">
-                Бутонът ще бъде активен когато всички книги имат завършени генерации.
-              </p>
-            )}
-            {allConfigsCompleted && isValidationPending && (
-              <p className="text-xs text-neutral-500">
-                Бутонът ще бъде активен когато поръчката не е в състояние &quot;Очаква валидация&quot;.
-              </p>
+            {/* Shipping Label */}
+            {order.bg_carriers_carrier === 'speedy' && (
+              <div className="bg-orange-50 rounded-xl p-4 border border-orange-200">
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="w-8 h-8 bg-orange-500 rounded-lg flex items-center justify-center">
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 4H6a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-2m-4-1v8m0 0l3-3m-3 3L9 8m-5 5h2.586a1 1 0 01.707.293l2.414 2.414a1 1 0 00.707.293h3.172a1 1 0 00.707-.293l2.414-2.414a1 1 0 01.707-.293H20" />
+                    </svg>
+                  </div>
+                  <h4 className="font-bold text-orange-900">Товарителница</h4>
+                </div>
+
+                {shippingLabelError && (
+                  <div className="mb-3 p-2 bg-red-100 text-red-800 rounded-lg text-xs">
+                    {shippingLabelError}
+                  </div>
+                )}
+
+                {shippingLabel ? (
+                  <>
+                    <div className="flex items-center gap-1.5 text-green-700 mb-3">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      <span className="text-xs font-bold">Създадена</span>
+                    </div>
+
+                    <div className="mb-3">
+                      <p className="text-xs font-bold text-orange-800">Номер</p>
+                      <p className="text-sm font-mono text-orange-700">{shippingLabel.shipmentId}</p>
+                    </div>
+
+                    <div className="flex gap-2">
+                      <a
+                        href={shippingLabel.trackingUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-1 inline-flex items-center justify-center gap-1 px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-lg transition-all text-xs"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                        </svg>
+                        Проследи
+                      </a>
+
+                      <button
+                        onClick={handleDeleteShippingLabel}
+                        disabled={isDeletingLabel}
+                        className={`px-3 py-2 rounded-lg font-bold transition-all text-xs ${
+                          isDeletingLabel
+                            ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                            : 'bg-red-100 hover:bg-red-200 text-red-700'
+                        }`}
+                      >
+                        {isDeletingLabel ? (
+                          <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                        ) : (
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        )}
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-xs text-orange-700 mb-3">
+                      Товарителница не е създадена
+                    </p>
+
+                    <button
+                      onClick={handleCreateShippingLabel}
+                      disabled={isCreatingLabel}
+                      className={`w-full px-3 py-2.5 rounded-lg font-bold transition-all flex items-center justify-center gap-2 text-sm ${
+                        isCreatingLabel
+                          ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                          : 'bg-orange-500 hover:bg-orange-600 text-white'
+                      }`}
+                    >
+                      {isCreatingLabel ? (
+                        <>
+                          <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          <span>Създаване...</span>
+                        </>
+                      ) : (
+                        <span>Генерирай</span>
+                      )}
+                    </button>
+                  </>
+                )}
+              </div>
             )}
           </div>
         </div>
       )}
-
-      {/* Print File Section (Admin View) */}
-      <div className="bg-white rounded-2xl shadow-warm p-4 border border-purple-100">
-        <h3 className="text-lg font-bold text-purple-900 mb-3">Файл за печат</h3>
-
-        {order.print_file_r2_key ? (
-          <div className="space-y-3">
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-              <div>
-                <p className="text-xs font-bold text-purple-900 mb-1">Размер</p>
-                <p className="text-sm text-neutral-700">{formatFileSize(order.print_file_size_bytes)}</p>
-              </div>
-              <div>
-                <p className="text-xs font-bold text-purple-900 mb-1">Генериран на</p>
-                <p className="text-sm text-neutral-700">
-                  {order.print_generated_at
-                    ? new Date(order.print_generated_at).toLocaleString('bg-BG')
-                    : '-'}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs font-bold text-purple-900 mb-1">Изтегляния</p>
-                <p className="text-sm text-neutral-700">{order.download_count || 0}</p>
-              </div>
-              <div>
-                <p className="text-xs font-bold text-purple-900 mb-1">Последно изтегляне</p>
-                <p className="text-sm text-neutral-700">
-                  {order.last_downloaded_at
-                    ? new Date(order.last_downloaded_at).toLocaleString('bg-BG')
-                    : '-'}
-                </p>
-              </div>
-            </div>
-
-            <button
-              onClick={handleDownload}
-              disabled={isDownloading}
-              className="w-full px-4 py-3 bg-green-600 hover:bg-green-700 text-white font-bold rounded-xl transition-all flex items-center justify-center gap-2"
-            >
-              {isDownloading ? (
-                <>
-                  <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  <span>Изтегляне...</span>
-                </>
-              ) : (
-                <>
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                  </svg>
-                  <span>Изтегли файл за печат</span>
-                </>
-              )}
-            </button>
-          </div>
-        ) : (
-          <div className="text-center py-6">
-            <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-3">
-              <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-            </div>
-            <p className="text-sm text-neutral-500">Файлът за печат все още не е генериран</p>
-            <p className="text-xs text-neutral-400 mt-1">Файлът ще бъде достъпен след преминаване в статус &quot;Готова за печат&quot;</p>
-          </div>
-        )}
-      </div>
 
       {/* Order Information */}
       <div className="bg-white rounded-2xl shadow-warm p-4 border border-purple-100">
@@ -761,127 +859,6 @@ export function OrderDetail({ order, currentUser, generationCounts = {}, complet
               </div>
             )}
           </div>
-        </div>
-      )}
-
-      {/* Speedy Shipping Label Section (Admin Only) */}
-      {isAdmin && order.bg_carriers_carrier === 'speedy' && (
-        <div className="bg-white rounded-2xl shadow-warm p-4 border border-orange-100">
-          <h3 className="text-lg font-bold text-orange-900 mb-3">
-            Товарителница Speedy
-          </h3>
-
-          {shippingLabelError && (
-            <div className="mb-3 p-3 bg-red-50 text-red-800 rounded-lg text-sm">
-              {shippingLabelError}
-            </div>
-          )}
-
-          {shippingLabel ? (
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 text-green-700">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                <span className="font-bold">Товарителницата е създадена</span>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <p className="text-xs font-bold text-orange-900 mb-1">Номер</p>
-                  <p className="text-sm font-mono text-neutral-700">{shippingLabel.shipmentId}</p>
-                </div>
-                <div>
-                  <p className="text-xs font-bold text-orange-900 mb-1">Създадена на</p>
-                  <p className="text-sm text-neutral-700">
-                    {shippingLabel.createdAt
-                      ? new Date(shippingLabel.createdAt).toLocaleString('bg-BG', {
-                          day: '2-digit',
-                          month: '2-digit',
-                          year: '2-digit',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })
-                      : '-'}
-                  </p>
-                </div>
-              </div>
-
-              <div className="flex gap-2">
-                <a
-                  href={shippingLabel.trackingUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold rounded-xl transition-all text-sm"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                  </svg>
-                  Проследи
-                </a>
-
-                <button
-                  onClick={handleDeleteShippingLabel}
-                  disabled={isDeletingLabel}
-                  className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition-all text-sm ${
-                    isDeletingLabel
-                      ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                      : 'bg-red-50 hover:bg-red-100 text-red-700'
-                  }`}
-                >
-                  {isDeletingLabel ? (
-                    <>
-                      <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      <span>Анулиране...</span>
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                      <span>Анулирай</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <p className="text-sm text-neutral-600">
-                Товарителница все още не е създадена за тази поръчка.
-              </p>
-
-              <button
-                onClick={handleCreateShippingLabel}
-                disabled={isCreatingLabel}
-                className={`w-full px-4 py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 ${
-                  isCreatingLabel
-                    ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                    : 'bg-orange-500 hover:bg-orange-600 text-white'
-                }`}
-              >
-                {isCreatingLabel ? (
-                  <>
-                    <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    <span>Създаване...</span>
-                  </>
-                ) : (
-                  <>
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 4H6a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-2m-4-1v8m0 0l3-3m-3 3L9 8m-5 5h2.586a1 1 0 01.707.293l2.414 2.414a1 1 0 00.707.293h3.172a1 1 0 00.707-.293l2.414-2.414a1 1 0 01.707-.293H20" />
-                    </svg>
-                    <span>Генерирай товарителница</span>
-                  </>
-                )}
-              </button>
-            </div>
-          )}
         </div>
       )}
 
