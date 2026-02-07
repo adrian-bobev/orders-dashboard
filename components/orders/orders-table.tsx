@@ -120,63 +120,58 @@ export function OrdersTable({ initialOrders, currentUser }: OrdersTableProps) {
 
   return (
     <div className="space-y-4">
-      {/* Filters Section */}
-      <div className="bg-white rounded-2xl shadow-warm border border-purple-100 overflow-hidden">
-        <div className="p-4 md:p-6 border-b-2 border-purple-100 space-y-4">
-        {/* Search */}
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder={isAdmin ? 'Търси...' : 'Търси по номер...'}
-          className="w-full px-4 py-3 text-base border-2 border-purple-200 rounded-xl focus:ring-2 focus:ring-purple-200 focus:border-purple-400 outline-none transition-all"
-        />
-
-        {/* Status Filter - Dropdown style for better mobile UX */}
-        <div>
-          <label className="block text-xs font-bold text-purple-900 mb-2 uppercase">
-            Статус
-          </label>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as OrderStatus | 'ALL')}
-            className="w-full px-4 py-3 text-base border-2 border-purple-200 rounded-xl focus:ring-2 focus:ring-purple-200 focus:border-purple-400 outline-none transition-all bg-white font-bold text-purple-900"
-          >
-            <option value="ALL">Всички</option>
-            {isAdmin &&
-              (
-                [
-                  'NEW',
-                  'VALIDATION_PENDING',
-                  'READY_FOR_PRINT',
-                  'PRINTING',
-                  'IN_TRANSIT',
-                  'COMPLETED',
-                  'REJECTED',
-                ] as OrderStatus[]
-              ).map((status) => (
-                <option key={status} value={status}>
-                  {STATUS_LABELS[status]}
-                </option>
-              ))}
-            {isViewer &&
-              viewerStatuses.map((status) => (
-                <option key={status} value={status}>
-                  {STATUS_LABELS[status]}
-                </option>
-              ))}
-          </select>
-        </div>
-
-        {/* Results Count */}
-        <div className="text-neutral-600 text-sm">
-          {filteredOrders.length} от {orders.length} поръчки
-        </div>
-      </div>
-      </div>
-
       {/* Table Container */}
-      <div className="bg-white rounded-2xl shadow-warm border border-purple-100 overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-warm border border-purple-100">
+        {/* Filters */}
+        <div className="p-4 border-b border-purple-100 flex flex-wrap gap-4 items-center">
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-neutral-600">Статус:</label>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as OrderStatus | 'ALL')}
+              className="border border-purple-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-purple-400"
+            >
+              <option value="ALL">Всички</option>
+              {isAdmin &&
+                (
+                  [
+                    'NEW',
+                    'VALIDATION_PENDING',
+                    'READY_FOR_PRINT',
+                    'PRINTING',
+                    'IN_TRANSIT',
+                    'COMPLETED',
+                    'REJECTED',
+                  ] as OrderStatus[]
+                ).map((status) => (
+                  <option key={status} value={status}>
+                    {STATUS_LABELS[status]}
+                  </option>
+                ))}
+              {isViewer &&
+                viewerStatuses.map((status) => (
+                  <option key={status} value={status}>
+                    {STATUS_LABELS[status]}
+                  </option>
+                ))}
+            </select>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-neutral-600">{isAdmin ? 'Търси:' : 'Поръчка №:'}</label>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder={isAdmin ? 'име, имейл, номер...' : 'напр. 12345'}
+              className="border border-purple-200 rounded-lg px-3 py-1.5 text-sm w-40 focus:outline-none focus:ring-2 focus:ring-purple-400"
+            />
+          </div>
+
+          <div className="ml-auto text-sm text-neutral-500">
+            {filteredOrders.length} / {orders.length} поръчки
+          </div>
+        </div>
       {filteredOrders.length === 0 ? (
         <div className="text-center py-16 px-4">
           <div className="w-20 h-20 bg-gradient-to-br from-purple-100 to-purple-200 rounded-full flex items-center justify-center mx-auto mb-4 shadow-warm">
