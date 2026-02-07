@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useCallback, useEffect, useRef } from 'react'
+import { useRouter } from 'next/navigation'
 import type { Job, JobType, JobStatus } from '@/lib/queue/types'
 
 interface JobsTableProps {
@@ -70,7 +71,19 @@ function getWooOrderId(job: Job): string | null {
   return null
 }
 
+function getOrderId(job: Job): string | null {
+  const payload = job.payload as Record<string, unknown> | null
+  if (!payload) return null
+
+  // Get the internal order UUID
+  if ('orderId' in payload && typeof payload.orderId === 'string') {
+    return payload.orderId
+  }
+  return null
+}
+
 export function JobsTable({ initialJobs, initialTotal }: JobsTableProps) {
+  const router = useRouter()
   const [jobs, setJobs] = useState<Job[]>(initialJobs)
   const [total, setTotal] = useState(initialTotal)
   const [loading, setLoading] = useState(false)
@@ -297,55 +310,70 @@ export function JobsTable({ initialJobs, initialTotal }: JobsTableProps) {
             </tr>
           </thead>
           <tbody className="divide-y divide-purple-100">
-            {jobs.map((job) => (
-              <tr key={job.id} className="hover:bg-purple-50/50">
-                <td className="px-4 py-3">
-                  <button
-                    onClick={() => setSelectedJob(job)}
-                    className="text-sm font-bold text-purple-600 hover:underline"
-                  >
-                    #{getWooOrderId(job) || job.id.slice(0, 8)}
-                  </button>
-                </td>
-                <td className="px-4 py-3 text-sm text-neutral-700">
-                  {TYPE_LABELS[job.type]}
-                </td>
-                <td className="px-4 py-3">
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[job.status]}`}>
-                    {STATUS_LABELS[job.status]}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-sm text-neutral-600">
-                  {formatDate(job.created_at)}
-                </td>
-                <td className="px-4 py-3 text-sm text-neutral-600">
-                  {formatDuration(job.started_at, job.completed_at)}
-                </td>
-                <td className="px-4 py-3 text-sm text-neutral-600">
-                  {job.retry_count} / {job.max_retries}
-                </td>
-                <td className="px-4 py-3">
-                  <div className="flex gap-2">
-                    {(job.status === 'failed' || job.status === 'cancelled') && (
-                      <button
-                        onClick={() => handleRetrigger(job.id)}
-                        className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
-                      >
-                        Повтори
-                      </button>
-                    )}
-                    {job.status === 'pending' && (
-                      <button
-                        onClick={() => handleCancel(job.id)}
-                        className="text-xs px-2 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200"
-                      >
-                        Отмени
-                      </button>
-                    )}
-                  </div>
-                </td>
-              </tr>
-            ))}
+            {jobs.map((job) => {
+              const orderId = getOrderId(job)
+              return (
+                <tr
+                  key={job.id}
+                  className={`hover:bg-purple-50/50 ${orderId ? 'cursor-pointer' : ''}`}
+                  onClick={() => {
+                    if (orderId) {
+                      router.push(`/orders/${orderId}`)
+                    }
+                  }}
+                >
+                  <td className="px-4 py-3">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setSelectedJob(job)
+                      }}
+                      className="text-sm font-bold text-purple-600 hover:underline"
+                      title="Виж детайли за задачата"
+                    >
+                      #{getWooOrderId(job) || job.id.slice(0, 8)}
+                    </button>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-neutral-700">
+                    {TYPE_LABELS[job.type]}
+                  </td>
+                  <td className="px-4 py-3">
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${STATUS_COLORS[job.status]}`}>
+                      {STATUS_LABELS[job.status]}
+                    </span>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-neutral-600">
+                    {formatDate(job.created_at)}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-neutral-600">
+                    {formatDuration(job.started_at, job.completed_at)}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-neutral-600">
+                    {job.retry_count} / {job.max_retries}
+                  </td>
+                  <td className="px-4 py-3">
+                    <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+                      {(job.status === 'failed' || job.status === 'cancelled') && (
+                        <button
+                          onClick={() => handleRetrigger(job.id)}
+                          className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                        >
+                          Повтори
+                        </button>
+                      )}
+                      {job.status === 'pending' && (
+                        <button
+                          onClick={() => handleCancel(job.id)}
+                          className="text-xs px-2 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200"
+                        >
+                          Отмени
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              )
+            })}
             {jobs.length === 0 && (
               <tr>
                 <td colSpan={7} className="px-4 py-8 text-center text-neutral-500">
