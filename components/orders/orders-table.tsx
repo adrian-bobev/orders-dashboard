@@ -152,6 +152,7 @@ export function OrdersTable({ initialOrders, currentUser }: OrdersTableProps) {
                   'PRINTING',
                   'IN_TRANSIT',
                   'COMPLETED',
+                  'REJECTED',
                 ] as OrderStatus[]
               ).map((status) => (
                 <option key={status} value={status}>
