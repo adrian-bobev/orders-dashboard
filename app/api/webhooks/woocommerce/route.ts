@@ -150,38 +150,42 @@ export async function POST(request: NextRequest) {
       const orderId = payloadData.arg;
       console.log('📋 WooCommerce Order ID:', orderId);
 
-      const statusUpdateResult = await updateOrderStatusByWooCommerceId(orderId, 'READY_FOR_PRINT');
+      // Find the order in our database
+      const { createServiceRoleClient } = await import('@/lib/supabase/server');
+      const supabase = createServiceRoleClient();
+      const { data: order, error: findError } = await supabase
+        .from('orders')
+        .select('id')
+        .eq('woocommerce_order_id', orderId)
+        .single();
 
-      if (statusUpdateResult.success) {
-        console.log(`✅ Order ${statusUpdateResult.orderId} marked as READY_FOR_PRINT`);
+      if (findError || !order) {
+        console.error(`❌ Order with WooCommerce ID ${orderId} not found`);
+        return NextResponse.json({ success: false, error: `Order not found` }, { status: 404 });
+      }
 
-        try {
-          console.log('🖨️ Queuing print generation job...');
-          const result = await queueJob('PRINT_GENERATION', {
-            woocommerceOrderId: orderId,
-            orderId: statusUpdateResult.orderId || '',
-          }, { priority: 5 });
+      // Queue print generation job (status will be updated to READY_FOR_PRINT after ZIP upload)
+      try {
+        console.log('🖨️ Queuing print generation job...');
+        const result = await queueJob('PRINT_GENERATION', {
+          woocommerceOrderId: orderId,
+          orderId: order.id,
+        }, { priority: 5 });
 
-          console.log(`✅ Print generation job queued: ${result.jobId}`);
+        console.log(`✅ Print generation job queued: ${result.jobId}`);
 
-          return NextResponse.json({
-            success: true,
-            message: 'Order approved and print job queued',
-            orderId: statusUpdateResult.orderId,
-            jobId: result.jobId,
-          });
-        } catch (queueError) {
-          console.error('❌ Failed to queue print generation job:', queueError);
-          return NextResponse.json({
-            success: true,
-            message: 'Order approved but failed to queue print job',
-            orderId: statusUpdateResult.orderId,
-            error: queueError instanceof Error ? queueError.message : 'Unknown error',
-          });
-        }
-      } else {
-        console.error(`❌ Failed to update order status: ${statusUpdateResult.error}`);
-        return NextResponse.json({ success: false, error: statusUpdateResult.error }, { status: 500 });
+        return NextResponse.json({
+          success: true,
+          message: 'Order approved and print job queued',
+          orderId: order.id,
+          jobId: result.jobId,
+        });
+      } catch (queueError) {
+        console.error('❌ Failed to queue print generation job:', queueError);
+        return NextResponse.json({
+          success: false,
+          error: queueError instanceof Error ? queueError.message : 'Unknown error',
+        }, { status: 500 });
       }
     }
 

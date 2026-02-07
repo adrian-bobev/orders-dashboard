@@ -7,7 +7,7 @@ import { queueJob } from '@/lib/queue/client'
  * POST /api/orders/[id]/send-notifications
  *
  * Queues a job to generate preview images (uploaded to R2) and send notifications (Telegram + Email).
- * Also updates order status to VALIDATION_PENDING.
+ * Order status is updated to VALIDATION_PENDING after preview upload completes in the worker.
  *
  * Prerequisites:
  * - All book configurations must have at least one completed generation
@@ -114,19 +114,8 @@ export async function POST(
 
     const wooOrderId = order.woocommerce_order_id.toString()
 
-    // Update order status to VALIDATION_PENDING
-    const { error: statusError } = await supabase
-      .from('orders')
-      .update({ status: 'VALIDATION_PENDING' })
-      .eq('id', order.id)
-
-    if (statusError) {
-      console.error('📤 Error updating order status:', statusError)
-    } else {
-      console.log('📤 Order status updated to VALIDATION_PENDING')
-    }
-
     // Queue preview generation job with notification details
+    // Status will be updated to VALIDATION_PENDING after preview upload completes
     const { jobId } = await queueJob('PREVIEW_GENERATION', {
       orderId: order.id,
       wooOrderId,

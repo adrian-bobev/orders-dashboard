@@ -98,6 +98,7 @@ export async function handlePrintGeneration(
   // Upload combined ZIP to R2
   let r2Key: string | undefined
   let fileSize: number | undefined
+  let uploadSuccess = false
 
   if (result.combinedZipBuffer) {
     try {
@@ -106,6 +107,7 @@ export async function handlePrintGeneration(
       const uploadResult = await uploadPrintFile(woocommerceOrderId, result.combinedZipBuffer)
       r2Key = uploadResult.r2Key
       fileSize = uploadResult.fileSize
+      uploadSuccess = true
 
       logger.info('Print ZIP uploaded to R2', {
         jobId: job.id,
@@ -113,11 +115,12 @@ export async function handlePrintGeneration(
         fileSize,
       })
 
-      // Update order record with print file info
+      // Update order record with print file info AND status to READY_FOR_PRINT
       const supabase = await getSupabaseClient()
       const { error: updateError } = await supabase
         .from('orders')
         .update({
+          status: 'READY_FOR_PRINT',
           print_file_r2_key: r2Key,
           print_file_size_bytes: fileSize,
           print_generated_at: new Date().toISOString(),
@@ -130,49 +133,70 @@ export async function handlePrintGeneration(
           error: updateError.message,
         })
       } else {
-        logger.info('Order updated with print file info', { jobId: job.id })
+        logger.info('Order updated with print file info and status READY_FOR_PRINT', { jobId: job.id })
       }
     } catch (uploadError) {
       logger.error('Failed to upload print ZIP to R2', {
         jobId: job.id,
         error: uploadError instanceof Error ? uploadError.message : String(uploadError),
       })
-      // Don't fail the job - the print was generated successfully
+
+      // Send error notification for upload failure
+      try {
+        const { sendErrorNotification } = await import(
+          '../../lib/services/telegram-service'
+        )
+        await sendErrorNotification({
+          orderId: result.orderId,
+          orderNumber: result.orderNumber,
+          errorMessage: `Failed to upload print ZIP: ${uploadError instanceof Error ? uploadError.message : String(uploadError)}`,
+          context: 'Качване на файл за печат',
+        })
+      } catch (notificationError) {
+        logger.warn('Failed to send error notification', {
+          jobId: job.id,
+          error: notificationError instanceof Error ? notificationError.message : String(notificationError),
+        })
+      }
+
+      throw uploadError
     }
   }
 
-  // Send Telegram notification on success
-  try {
-    const { sendSentToPrintNotification, sendErrorNotification } = await import(
-      '../../lib/services/telegram-service'
-    )
+  // Send Telegram notification on success (only if upload was successful)
+  if (uploadSuccess) {
+    try {
+      const { sendSentToPrintNotification, sendErrorNotification } = await import(
+        '../../lib/services/telegram-service'
+      )
 
-    await sendSentToPrintNotification({
-      orderId: result.orderId,
-      orderNumber: result.orderNumber,
-      bookCount: result.books.length,
-      books: result.books.map((b) => ({
-        childName: b.childName,
-        storyName: b.storyName,
-      })),
-    })
-
-    logger.info('Telegram notification sent', { jobId: job.id })
-
-    // If there was a partial failure, also send error notification
-    if (result.error) {
-      await sendErrorNotification({
+      await sendSentToPrintNotification({
         orderId: result.orderId,
         orderNumber: result.orderNumber,
-        errorMessage: result.error,
-        context: 'Генериране на книги за печат (частичен неуспех)',
+        bookCount: result.books.length,
+        books: result.books.map((b) => ({
+          childName: b.childName,
+          storyName: b.storyName,
+        })),
+      })
+
+      logger.info('Telegram notification sent', { jobId: job.id })
+
+      // If there was a partial failure, also send error notification
+      if (result.error) {
+        await sendErrorNotification({
+          orderId: result.orderId,
+          orderNumber: result.orderNumber,
+          errorMessage: result.error,
+          context: 'Генериране на книги за печат (частичен неуспех)',
+        })
+      }
+    } catch (notificationError) {
+      logger.warn('Failed to send Telegram notification', {
+        jobId: job.id,
+        error: notificationError instanceof Error ? notificationError.message : String(notificationError),
       })
     }
-  } catch (notificationError) {
-    logger.warn('Failed to send Telegram notification', {
-      jobId: job.id,
-      error: notificationError instanceof Error ? notificationError.message : String(notificationError),
-    })
   }
 
   return {

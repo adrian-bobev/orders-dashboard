@@ -7,6 +7,11 @@ async function getGenerateOrderPreviews() {
   return generateOrderPreviews
 }
 
+async function getSupabaseClient() {
+  const { createServiceRoleClient } = await import('../../lib/supabase/server')
+  return createServiceRoleClient()
+}
+
 /**
  * Handle PREVIEW_GENERATION jobs
  * Generates watermarked preview images for customer review
@@ -42,6 +47,35 @@ export async function handlePreviewGeneration(
       jobId: job.id,
       orderId,
     })
+
+    // Update order status to VALIDATION_PENDING after preview upload completes
+    try {
+      const supabase = await getSupabaseClient()
+      const { error: updateError } = await supabase
+        .from('orders')
+        .update({ status: 'VALIDATION_PENDING' })
+        .eq('id', orderId)
+
+      if (updateError) {
+        logger.error('Failed to update order status to VALIDATION_PENDING', {
+          jobId: job.id,
+          orderId,
+          error: updateError.message,
+        })
+      } else {
+        logger.info('Order status updated to VALIDATION_PENDING', {
+          jobId: job.id,
+          orderId,
+        })
+      }
+    } catch (statusError) {
+      logger.error('Error updating order status', {
+        jobId: job.id,
+        orderId,
+        error: statusError instanceof Error ? statusError.message : String(statusError),
+      })
+      // Don't fail the job - preview was generated successfully
+    }
 
     // Send notifications if requested
     if (sendNotifications && customerEmail && books) {
