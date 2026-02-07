@@ -54,6 +54,16 @@ export interface ErrorNotificationData {
 }
 
 /**
+ * Order rejected notification data structure
+ */
+export interface OrderRejectedNotificationData {
+  orderId: string;
+  orderNumber: string;
+  bookCount: number;
+  books: BookInfo[];
+}
+
+/**
  * Format message for Telegram notification
  */
 function formatOrderMessage(data: OrderNotificationData): string {
@@ -124,6 +134,26 @@ function formatErrorMessage(data: ErrorNotificationData): string {
 <b>Поръчка №:</b> ${data.orderNumber}
 ${data.context ? `<b>Контекст:</b> ${data.context}\n` : ''}
 <b>Грешка:</b> ${data.errorMessage}
+
+<a href="${orderUrl}">🔗 Преглед на поръчката</a>`;
+}
+
+/**
+ * Format message for order rejected notification
+ */
+function formatOrderRejectedMessage(data: OrderRejectedNotificationData): string {
+  const dashboardUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  const orderUrl = `${dashboardUrl}/orders/${data.orderId}`;
+
+  const bookList = data.books.map((book, i) => `  ${i + 1}. ${book.childName} – „${book.storyName}"`).join('\n');
+
+  return `🚫 <b>Поръчка ОТКАЗАНА от клиента!</b>
+
+<b>Поръчка №:</b> ${data.orderNumber}
+<b>Брой книги:</b> ${data.bookCount}
+
+<b>Книги:</b>
+${bookList}
 
 <a href="${orderUrl}">🔗 Преглед на поръчката</a>`;
 }
@@ -301,6 +331,50 @@ export async function sendErrorNotification(
     console.log('✅ Error Telegram notification sent successfully');
   } catch (error) {
     console.error('❌ Failed to send error notification:', error);
+    // Don't throw - this is a non-critical operation
+  }
+}
+
+/**
+ * Send notification when order is rejected by customer
+ * Non-blocking - logs errors but never throws
+ */
+export async function sendOrderRejectedNotification(
+  data: OrderRejectedNotificationData
+): Promise<void> {
+  const botToken = process.env.TELEGRAM_BOT_TOKEN;
+  const chatId = process.env.TELEGRAM_CHAT_ID;
+
+  // Silent skip if credentials not configured
+  if (!botToken || !chatId) {
+    console.warn('⚠️  Telegram credentials not configured, skipping rejection notification');
+    return;
+  }
+
+  try {
+    const message = formatOrderRejectedMessage(data);
+    const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
+
+    console.log('📱 Sending "Order Rejected" Telegram notification...');
+    console.log('   Order:', data.orderNumber);
+    console.log('   Book count:', data.bookCount);
+
+    const response = await postJson(url, {
+      chat_id: chatId,
+      text: message,
+      parse_mode: 'HTML',
+    });
+
+    if (response.status !== 200 || !response.data?.ok) {
+      console.error('❌ Telegram API returned error:');
+      console.error('   Status:', response.status);
+      console.error('   Response:', JSON.stringify(response.data, null, 2));
+      return;
+    }
+
+    console.log('✅ "Order Rejected" Telegram notification sent successfully');
+  } catch (error) {
+    console.error('❌ Failed to send "Order Rejected" notification:', error);
     // Don't throw - this is a non-critical operation
   }
 }

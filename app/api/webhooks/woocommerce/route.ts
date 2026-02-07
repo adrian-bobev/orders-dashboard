@@ -195,10 +195,58 @@ export async function POST(request: NextRequest) {
       const orderId = payloadData.arg;
       console.log('📋 WooCommerce Order ID:', orderId);
 
+      // Find the order to get details for notification
+      const { createServiceRoleClient } = await import('@/lib/supabase/server');
+      const supabase = createServiceRoleClient();
+      const { data: order } = await supabase
+        .from('orders')
+        .select(`
+          id,
+          order_number,
+          line_items!line_items_order_id_fkey (
+            id,
+            product_name,
+            book_configurations!book_configurations_line_item_id_fkey (
+              id,
+              name,
+              content
+            )
+          )
+        `)
+        .eq('woocommerce_order_id', orderId)
+        .single();
+
       const statusUpdateResult = await updateOrderStatusByWooCommerceId(orderId, 'REJECTED');
 
       if (statusUpdateResult.success) {
         console.log(`✅ Order ${statusUpdateResult.orderId} marked as REJECTED`);
+
+        // Send Telegram notification
+        if (order) {
+          try {
+            const { sendOrderRejectedNotification } = await import('@/lib/services/telegram-service');
+            const books: { childName: string; storyName: string }[] = [];
+            for (const li of order.line_items || []) {
+              for (const bc of li.book_configurations || []) {
+                const content = bc.content as { title?: string } | null;
+                books.push({
+                  childName: bc.name,
+                  storyName: content?.title || li.product_name,
+                });
+              }
+            }
+
+            await sendOrderRejectedNotification({
+              orderId: order.id,
+              orderNumber: order.order_number || orderId.toString(),
+              bookCount: books.length,
+              books,
+            });
+          } catch (notificationError) {
+            console.error('⚠️ Failed to send rejection notification:', notificationError);
+          }
+        }
+
         return NextResponse.json({
           success: true,
           message: 'Order rejected',

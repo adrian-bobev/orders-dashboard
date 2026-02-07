@@ -23,6 +23,7 @@ const STATUS_LABELS: Record<OrderStatus, string> = {
   PRINTING: 'В печат',
   IN_TRANSIT: 'В транзит',
   COMPLETED: 'Завършена',
+  REJECTED: 'Отказана',
 }
 
 const STATUS_COLORS: Record<OrderStatus, string> = {
@@ -32,6 +33,7 @@ const STATUS_COLORS: Record<OrderStatus, string> = {
   PRINTING: 'bg-purple-100 text-purple-800 border-purple-200',
   IN_TRANSIT: 'bg-orange-100 text-orange-800 border-orange-200',
   COMPLETED: 'bg-green-100 text-green-800 border-green-200',
+  REJECTED: 'bg-red-100 text-red-800 border-red-200',
 }
 
 export function OrderDetail({ order, currentUser, generationCounts = {}, completedConfigs = {} }: OrderDetailProps) {
@@ -389,6 +391,7 @@ export function OrderDetail({ order, currentUser, generationCounts = {}, complet
                   'PRINTING',
                   'IN_TRANSIT',
                   'COMPLETED',
+                  'REJECTED',
                 ] as OrderStatus[]
               ).map((status) => (
                 <option key={status} value={status}>
