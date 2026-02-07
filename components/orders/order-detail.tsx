@@ -60,6 +60,7 @@ export function OrderDetail({ order, currentUser, generationCounts = {}, complet
         }
       : null
   )
+  const [isStatusHistoryExpanded, setIsStatusHistoryExpanded] = useState(false)
 
   const isAdmin = currentUser.role === 'admin'
   const isViewer = currentUser.role === 'viewer'
@@ -358,49 +359,59 @@ export function OrderDetail({ order, currentUser, generationCounts = {}, complet
     <div className="space-y-4">
       {/* Status Section */}
       <div className="bg-white rounded-2xl shadow-warm p-4 border border-purple-100">
-        <h3 className="text-lg font-bold text-purple-900 mb-3">Статус</h3>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          {/* Current Status */}
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center">
+              <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-xs font-bold text-purple-600 uppercase tracking-wide">Статус</p>
+              <span
+                className={`inline-flex items-center px-3 py-1 rounded-lg text-sm font-bold border ${STATUS_COLORS[currentStatus]}`}
+              >
+                {STATUS_LABELS[currentStatus]}
+              </span>
+            </div>
+            {isUpdatingStatus && (
+              <svg className="animate-spin h-5 w-5 text-purple-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            )}
+          </div>
 
-        <div className="flex items-center gap-3 mb-4 flex-wrap">
-          <span
-            className={`inline-flex items-center px-4 py-2 rounded-xl text-base font-bold border-2 ${STATUS_COLORS[currentStatus]}`}
-          >
-            {STATUS_LABELS[currentStatus]}
-          </span>
-          {isUpdatingStatus && (
-            <span className="text-neutral-600 text-sm">Актуализира се...</span>
+          {/* Status Change (Admin Only) */}
+          {isAdmin && (
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-bold text-neutral-500 hidden sm:inline">Промени на:</span>
+              <select
+                value={currentStatus}
+                onChange={(e) => handleStatusChange(e.target.value as OrderStatus)}
+                disabled={isUpdatingStatus}
+                className="px-3 py-2 text-sm border-2 border-purple-200 rounded-xl focus:ring-2 focus:ring-purple-200 focus:border-purple-400 outline-none transition-all bg-white font-bold text-purple-900 disabled:opacity-50 disabled:cursor-not-allowed min-w-[180px]"
+              >
+                {(
+                  [
+                    'NEW',
+                    'VALIDATION_PENDING',
+                    'READY_FOR_PRINT',
+                    'PRINTING',
+                    'IN_TRANSIT',
+                    'COMPLETED',
+                    'REJECTED',
+                  ] as OrderStatus[]
+                ).map((status) => (
+                  <option key={status} value={status}>
+                    {STATUS_LABELS[status]}
+                  </option>
+                ))}
+              </select>
+            </div>
           )}
         </div>
-
-        {/* Status Change Buttons (Admin Only) */}
-        {isAdmin && (
-          <div>
-            <p className="text-sm font-bold text-purple-900 mb-3">
-              Промени статуса на:
-            </p>
-            <select
-              value={currentStatus}
-              onChange={(e) => handleStatusChange(e.target.value as OrderStatus)}
-              disabled={isUpdatingStatus}
-              className="w-full px-4 py-2 text-base border-2 border-purple-200 rounded-xl focus:ring-2 focus:ring-purple-200 focus:border-purple-400 outline-none transition-all bg-white font-bold text-purple-900 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {(
-                [
-                  'NEW',
-                  'VALIDATION_PENDING',
-                  'READY_FOR_PRINT',
-                  'PRINTING',
-                  'IN_TRANSIT',
-                  'COMPLETED',
-                  'REJECTED',
-                ] as OrderStatus[]
-              ).map((status) => (
-                <option key={status} value={status}>
-                  {STATUS_LABELS[status]}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
       </div>
 
       {/* Actions Section (Admin Only) - Grouped Preview, Print File, and Shipping Label */}
@@ -1136,31 +1147,60 @@ export function OrderDetail({ order, currentUser, generationCounts = {}, complet
 
       {/* Status History */}
       {order.order_status_history && order.order_status_history.length > 0 && (
-        <div className="bg-white rounded-2xl shadow-warm p-4 border border-purple-100">
-          <h3 className="text-lg font-bold text-purple-900 mb-3">
-            История на статуса
-          </h3>
+        <div className="bg-white rounded-2xl shadow-warm border border-purple-100 overflow-hidden">
+          <button
+            onClick={() => setIsStatusHistoryExpanded(!isStatusHistoryExpanded)}
+            className="w-full px-4 py-3 flex items-center justify-between hover:bg-purple-50 transition-colors"
+          >
+            <div className="flex items-center gap-2">
+              <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <h3 className="text-base font-bold text-purple-900">
+                История на статуса
+              </h3>
+              <span className="text-xs font-bold text-purple-600 bg-purple-100 px-2 py-0.5 rounded-full">
+                {order.order_status_history.length}
+              </span>
+            </div>
+            <svg
+              className={`w-5 h-5 text-purple-600 transition-transform ${isStatusHistoryExpanded ? 'rotate-180' : ''}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
 
-          <div className="space-y-3">
-            {order.order_status_history.map((history: any) => (
-              <div
-                key={history.id}
-                className="flex items-center gap-3 pb-3 border-b-2 border-purple-100 last:border-0"
-              >
+          {isStatusHistoryExpanded && (
+            <div className="px-4 pb-4 space-y-2">
+              {order.order_status_history.map((history: any) => (
                 <div
-                  className={`w-4 h-4 rounded-full ${STATUS_COLORS[history.status as OrderStatus].split(' ')[0]}`}
-                ></div>
-                <div className="flex-1">
-                  <p className="font-bold text-purple-900">
-                    {STATUS_LABELS[history.status as OrderStatus]}
-                  </p>
-                  <p className="text-sm text-neutral-600">
-                    {new Date(history.changed_at).toLocaleString('bg-BG')}
-                  </p>
+                  key={history.id}
+                  className="flex items-center gap-3 py-2 border-b border-purple-100 last:border-0"
+                >
+                  <div
+                    className={`w-3 h-3 rounded-full flex-shrink-0 ${STATUS_COLORS[history.status as OrderStatus].split(' ')[0]}`}
+                  ></div>
+                  <div className="flex-1 flex items-center justify-between">
+                    <p className="font-bold text-purple-900 text-sm">
+                      {STATUS_LABELS[history.status as OrderStatus]}
+                    </p>
+                    <p className="text-xs text-neutral-500">
+                      {new Date(history.changed_at).toLocaleString('bg-BG', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
