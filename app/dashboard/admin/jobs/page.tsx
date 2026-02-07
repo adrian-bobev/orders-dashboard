@@ -29,7 +29,7 @@ export default async function AdminJobsPage() {
   ])
 
   return (
-    <div className="space-y-4 animate-fade-in">
+    <div className="space-y-4">
       <div className="bg-white rounded-2xl shadow-warm p-5 border border-purple-100">
         <div className="flex items-center gap-4">
           <div className="w-12 h-12 bg-purple-600 rounded-2xl flex items-center justify-center shadow-warm">

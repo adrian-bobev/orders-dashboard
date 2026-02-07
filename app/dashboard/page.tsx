@@ -25,7 +25,7 @@ export default async function DashboardPage() {
   }
 
   return (
-    <div className="space-y-4 animate-fade-in">
+    <div className="space-y-4">
       {/* Welcome Card */}
       <div className="bg-white rounded-2xl shadow-warm p-5 border border-purple-100">
         <div className="flex items-start justify-between gap-4">
