@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/services/user-service'
 import { createClient } from '@/lib/supabase/server'
-import { createShippingLabel } from '@/lib/services/speedy-service'
+import { createShippingLabel, cancelShippingLabel } from '@/lib/services/speedy-service'
 import { Agent, fetch as undiciFetch } from 'undici'
 
 /**
@@ -277,6 +277,126 @@ export async function GET(
     return NextResponse.json(
       {
         error: 'Failed to fetch shipping label info',
+        details: error instanceof Error ? error.message : 'Unknown error',
+      },
+      { status: 500 }
+    )
+  }
+}
+
+/**
+ * Delete WooCommerce order meta data
+ */
+async function deleteWooCommerceOrderMeta(
+  woocommerceOrderId: number,
+  keys: string[]
+): Promise<void> {
+  const storeUrl = process.env.WOOCOMMERCE_STORE_URL
+  const consumerKey = process.env.WOOCOMMERCE_CONSUMER_KEY
+  const consumerSecret = process.env.WOOCOMMERCE_CONSUMER_SECRET
+
+  if (!storeUrl || !consumerKey || !consumerSecret) {
+    console.warn('WooCommerce API credentials not configured, skipping meta delete')
+    return
+  }
+
+  const url = `${storeUrl}/wp-json/wc/v3/orders/${woocommerceOrderId}`
+  const auth = Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64')
+
+  // To delete meta, set the value to empty string
+  const metaData = keys.map(key => ({ key, value: '' }))
+
+  const fetchOptions: Parameters<typeof undiciFetch>[1] = {
+    method: 'PUT',
+    headers: {
+      'Authorization': `Basic ${auth}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ meta_data: metaData }),
+  }
+
+  if (process.env.ALLOW_SELF_SIGNED_CERTS === 'true') {
+    fetchOptions.dispatcher = new Agent({
+      connect: {
+        rejectUnauthorized: false,
+      },
+    })
+  }
+
+  const response = await undiciFetch(url, fetchOptions)
+
+  if (!response.ok) {
+    const errorText = await response.text()
+    console.error(`Failed to delete WooCommerce order meta: ${response.status} ${errorText}`)
+  } else {
+    console.log(`[WooCommerce] Deleted order ${woocommerceOrderId} meta:`, keys.join(', '))
+  }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    // Admin-only authentication
+    const authResult = await requireAdmin()
+    if (authResult instanceof NextResponse) return authResult
+
+    const { id: orderId } = await params
+    const supabase = await createClient()
+
+    // Fetch order with shipment info
+    const { data: order, error: orderError } = await supabase
+      .from('orders')
+      .select('id, woocommerce_order_id, speedy_shipment_id')
+      .eq('id', orderId)
+      .single()
+
+    if (orderError || !order) {
+      return NextResponse.json({ error: 'Order not found' }, { status: 404 })
+    }
+
+    if (!order.speedy_shipment_id) {
+      return NextResponse.json(
+        { error: 'No shipping label exists for this order' },
+        { status: 400 }
+      )
+    }
+
+    const shipmentId = order.speedy_shipment_id
+
+    // Cancel shipment via Speedy API
+    await cancelShippingLabel(shipmentId)
+
+    // Remove shipment ID from database
+    const { error: updateError } = await supabase
+      .from('orders')
+      .update({
+        speedy_shipment_id: null,
+        speedy_label_created_at: null,
+      })
+      .eq('id', orderId)
+
+    if (updateError) {
+      console.error('Failed to remove shipment ID from database:', updateError)
+    }
+
+    // Delete from WooCommerce order meta (non-blocking)
+    deleteWooCommerceOrderMeta(order.woocommerce_order_id, [
+      '_speedy_shipment_id',
+    ]).catch(err => {
+      console.error('Failed to delete WooCommerce order meta:', err)
+    })
+
+    return NextResponse.json({
+      success: true,
+      message: `Shipping label ${shipmentId} cancelled`,
+    })
+  } catch (error) {
+    console.error('Error cancelling shipping label:', error)
+    return NextResponse.json(
+      {
+        error: 'Failed to cancel shipping label',
         details: error instanceof Error ? error.message : 'Unknown error',
       },
       { status: 500 }

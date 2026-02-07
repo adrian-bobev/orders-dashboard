@@ -43,6 +43,7 @@ export function OrderDetail({ order, currentUser, generationCounts = {}, complet
   const [notificationProgress, setNotificationProgress] = useState('')
   const [isDownloading, setIsDownloading] = useState(false)
   const [isCreatingLabel, setIsCreatingLabel] = useState(false)
+  const [isDeletingLabel, setIsDeletingLabel] = useState(false)
   const [shippingLabelError, setShippingLabelError] = useState<string | null>(null)
   const [shippingLabel, setShippingLabel] = useState<{
     shipmentId: string
@@ -218,6 +219,41 @@ export function OrderDetail({ order, currentUser, generationCounts = {}, complet
       setShippingLabelError(error instanceof Error ? error.message : 'Грешка при създаване на товарителница')
     } finally {
       setIsCreatingLabel(false)
+    }
+  }
+
+  const handleDeleteShippingLabel = async () => {
+    if (!isAdmin || isDeletingLabel || !shippingLabel) return
+
+    if (
+      !confirm(
+        `Сигурни ли сте, че искате да анулирате товарителница ${shippingLabel.shipmentId}?`
+      )
+    ) {
+      return
+    }
+
+    setIsDeletingLabel(true)
+    setShippingLabelError(null)
+
+    try {
+      const response = await fetch(`/api/orders/${order.id}/shipping-label`, {
+        method: 'DELETE',
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || data.details || 'Failed to delete shipping label')
+      }
+
+      setShippingLabel(null)
+      router.refresh()
+    } catch (error) {
+      console.error('Error deleting shipping label:', error)
+      setShippingLabelError(error instanceof Error ? error.message : 'Грешка при анулиране на товарителница')
+    } finally {
+      setIsDeletingLabel(false)
     }
   }
 
@@ -768,17 +804,46 @@ export function OrderDetail({ order, currentUser, generationCounts = {}, complet
                 </div>
               </div>
 
-              <a
-                href={shippingLabel.trackingUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold rounded-xl transition-all text-sm"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-                Проследи пратката
-              </a>
+              <div className="flex gap-2">
+                <a
+                  href={shippingLabel.trackingUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-blue-50 hover:bg-blue-100 text-blue-700 font-bold rounded-xl transition-all text-sm"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                  Проследи
+                </a>
+
+                <button
+                  onClick={handleDeleteShippingLabel}
+                  disabled={isDeletingLabel}
+                  className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl font-bold transition-all text-sm ${
+                    isDeletingLabel
+                      ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                      : 'bg-red-50 hover:bg-red-100 text-red-700'
+                  }`}
+                >
+                  {isDeletingLabel ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      <span>Анулиране...</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                      <span>Анулирай</span>
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
           ) : (
             <div className="space-y-3">

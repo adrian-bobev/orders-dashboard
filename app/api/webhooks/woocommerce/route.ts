@@ -20,17 +20,11 @@ async function fetchOrderConfiguration(orderId: number): Promise<any | null> {
   }
 
   const url = `${storeUrl}/wp-json/prikazko/v1/orders/${orderId}/configurations`;
-
-  // Create Basic Auth header
   const auth = Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64');
 
   try {
     const isDevelopment = process.env.NODE_ENV === 'development';
     const allowSelfSignedCerts = isDevelopment && process.env.ALLOW_SELF_SIGNED_CERTS === 'true';
-
-    if (allowSelfSignedCerts) {
-      console.log('⚠️ Using HTTPS with self-signed cert support (development only)');
-    }
 
     const response = await get(url, {
       headers: {
@@ -46,9 +40,7 @@ async function fetchOrderConfiguration(orderId: number): Promise<any | null> {
     }
 
     if (response.status < 200 || response.status >= 300) {
-      throw new Error(
-        `WooCommerce API error: ${response.status} ${response.statusText}`
-      );
+      throw new Error(`WooCommerce API error: ${response.status} ${response.statusText}`);
     }
 
     return response.data;
@@ -64,9 +56,7 @@ async function fetchOrderConfiguration(orderId: number): Promise<any | null> {
 async function processOrderConfigurations(orderData: any): Promise<any[]> {
   const configurations = [];
 
-  // Process each line item
   for (const item of orderData.line_items || []) {
-    // Check if this item has a prikazko wizard config
     const configId = item.meta_data?.find(
       (m: any) => m.key === '_prikazko_wizard_config_id'
     )?.value;
@@ -77,8 +67,6 @@ async function processOrderConfigurations(orderData: any): Promise<any[]> {
 
     try {
       console.log(`🔍 Fetching configuration ${configId} for order ${orderData.id}`);
-
-      // Fetch configuration from WooCommerce API
       const configData = await fetchOrderConfiguration(orderData.id);
 
       if (!configData) {
@@ -86,7 +74,6 @@ async function processOrderConfigurations(orderData: any): Promise<any[]> {
         continue;
       }
 
-      // Find the matching configuration by ID
       const matchingConfig = configData.configurations?.find(
         (c: any) => c.id === parseInt(configId, 10)
       );
@@ -119,110 +106,117 @@ export async function POST(request: NextRequest) {
   try {
     console.log('📥 Webhook received');
 
-    // Get the raw body
     const body = await request.text();
     const signature = request.headers.get('x-wc-webhook-signature');
-
-    console.log('🔑 Signature:', signature);
-    console.log('📦 Body length:', body.length);
 
     // Check if this is a test ping from WooCommerce
     const isTestPing = body.startsWith('webhook_id=') && body.length < 50;
 
     if (isTestPing) {
       console.log('🏓 Test ping detected, accepting without verification');
-      return NextResponse.json({
-        success: true,
-        message: 'Test ping accepted'
-      });
+      return NextResponse.json({ success: true, message: 'Test ping accepted' });
     }
 
-    // Verify signature if not a test ping
+    // Verify signature
     const secret = process.env.WOOCOMMERCE_WEBHOOK_SECRET;
 
     if (!secret) {
       console.error('❌ WOOCOMMERCE_WEBHOOK_SECRET not configured');
-      return NextResponse.json(
-        { error: 'Webhook secret not configured' },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: 'Webhook secret not configured' }, { status: 500 });
     }
 
     if (signature) {
-      const hash = crypto
-        .createHmac('sha256', secret)
-        .update(body)
-        .digest('base64');
-
+      const hash = crypto.createHmac('sha256', secret).update(body).digest('base64');
       const signatureBuffer = Buffer.from(signature);
       const hashBuffer = Buffer.from(hash);
 
       if (signatureBuffer.length !== hashBuffer.length ||
           !crypto.timingSafeEqual(signatureBuffer, hashBuffer)) {
         console.error('❌ Signature verification failed');
-        return NextResponse.json(
-          { error: 'Invalid signature' },
-          { status: 401 }
-        );
+        return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
       }
 
       console.log('✅ Signature verified');
     }
 
-    // Check the webhook topic from headers
     const webhookTopic = request.headers.get('x-wc-webhook-topic');
     console.log('📌 Webhook topic:', webhookTopic);
 
-    // Parse the order data
-    const orderData = JSON.parse(body);
+    const payloadData = JSON.parse(body);
+
+    // Handle order approved action webhook
+    if (webhookTopic === 'action.woocommerce_prikazko_order_approved') {
+      console.log('✅ Order APPROVED webhook received');
+      const orderId = payloadData.arg;
+      console.log('📋 WooCommerce Order ID:', orderId);
+
+      const statusUpdateResult = await updateOrderStatusByWooCommerceId(orderId, 'READY_FOR_PRINT');
+
+      if (statusUpdateResult.success) {
+        console.log(`✅ Order ${statusUpdateResult.orderId} marked as READY_FOR_PRINT`);
+
+        try {
+          console.log('🖨️ Queuing print generation job...');
+          const result = await queueJob('PRINT_GENERATION', {
+            woocommerceOrderId: orderId,
+            orderId: statusUpdateResult.orderId || '',
+          }, { priority: 5 });
+
+          console.log(`✅ Print generation job queued: ${result.jobId}`);
+
+          return NextResponse.json({
+            success: true,
+            message: 'Order approved and print job queued',
+            orderId: statusUpdateResult.orderId,
+            jobId: result.jobId,
+          });
+        } catch (queueError) {
+          console.error('❌ Failed to queue print generation job:', queueError);
+          return NextResponse.json({
+            success: true,
+            message: 'Order approved but failed to queue print job',
+            orderId: statusUpdateResult.orderId,
+            error: queueError instanceof Error ? queueError.message : 'Unknown error',
+          });
+        }
+      } else {
+        console.error(`❌ Failed to update order status: ${statusUpdateResult.error}`);
+        return NextResponse.json({ success: false, error: statusUpdateResult.error }, { status: 500 });
+      }
+    }
+
+    // Handle order rejected action webhook
+    if (webhookTopic === 'action.woocommerce_prikazko_order_rejected') {
+      console.log('❌ Order REJECTED webhook received');
+      const orderId = payloadData.arg;
+      console.log('📋 WooCommerce Order ID:', orderId);
+
+      const statusUpdateResult = await updateOrderStatusByWooCommerceId(orderId, 'REJECTED');
+
+      if (statusUpdateResult.success) {
+        console.log(`✅ Order ${statusUpdateResult.orderId} marked as REJECTED`);
+        return NextResponse.json({
+          success: true,
+          message: 'Order rejected',
+          orderId: statusUpdateResult.orderId,
+        });
+      } else {
+        console.error(`❌ Failed to update order status: ${statusUpdateResult.error}`);
+        return NextResponse.json({ success: false, error: statusUpdateResult.error }, { status: 500 });
+      }
+    }
+
+    // Handle order.created webhook
+    if (webhookTopic !== 'order.created') {
+      console.log(`ℹ️ Ignoring webhook topic: ${webhookTopic}`);
+      return NextResponse.json({ success: true, message: `Webhook topic ${webhookTopic} ignored` });
+    }
+
+    const orderData = payloadData;
     console.log('📋 Order ID:', orderData.id);
     console.log('📋 Order Number:', orderData.number);
 
-    // Handle order.updated webhook
-    if (webhookTopic === 'order.updated') {
-      console.log('📝 Order update webhook received');
-      console.log('📋 WooCommerce order status:', orderData.status);
-
-      // If WooCommerce order status is "processing", queue print generation job
-      let statusUpdateResult = null;
-      let jobId = null;
-
-      if (orderData.status === 'processing') {
-        console.log('🔄 Order status is "processing", updating to READY_FOR_PRINT...');
-        statusUpdateResult = await updateOrderStatusByWooCommerceId(orderData.id, 'READY_FOR_PRINT');
-
-        if (statusUpdateResult.success) {
-          console.log(`✅ Order ${statusUpdateResult.orderId} marked as READY_FOR_PRINT`);
-
-          // Queue print generation job instead of executing synchronously
-          try {
-            console.log('🖨️ Queuing print generation job...');
-            const result = await queueJob('PRINT_GENERATION', {
-              woocommerceOrderId: orderData.id,
-              orderId: statusUpdateResult.orderId || '',
-              orderNumber: orderData.number?.toString(),
-            }, { priority: 5 });
-
-            jobId = result.jobId;
-            console.log(`✅ Print generation job queued: ${jobId}`);
-          } catch (queueError) {
-            console.error('❌ Failed to queue print generation job:', queueError);
-          }
-        } else {
-          console.error(`❌ Failed to update order status: ${statusUpdateResult.error}`);
-        }
-      }
-
-      return NextResponse.json({
-        success: true,
-        message: 'Order update webhook processed',
-        orderId: orderData.id,
-        statusUpdate: statusUpdateResult,
-        jobId: jobId,
-      });
-    }
-
-    // Fetch book configurations if available
+    // Fetch book configurations
     console.log('📚 Fetching book configurations...');
     const configurations = await processOrderConfigurations(orderData);
 
@@ -238,7 +232,6 @@ export async function POST(request: NextRequest) {
       const result = await createOrderFromWebhook(orderData, configurations);
 
       console.log('✅ Order saved to database:', result.orderId);
-      console.log('📋 WooCommerce Order ID:', orderData.id);
 
       // Send Telegram notification (non-blocking)
       try {
@@ -253,14 +246,13 @@ export async function POST(request: NextRequest) {
         });
         console.log('📱 Telegram notification sent');
       } catch (notificationError) {
-        console.error('⚠️  Failed to send Telegram notification (non-critical):', notificationError);
-        // Don't fail the webhook - notification is non-critical
+        console.error('⚠️ Failed to send Telegram notification (non-critical):', notificationError);
       }
 
       // Trigger image sync in background (non-blocking)
       if (configurations.length > 0) {
         try {
-          console.log('🖼️  Starting background image sync...');
+          console.log('🖼️ Starting background image sync...');
           const syncProcess = spawn('node', ['scripts/sync-order-images.js', orderData.id.toString()], {
             detached: true,
             stdio: 'ignore',
@@ -269,14 +261,13 @@ export async function POST(request: NextRequest) {
           syncProcess.unref();
           console.log('✅ Image sync started in background');
         } catch (syncError) {
-          console.error('⚠️  Failed to start image sync (non-critical):', syncError);
-          // Don't fail the webhook - image sync is non-critical
+          console.error('⚠️ Failed to start image sync (non-critical):', syncError);
         }
       }
 
       return NextResponse.json({
         success: true,
-        message: 'Webhook received and saved to database',
+        message: 'Order created and saved to database',
         orderId: result.orderId,
         woocommerceOrderId: orderData.id,
         configurationsFound: configurations.length,
@@ -284,8 +275,6 @@ export async function POST(request: NextRequest) {
       });
     } catch (dbError) {
       console.error('❌ Failed to save order to database:', dbError);
-
-      // Return error response
       return NextResponse.json(
         {
           success: false,

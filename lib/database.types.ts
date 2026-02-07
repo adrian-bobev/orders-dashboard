@@ -885,6 +885,7 @@ export type Database = {
         | "PRINTING"
         | "IN_TRANSIT"
         | "COMPLETED"
+        | "REJECTED"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1034,6 +1035,7 @@ export const Constants = {
         "PRINTING",
         "IN_TRANSIT",
         "COMPLETED",
+        "REJECTED",
       ],
     },
   },

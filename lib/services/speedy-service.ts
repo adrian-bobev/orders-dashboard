@@ -663,3 +663,31 @@ export async function downloadShippingLabelPdf(shipmentId: string): Promise<Buff
   const arrayBuffer = await response.arrayBuffer()
   return Buffer.from(arrayBuffer)
 }
+
+/**
+ * Cancel/delete a shipping label via Speedy API
+ */
+export async function cancelShippingLabel(shipmentId: string, comment: string = 'Анулиране'): Promise<void> {
+  const credentials = getCredentials()
+
+  const response = await fetch(`${SPEEDY_API_URL}/shipment/cancel`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      userName: credentials.userName,
+      password: credentials.password,
+      shipmentId,
+      comment,
+    }),
+  })
+
+  const data = await response.json()
+
+  if (!response.ok || data.error) {
+    throw new Error(data.error?.message || `Failed to cancel shipment: ${response.status}`)
+  }
+
+  console.log(`[Speedy] Shipment ${shipmentId} cancelled`)
+}
