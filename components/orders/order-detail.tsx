@@ -673,103 +673,274 @@ export function OrderDetail({ order, currentUser, generationCounts = {}, complet
         </div>
       )}
 
-      {/* Order Information */}
+      {/* Line Items - Compact Design */}
       <div className="bg-white rounded-2xl shadow-warm p-4 border border-purple-100">
-        <h3 className="text-lg font-bold text-purple-900 mb-3">
-          Информация за поръчката
-        </h3>
+        <div className="flex items-center gap-2 mb-3">
+          <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+          </svg>
+          <h3 className="text-base font-bold text-purple-900">Артикули</h3>
+          <span className="text-xs font-bold text-purple-600 bg-purple-100 px-2 py-0.5 rounded-full">
+            {order.line_items?.length || 0}
+          </span>
+        </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div>
-            <p className="text-xs font-bold text-purple-900 mb-1">Номер на поръчка</p>
-            <p className="text-sm text-neutral-700">{order.order_number || '-'}</p>
-          </div>
-          <div>
-            <p className="text-xs font-bold text-purple-900 mb-1">WooCommerce ID</p>
-            <p className="text-sm text-neutral-700">{order.woocommerce_order_id}</p>
-          </div>
-          <div>
-            <p className="text-xs font-bold text-purple-900 mb-1">Обща сума</p>
-            <p className="text-sm text-neutral-700">
-              {order.currency} {order.total}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs font-bold text-purple-900 mb-1">Метод на плащане</p>
-            <p className="text-sm text-neutral-700">
-              {order.payment_method_title || order.payment_method}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs font-bold text-purple-900 mb-1">Доставка</p>
-            <p className="text-sm text-neutral-700">
-              {order.shipping_method_title || '-'} ({order.currency}{' '}
-              {order.shipping_total || '0'})
-            </p>
-          </div>
-          <div>
-            <p className="text-xs font-bold text-purple-900 mb-1">Дата на създаване</p>
-            <p className="text-sm text-neutral-700">
-              {new Date(order.created_at).toLocaleString('bg-BG')}
-            </p>
-          </div>
+        <div className="space-y-2">
+          {order.line_items?.map((item: any) => (
+            <div key={item.id}>
+              {item.book_configurations?.map((config: any) => (
+                <div
+                  key={config.id}
+                  className={`rounded-xl border-2 overflow-hidden ${
+                    completedConfigs[config.id] ? 'border-green-200 bg-green-50/30' : 'border-purple-200 bg-purple-50/50'
+                  }`}
+                >
+                  {/* Compact Header - Always Visible */}
+                  <div className="p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      {/* Left: Book Info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap mb-1">
+                          <h4 className="text-sm font-bold text-purple-900 truncate">
+                            {config.content?.title || config.name || item.product_name}
+                          </h4>
+                          {completedConfigs[config.id] && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-bold bg-green-100 text-green-700">
+                              <svg className="w-3 h-3 mr-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
+                              Готова
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Inline Info */}
+                        <div className="flex items-center gap-3 text-xs text-neutral-600 flex-wrap">
+                          <span className="inline-flex items-center gap-1">
+                            <svg className="w-3.5 h-3.5 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                            </svg>
+                            <span className="font-medium">{config.name}</span>
+                          </span>
+                          <span className="text-neutral-400">|</span>
+                          <span>{config.age} г.</span>
+                          <span className="text-neutral-400">|</span>
+                          <span>{config.gender === 'boy' ? 'Момче' : config.gender === 'girl' ? 'Момиче' : config.gender}</span>
+                          <span className="text-neutral-400">|</span>
+                          <span>{order.currency} {item.total}</span>
+                          {generationCounts[config.id] > 0 && (
+                            <>
+                              <span className="text-neutral-400">|</span>
+                              <span className="text-purple-600 font-medium">{generationCounts[config.id]} генер.</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Right: Actions */}
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        {isAdmin && (
+                          <button
+                            onClick={() => router.push(`/orders/${order.id}/generate?bookConfigId=${config.id}`)}
+                            className="p-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-all"
+                            title="Генерации"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                            </svg>
+                          </button>
+                        )}
+                        <button
+                          onClick={() => setExpandedBookId(expandedBookId === config.id ? null : config.id)}
+                          className={`p-2 rounded-lg transition-all ${
+                            expandedBookId === config.id
+                              ? 'bg-purple-600 text-white'
+                              : 'bg-purple-100 text-purple-600 hover:bg-purple-200'
+                          }`}
+                          title={expandedBookId === config.id ? 'Скрий' : 'Покажи детайли'}
+                        >
+                          <svg
+                            className={`w-4 h-4 transition-transform ${expandedBookId === config.id ? 'rotate-180' : ''}`}
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Expandable Content */}
+                  {expandedBookId === config.id && (
+                    <div className="px-3 pb-3 pt-0 border-t border-purple-200/50">
+                      <div className="pt-3 space-y-3">
+                        {/* Story Description */}
+                        {config.story_description && (
+                          <div>
+                            <p className="text-xs font-bold text-purple-800 mb-1">Описание на историята</p>
+                            <p className="text-sm text-neutral-700 bg-white/60 p-2 rounded-lg">{config.story_description}</p>
+                          </div>
+                        )}
+
+                        {/* Title & Short Description */}
+                        {(config.content?.title || config.content?.shortDescription) && (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                            {config.content?.title && (
+                              <div>
+                                <p className="text-xs font-bold text-purple-800 mb-1">Заглавие</p>
+                                <p className="text-sm text-neutral-700 bg-white/60 p-2 rounded-lg">{config.content.title}</p>
+                              </div>
+                            )}
+                            {config.content?.shortDescription && (
+                              <div>
+                                <p className="text-xs font-bold text-purple-800 mb-1">Кратко описание</p>
+                                <p className="text-sm text-neutral-700 bg-white/60 p-2 rounded-lg">{config.content.shortDescription}</p>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Scenes - Compact */}
+                        {config.content?.scenes && config.content.scenes.length > 0 && (
+                          <div>
+                            <p className="text-xs font-bold text-purple-800 mb-2">
+                              Сцени ({config.content.scenes.length})
+                            </p>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                              {config.content.scenes.map((scene: any, idx: number) => (
+                                <div key={idx} className="bg-white/60 p-2 rounded-lg">
+                                  <div className="flex items-start gap-2">
+                                    <span className="inline-flex items-center justify-center w-5 h-5 bg-purple-600 text-white font-bold rounded-full text-xs flex-shrink-0">
+                                      {idx + 1}
+                                    </span>
+                                    <div className="flex-1 min-w-0">
+                                      {scene.heading && (
+                                        <p className="text-xs font-bold text-purple-900">{scene.heading}</p>
+                                      )}
+                                      {scene.text && (
+                                        <p className="text-xs text-neutral-600 line-clamp-2">{scene.text}</p>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Motivation End */}
+                        {config.content?.motivationEnd && (
+                          <div>
+                            <p className="text-xs font-bold text-purple-800 mb-1">Мотивационен край</p>
+                            <p className="text-sm text-neutral-700 bg-white/60 p-2 rounded-lg">{config.content.motivationEnd}</p>
+                          </div>
+                        )}
+
+                        {/* Images - Compact Grid */}
+                        {config.images && config.images.length > 0 && (
+                          <div>
+                            <p className="text-xs font-bold text-purple-800 mb-2">
+                              Изображения ({config.images.length})
+                            </p>
+                            <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
+                              {config.images.map((image: any, imgIdx: number) => (
+                                <div key={imgIdx} className="relative aspect-square rounded-lg overflow-hidden bg-purple-100 border border-purple-200">
+                                  <SmartImage
+                                    src={getImageUrl(image.r2_key || image.key) || ''}
+                                    alt={`Image ${imgIdx + 1}`}
+                                    fill
+                                    className="object-cover"
+                                  />
+                                  <span className="absolute bottom-0 right-0 bg-black/50 text-white text-xs px-1 rounded-tl">
+                                    {imgIdx + 1}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Config ID - Small */}
+                        <div className="pt-2 border-t border-purple-200/50">
+                          <p className="text-xs text-neutral-400">
+                            ID: <span className="font-mono">{config.config_id}</span>
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* Billing Information */}
-      <div className="bg-white rounded-2xl shadow-warm p-4 border border-purple-100">
-        <h3 className="text-lg font-bold text-purple-900 mb-3">
-          Информация за фактуриране
-        </h3>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div>
-            <p className="text-xs font-bold text-purple-900 mb-1">Име</p>
-            <p className="text-sm text-neutral-700">
-              {order.billing_first_name} {order.billing_last_name}
-            </p>
-          </div>
-          <div>
-            <p className="text-xs font-bold text-purple-900 mb-1">Имейл</p>
-            <p className="text-sm text-neutral-700 break-all">{order.billing_email}</p>
-          </div>
-          <div>
-            <p className="text-xs font-bold text-purple-900 mb-1">Телефон</p>
-            <p className="text-sm text-neutral-700">{order.billing_phone || '-'}</p>
-          </div>
-          <div>
-            <p className="text-xs font-bold text-purple-900 mb-1">Пощенски код</p>
-            <p className="text-sm text-neutral-700">{order.billing_postcode || '-'}</p>
-          </div>
-          <div className="md:col-span-2">
-            <p className="text-xs font-bold text-purple-900 mb-1">Адрес</p>
-            <p className="text-sm text-neutral-700">
-              {[
-                order.billing_address_1,
-                order.billing_address_2,
-                order.billing_city,
-                order.billing_state,
-                order.billing_country,
-              ]
-                .filter(Boolean)
-                .join(', ') || '-'}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* Delivery Information */}
-      {order.bg_carriers_service_type && (
+      {/* Order & Billing & Delivery Information - Responsive Grid */}
+      <div className="grid grid-cols-1 min-[600px]:grid-cols-2 min-[900px]:grid-cols-3 gap-4">
+        {/* Order Information */}
         <div className="bg-white rounded-2xl shadow-warm p-4 border border-purple-100">
-          <h3 className="text-lg font-bold text-purple-900 mb-3">
-            Информация за доставка
-          </h3>
+          <div className="flex items-center gap-2 mb-3">
+            <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            <h3 className="text-base font-bold text-purple-900">Поръчка</h3>
+          </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {/* Service Type Badge */}
-            <div className="md:col-span-2">
-              <p className="text-xs font-bold text-purple-900 mb-1">Тип доставка</p>
-              <span className={`inline-flex items-center px-2 py-1 rounded-lg text-xs font-bold ${
+          <div className="space-y-1.5 text-sm">
+            <div className="flex justify-between">
+              <span className="text-neutral-500">Номер:</span>
+              <span className="font-bold text-neutral-800">{order.order_number || '-'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-neutral-500">WC ID:</span>
+              <span className="font-bold text-neutral-800">{order.woocommerce_order_id}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-neutral-500">Сума:</span>
+              <span className="font-bold text-neutral-800">{order.currency} {order.total}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-neutral-500">Плащане:</span>
+              <span className="font-bold text-neutral-800 truncate ml-2">{order.payment_method_title || order.payment_method}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-neutral-500">Дата:</span>
+              <span className="font-bold text-neutral-800">{new Date(order.created_at).toLocaleString('bg-BG', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })}</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Billing Information */}
+        <div className="bg-white rounded-2xl shadow-warm p-4 border border-purple-100">
+          <div className="flex items-center gap-2 mb-3">
+            <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+            <h3 className="text-base font-bold text-purple-900">Клиент</h3>
+          </div>
+
+          <div className="space-y-1 text-sm">
+            <p className="font-bold text-neutral-800">{order.billing_first_name} {order.billing_last_name}</p>
+            <p className="text-neutral-600 break-all">{order.billing_email}</p>
+            <p className="text-neutral-600">{order.billing_phone || '-'}</p>
+            <p className="text-neutral-500 text-xs">
+              {[order.billing_address_1, order.billing_city, order.billing_postcode].filter(Boolean).join(', ') || '-'}
+            </p>
+          </div>
+        </div>
+
+        {/* Delivery Information */}
+        {order.bg_carriers_service_type && (
+          <div className="bg-white rounded-2xl shadow-warm p-4 border border-purple-100">
+            <div className="flex items-center gap-2 mb-3 flex-wrap">
+              <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 4H6a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-2m-4-1v8m0 0l3-3m-3 3L9 8m-5 5h2.586a1 1 0 01.707.293l2.414 2.414a1 1 0 00.707.293h3.172a1 1 0 00.707-.293l2.414-2.414a1 1 0 01.707-.293H20" />
+              </svg>
+              <h3 className="text-base font-bold text-purple-900">Доставка</h3>
+              <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold ${
                 order.bg_carriers_service_type === 'home'
                   ? 'bg-blue-100 text-blue-800'
                   : order.bg_carriers_service_type === 'office'
@@ -782,367 +953,58 @@ export function OrderDetail({ order, currentUser, generationCounts = {}, complet
                 {order.bg_carriers_service_type === 'pickup' && 'Вземане от място'}
               </span>
               {order.bg_carriers_carrier && (
-                <span className="ml-2 text-xs text-neutral-600">
-                  ({order.bg_carriers_carrier})
-                </span>
+                <span className="text-xs text-neutral-500">({order.bg_carriers_carrier})</span>
               )}
             </div>
 
-            {/* Pickup Location (Office/APM) */}
-            {(order.bg_carriers_service_type === 'office' || order.bg_carriers_service_type === 'apm') && (
-              <>
-                {order.speedy_pickup_location_name && (
-                  <div className="md:col-span-2">
-                    <p className="text-xs font-bold text-purple-900 mb-1">
-                      {order.speedy_pickup_location_type === 'apm' ? 'Автомат' : 'Офис'}
-                    </p>
-                    <p className="text-sm text-neutral-700">
-                      {order.speedy_pickup_location_name}
-                      {order.speedy_pickup_location_id && (
-                        <span className="text-neutral-500"> [{order.speedy_pickup_location_id}]</span>
-                      )}
-                    </p>
-                  </div>
-                )}
-                {order.speedy_pickup_location_address && (
-                  <div>
-                    <p className="text-xs font-bold text-purple-900 mb-1">Адрес</p>
-                    <p className="text-sm text-neutral-700">{order.speedy_pickup_location_address}</p>
-                  </div>
-                )}
-                {order.speedy_pickup_location_city && (
-                  <div>
-                    <p className="text-xs font-bold text-purple-900 mb-1">Град</p>
-                    <p className="text-sm text-neutral-700">
-                      {order.speedy_pickup_location_city}
-                      {order.speedy_pickup_location_postcode && `, ${order.speedy_pickup_location_postcode}`}
-                    </p>
-                  </div>
-                )}
-              </>
-            )}
+            <div className="text-sm space-y-1">
+              {/* Office/APM delivery */}
+              {(order.bg_carriers_service_type === 'office' || order.bg_carriers_service_type === 'apm') && (
+                <>
+                  {order.speedy_pickup_location_name && (
+                    <p className="font-bold text-neutral-800">{order.speedy_pickup_location_name}</p>
+                  )}
+                  {order.speedy_pickup_location_address && (
+                    <p className="text-neutral-600">{order.speedy_pickup_location_address}</p>
+                  )}
+                  {order.speedy_pickup_location_city && (
+                    <p className="text-neutral-500">{order.speedy_pickup_location_city}{order.speedy_pickup_location_postcode && `, ${order.speedy_pickup_location_postcode}`}</p>
+                  )}
+                </>
+              )}
 
-            {/* Home Delivery */}
-            {order.bg_carriers_service_type === 'home' && (
-              <>
-                {order.speedy_delivery_full_address && (
-                  <div className="md:col-span-2">
-                    <p className="text-xs font-bold text-purple-900 mb-1">Пълен адрес</p>
-                    <p className="text-sm text-neutral-700">{order.speedy_delivery_full_address}</p>
-                  </div>
-                )}
-                {order.speedy_delivery_city_name && (
-                  <div>
-                    <p className="text-xs font-bold text-purple-900 mb-1">Град</p>
-                    <p className="text-sm text-neutral-700">
+              {/* Home delivery */}
+              {order.bg_carriers_service_type === 'home' && (
+                <>
+                  {order.speedy_delivery_full_address && (
+                    <p className="font-bold text-neutral-800">{order.speedy_delivery_full_address}</p>
+                  )}
+                  {order.speedy_delivery_city_name && (
+                    <p className="text-neutral-600">
                       {order.speedy_delivery_city_name}
                       {order.speedy_delivery_postcode && `, ${order.speedy_delivery_postcode}`}
-                      {order.speedy_delivery_city_id && (
-                        <span className="text-neutral-500"> [{order.speedy_delivery_city_id}]</span>
-                      )}
                     </p>
-                  </div>
-                )}
-                {order.speedy_delivery_street_name && (
-                  <div>
-                    <p className="text-xs font-bold text-purple-900 mb-1">Улица</p>
-                    <p className="text-sm text-neutral-700">
+                  )}
+                  {order.speedy_delivery_street_name && !order.speedy_delivery_full_address && (
+                    <p className="text-neutral-600">
                       {order.speedy_delivery_street_type && `${order.speedy_delivery_street_type} `}
                       {order.speedy_delivery_street_name}
                       {order.speedy_delivery_street_number && ` ${order.speedy_delivery_street_number}`}
-                      {order.speedy_delivery_street_id && (
-                        <span className="text-neutral-500"> [{order.speedy_delivery_street_id}]</span>
-                      )}
                     </p>
-                  </div>
-                )}
-              </>
-            )}
+                  )}
+                </>
+              )}
 
-            {/* Generic location (fallback) */}
-            {order.bg_carriers_location_name && !order.speedy_pickup_location_name && !order.speedy_delivery_city_name && (
-              <div className="md:col-span-2">
-                <p className="text-xs font-bold text-purple-900 mb-1">Локация</p>
-                <p className="text-sm text-neutral-700">
+              {/* Generic fallback */}
+              {order.bg_carriers_location_name && !order.speedy_pickup_location_name && !order.speedy_delivery_city_name && (
+                <p className="text-neutral-600">
                   {order.bg_carriers_location_name}
                   {order.bg_carriers_location_address && ` - ${order.bg_carriers_location_address}`}
                 </p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Line Items */}
-      <div className="bg-white rounded-2xl shadow-warm p-4 border border-purple-100">
-        <h3 className="text-lg font-bold text-purple-900 mb-3">
-          Артикули ({order.line_items?.length || 0})
-        </h3>
-
-        <div className="space-y-3">
-          {order.line_items?.map((item: any, index: number) => (
-            <div
-              key={item.id}
-              className="bg-purple-50 border-2 border-purple-200 rounded-xl p-3"
-            >
-              <div className="flex justify-between items-start mb-3">
-                <div>
-                  <h4 className="text-base font-bold text-purple-900 mb-1">
-                    {item.book_configurations?.[0]?.content?.title || item.book_configurations?.[0]?.name || item.product_name}
-                  </h4>
-                  <p className="text-sm text-neutral-600">
-                    Количество: {item.quantity} | Цена: {order.currency} {item.total}
-                  </p>
-                </div>
-              </div>
-
-              {/* Book Configuration */}
-              {item.book_configurations && item.book_configurations.length > 0 && (
-                <div className="mt-3 space-y-3">
-                  {item.book_configurations.map((config: any) => (
-                    <div key={config.id} className={`bg-white rounded-xl p-3 border-2 ${completedConfigs[config.id] ? 'border-green-300' : 'border-purple-200'}`}>
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-2">
-                          <div>
-                            <h5 className="text-sm font-bold text-purple-900">
-                              Персонализация на книгата
-                            </h5>
-                            {generationCounts[config.id] !== undefined && generationCounts[config.id] > 0 && (
-                              <p className="text-xs text-neutral-600 mt-1">
-                                {generationCounts[config.id]} {generationCounts[config.id] === 1 ? 'генерация' : 'генерации'}
-                              </p>
-                            )}
-                          </div>
-                          {completedConfigs[config.id] && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-green-100 text-green-800">
-                              <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                              </svg>
-                              Готова
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex gap-2">
-                          {isAdmin && (
-                            <button
-                              onClick={() => router.push(`/orders/${order.id}/generate?bookConfigId=${config.id}`)}
-                              className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg transition-all text-xs flex items-center gap-1"
-                            >
-                              <svg
-                                className="w-3 h-3"
-                                fill="none"
-                                stroke="currentColor"
-                                viewBox="0 0 24 24"
-                              >
-                                <path
-                                  strokeLinecap="round"
-                                  strokeLinejoin="round"
-                                  strokeWidth={2.5}
-                                  d="M13 10V3L4 14h7v7l9-11h-7z"
-                                />
-                              </svg>
-                              <span>Генерации {generationCounts[config.id] > 0 && `(${generationCounts[config.id]})`}</span>
-                            </button>
-                          )}
-                          <button
-                            onClick={() =>
-                              setExpandedBookId(expandedBookId === config.id ? null : config.id)
-                            }
-                            className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg transition-all text-xs flex items-center gap-1"
-                          >
-                            {expandedBookId === config.id ? (
-                              <>
-                                <span>Скрий съдържанието</span>
-                                <svg
-                                  className="w-3 h-3"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  viewBox="0 0 24 24"
-                                >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2.5}
-                                    d="M5 15l7-7 7 7"
-                                  />
-                                </svg>
-                              </>
-                            ) : (
-                              <>
-                                <span>Виж съдържанието</span>
-                                <svg
-                                  className="w-3 h-3"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  viewBox="0 0 24 24"
-                                >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2.5}
-                                    d="M19 9l-7 7-7-7"
-                                  />
-                                </svg>
-                              </>
-                            )}
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Basic Info - Always Visible */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
-                        <div>
-                          <p className="text-xs font-bold text-purple-900">Име</p>
-                          <p className="text-sm text-neutral-700">{config.name}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs font-bold text-purple-900">Възраст</p>
-                          <p className="text-sm text-neutral-700">{config.age}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs font-bold text-purple-900">Пол</p>
-                          <p className="text-sm text-neutral-700">
-                            {config.gender === 'boy'
-                              ? 'Момче'
-                              : config.gender === 'girl'
-                              ? 'Момиче'
-                              : config.gender}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-xs font-bold text-purple-900">Конфигурация ID</p>
-                          <p className="text-xs font-mono text-neutral-700 break-all" title={config.config_id}>
-                            {config.config_id}
-                          </p>
-                        </div>
-                      </div>
-
-                      {/* Story Description - When Collapsed */}
-                      {expandedBookId !== config.id && config.story_description && (
-                        <div className="mt-3">
-                          <p className="text-xs font-bold text-purple-900 mb-1">
-                            Описание на историята
-                          </p>
-                          <p className="text-sm text-neutral-700 bg-purple-50 p-2 rounded-lg">
-                            {config.story_description}
-                          </p>
-                        </div>
-                      )}
-
-                      {/* Expandable Book Content */}
-                      {expandedBookId === config.id && (
-                        <div className="mt-3 pt-3 border-t-2 border-purple-100 space-y-3">
-                          {/* Title */}
-                          {config.content?.title && (
-                            <div>
-                              <p className="text-xs font-bold text-purple-900 mb-1">
-                                Заглавие
-                              </p>
-                              <p className="text-sm text-neutral-700 bg-purple-50 p-2 rounded-lg">
-                                {config.content.title}
-                              </p>
-                            </div>
-                          )}
-
-                          {/* Short Description */}
-                          {config.content?.shortDescription && (
-                            <div>
-                              <p className="text-xs font-bold text-purple-900 mb-1">
-                                Кратко описание
-                              </p>
-                              <p className="text-sm text-neutral-700 bg-purple-50 p-2 rounded-lg">
-                                {config.content.shortDescription}
-                              </p>
-                            </div>
-                          )}
-
-                          {/* Scenes */}
-                          {config.content?.scenes && config.content.scenes.length > 0 && (
-                            <div>
-                              <p className="text-xs font-bold text-purple-900 mb-2">
-                                Сцени ({config.content.scenes.length})
-                              </p>
-                              <div className="space-y-2">
-                                {config.content.scenes.map((scene: any, idx: number) => (
-                                  <div
-                                    key={idx}
-                                    className="bg-purple-50 p-2 rounded-lg border border-purple-200"
-                                  >
-                                    <div className="flex items-start gap-2">
-                                      <span className="inline-flex items-center justify-center w-6 h-6 bg-purple-600 text-white font-bold rounded-full text-xs flex-shrink-0">
-                                        {idx + 1}
-                                      </span>
-                                      <div className="flex-1 min-w-0">
-                                        {scene.heading && (
-                                          <p className="text-sm font-bold text-purple-900 mb-1">
-                                            {scene.heading}
-                                          </p>
-                                        )}
-                                        {scene.text && (
-                                          <p className="text-xs text-neutral-700 whitespace-pre-wrap break-words">
-                                            {scene.text}
-                                          </p>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-
-                          {/* Motivation End */}
-                          {config.content?.motivationEnd && (
-                            <div>
-                              <p className="text-xs font-bold text-purple-900 mb-1">
-                                Мотивационен край
-                              </p>
-                              <p className="text-sm text-neutral-700 bg-purple-50 p-2 rounded-lg">
-                                {config.content.motivationEnd}
-                              </p>
-                            </div>
-                          )}
-
-                          {/* Images */}
-                          {config.images && config.images.length > 0 && (
-                            <div>
-                              <p className="text-xs font-bold text-purple-900 mb-2">
-                                Изображения ({config.images.length})
-                              </p>
-                              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                                {config.images.map((image: any, imgIdx: number) => (
-                                  <div
-                                    key={imgIdx}
-                                    className="bg-purple-50 p-2 rounded-lg border-2 border-purple-200 space-y-2"
-                                  >
-                                    <div className="text-xs text-neutral-600 font-bold">
-                                      #{imgIdx + 1}
-                                    </div>
-                                    <div className="relative aspect-square rounded-lg overflow-hidden bg-purple-100">
-                                      <SmartImage
-                                        src={getImageUrl(image.r2_key || image.key) || ''}
-                                        alt={`Image ${imgIdx + 1}`}
-                                        fill
-                                        className="object-cover"
-                                      />
-                                    </div>
-                                    <div className="text-xs font-mono text-neutral-600 break-all truncate" title={image.r2_key || image.key}>
-                                      {image.r2_key || image.key}
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
               )}
             </div>
-          ))}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Status History */}
