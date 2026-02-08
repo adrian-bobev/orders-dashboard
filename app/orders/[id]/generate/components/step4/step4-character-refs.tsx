@@ -30,7 +30,7 @@ interface UploadProgress {
   }
 }
 
-type ImageProvider = 'fal' | 'replicate'
+type ImageProvider = 'fal' | 'replicate' | 'kie'
 
 interface ProviderConfig {
   provider: ImageProvider
@@ -38,6 +38,8 @@ interface ProviderConfig {
   falSize?: string
   replicateSize?: string
   replicateAspectRatio?: string
+  kieImageSize?: string
+  kieOutputFormat?: string
 }
 
 interface ProviderInfo {
@@ -76,6 +78,20 @@ const REPLICATE_ASPECT_RATIOS = [
   { id: '21:9', name: '21:9 (Ultrawide)' },
 ]
 
+const KIE_IMAGE_SIZES = [
+  { id: '1:1', name: '1:1 (Square)' },
+  { id: '4:3', name: '4:3' },
+  { id: '3:4', name: '3:4' },
+  { id: '16:9', name: '16:9 (Widescreen)' },
+  { id: '9:16', name: '9:16 (Vertical)' },
+  { id: '3:2', name: '3:2' },
+  { id: '2:3', name: '2:3' },
+  { id: '5:4', name: '5:4' },
+  { id: '4:5', name: '4:5' },
+  { id: '21:9', name: '21:9 (Ultrawide)' },
+  { id: 'auto', name: 'Auto' },
+]
+
 export function Step4CharacterRefs({ generationId, bookConfig, onComplete }: Step4CharacterRefsProps) {
   const [isGenerating, setIsGenerating] = useState(false)
   const [references, setReferences] = useState<any[]>([])
@@ -99,10 +115,11 @@ export function Step4CharacterRefs({ generationId, bookConfig, onComplete }: Ste
 
   // Provider state
   const [providers, setProviders] = useState<ProviderInfo[]>([])
-  const [selectedProvider, setSelectedProvider] = useState<ImageProvider>('fal')
+  const [selectedProvider, setSelectedProvider] = useState<ImageProvider>('kie')
   const [falSize, setFalSize] = useState<string>('1024x1024')
   const [replicateSize, setReplicateSize] = useState<string>('2K')
   const [replicateAspectRatio, setReplicateAspectRatio] = useState<string>('1:1')
+  const [kieImageSize, setKieImageSize] = useState<string>('1:1')
   const [showProviderSettings, setShowProviderSettings] = useState(false)
 
   // Cost tracking state
@@ -126,6 +143,7 @@ export function Step4CharacterRefs({ generationId, bookConfig, onComplete }: Ste
           if (data.defaultConfig.falSize) setFalSize(data.defaultConfig.falSize)
           if (data.defaultConfig.replicateSize) setReplicateSize(data.defaultConfig.replicateSize)
           if (data.defaultConfig.replicateAspectRatio) setReplicateAspectRatio(data.defaultConfig.replicateAspectRatio)
+          if (data.defaultConfig.kieImageSize) setKieImageSize(data.defaultConfig.kieImageSize)
         }
       }
     } catch (error) {
@@ -240,11 +258,14 @@ export function Step4CharacterRefs({ generationId, bookConfig, onComplete }: Ste
   const getProviderConfig = (): ProviderConfig => {
     return {
       provider: selectedProvider,
-      model: selectedProvider === 'fal' ? 'fal-ai/nano-banana' : 'google/nano-banana',
+      model: selectedProvider === 'kie' ? 'google/nano-banana' : selectedProvider === 'fal' ? 'fal-ai/nano-banana' : 'google/nano-banana',
       ...(selectedProvider === 'fal' && { falSize }),
       ...(selectedProvider === 'replicate' && {
         replicateSize,
         replicateAspectRatio,
+      }),
+      ...(selectedProvider === 'kie' && {
+        kieImageSize,
       }),
     }
   }
@@ -1095,8 +1116,28 @@ export function Step4CharacterRefs({ generationId, bookConfig, onComplete }: Ste
               </>
             )}
 
+            {selectedProvider === 'kie' && (
+              <div>
+                <label className="block text-sm font-bold text-indigo-900 mb-2">Размер/Съотношение:</label>
+                <select
+                  value={kieImageSize}
+                  onChange={(e) => setKieImageSize(e.target.value)}
+                  className="w-full px-4 py-2 border-2 border-indigo-200 rounded-lg bg-white text-indigo-900 font-medium focus:border-indigo-400 focus:ring-2 focus:ring-indigo-200 outline-none"
+                >
+                  {KIE_IMAGE_SIZES.map((size) => (
+                    <option key={size.id} value={size.id}>
+                      {size.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
             {/* Info text */}
             <div className="text-xs text-indigo-600 bg-indigo-100 rounded-lg p-3">
+              {selectedProvider === 'kie' && (
+                <p>kie.ai използва Nano Banana - модел на Google за генериране на изображения. Цена: ~$0.02/изображение (4 кредита).</p>
+              )}
               {selectedProvider === 'fal' && (
                 <p>fal.ai използва Nano Banana - модел на Google за генериране на изображения. Цена: $0.039/изображение.</p>
               )}

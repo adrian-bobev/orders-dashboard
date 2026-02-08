@@ -2,13 +2,14 @@ import { createClient } from '@/lib/supabase/server'
 import { openai } from '@/lib/services/ai/openai-client'
 import { falClient } from '@/lib/services/ai/fal-client'
 import { replicateClient } from '@/lib/services/ai/replicate-client'
+import { kieClient } from '@/lib/services/ai/kie-client'
 import { promptLoader } from '@/lib/services/ai/prompt-loader'
 import { getStorageClient } from '@/lib/r2-client'
 import { PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
 import sharp from 'sharp'
 import { getGenerationFolderPath } from './generation-service'
 
-export type ImageProvider = 'fal' | 'replicate'
+export type ImageProvider = 'fal' | 'replicate' | 'kie'
 
 export interface ProviderConfig {
   provider: ImageProvider
@@ -18,21 +19,26 @@ export interface ProviderConfig {
   // Replicate-specific options
   replicateSize?: '2K' | '4K' | 'custom'
   replicateAspectRatio?: '1:1' | '4:3' | '3:4' | '16:9' | '9:16' | '3:2' | '2:3' | '21:9'
+  // Kie-specific options
+  kieImageSize?: '1:1' | '9:16' | '16:9' | '3:4' | '4:3' | '3:2' | '2:3' | '5:4' | '4:5' | '21:9' | 'auto'
+  kieOutputFormat?: 'png' | 'jpeg'
 }
 
 export const DEFAULT_PROVIDER_CONFIG: ProviderConfig = {
-  provider: 'fal',
-  model: 'fal-ai/nano-banana',
-  falSize: '1024x1024',
+  provider: 'kie',
+  model: 'google/nano-banana',
+  kieImageSize: '1:1',
 }
 
-// Default model for each provider (both use Nano Banana)
+// Default model for each provider (all use Nano Banana)
 export const DEFAULT_MODEL_PER_PROVIDER: Record<ImageProvider, string> = {
   fal: 'fal-ai/nano-banana',
   replicate: 'google/nano-banana',
+  kie: 'google/nano-banana',
 }
 
 export const AVAILABLE_PROVIDERS: { id: ImageProvider; name: string }[] = [
+  { id: 'kie', name: 'kie.ai' },
   { id: 'fal', name: 'fal.ai' },
   { id: 'replicate', name: 'Replicate' },
 ]
@@ -59,7 +65,14 @@ export class Step4CharacterRefsService {
     prompt: string,
     config: ProviderConfig
   ): Promise<{ url?: string; buffer?: Buffer; contentType?: string }> {
-    if (config.provider === 'replicate') {
+    if (config.provider === 'kie') {
+      return kieClient.generateImage({
+        model: config.model,
+        prompt,
+        imageSize: config.kieImageSize || '1:1',
+        outputFormat: config.kieOutputFormat || 'png',
+      })
+    } else if (config.provider === 'replicate') {
       return replicateClient.generateImage({
         model: config.model,
         prompt,

@@ -9,7 +9,7 @@ import { replicateClient } from '@/lib/services/ai/replicate-client'
 import { promptLoader } from '@/lib/services/ai/prompt-loader'
 import { getGenerationFolderPath } from './generation-service'
 
-export type ImageProvider = 'fal' | 'replicate'
+export type ImageProvider = 'fal' | 'replicate' | 'kie'
 
 export interface ProviderConfig {
   provider: ImageProvider
@@ -29,12 +29,13 @@ export const IMAGE_GENERATION_COSTS: Record<string, number> = {
 
 export const DEFAULT_PROVIDER_CONFIG: ProviderConfig = {
   provider: 'fal',
-  quality: 'high',
+  quality: 'medium',
 }
 
-export const AVAILABLE_PROVIDERS: { id: ImageProvider; name: string }[] = [
+export const AVAILABLE_PROVIDERS: { id: ImageProvider; name: string; disabled?: boolean; disabledReason?: string }[] = [
   { id: 'fal', name: 'fal.ai' },
   { id: 'replicate', name: 'Replicate' },
+  { id: 'kie', name: 'kie.ai', disabled: true, disabledReason: 'Няма GPT Image 1.5 модел' },
 ]
 
 export const QUALITY_OPTIONS = [

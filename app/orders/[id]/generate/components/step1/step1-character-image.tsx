@@ -7,7 +7,14 @@ import ReactCrop, { type Crop, centerCrop, makeAspectCrop, PixelCrop } from 'rea
 import 'react-image-crop/dist/ReactCrop.css'
 import { ImageUploadZone } from './image-upload-zone'
 
-type ImageProvider = 'fal' | 'replicate'
+type ImageProvider = 'fal' | 'replicate' | 'kie'
+
+interface ProviderOption {
+  id: ImageProvider
+  name: string
+  disabled?: boolean
+  disabledReason?: string
+}
 
 interface ProviderConfig {
   provider: ImageProvider
@@ -53,8 +60,9 @@ export function Step1CharacterImage({
   const [defaultSystemPrompt, setDefaultSystemPrompt] = useState<string>('')
 
   // Provider state
+  const [providers, setProviders] = useState<ProviderOption[]>([])
   const [selectedProvider, setSelectedProvider] = useState<ImageProvider>('fal')
-  const [selectedQuality, setSelectedQuality] = useState<'low' | 'medium' | 'high'>('high')
+  const [selectedQuality, setSelectedQuality] = useState<'low' | 'medium' | 'high'>('medium')
   const [showProviderSettings, setShowProviderSettings] = useState(false)
 
   // Cost tracking state
@@ -74,9 +82,12 @@ export function Step1CharacterImage({
       const response = await fetch(`/api/generation/${generationId}/step1/providers`)
       if (response.ok) {
         const data = await response.json()
+        if (data.providers) {
+          setProviders(data.providers)
+        }
         if (data.defaultConfig) {
           setSelectedProvider(data.defaultConfig.provider)
-          setSelectedQuality(data.defaultConfig.quality || 'high')
+          setSelectedQuality(data.defaultConfig.quality || 'medium')
         }
         if (data.costs) {
           setCosts(data.costs)
@@ -875,27 +886,47 @@ export function Step1CharacterImage({
             <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-bold text-indigo-900 mb-2">Доставчик:</label>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => setSelectedProvider('fal')}
-                    className={`flex-1 px-3 py-2 rounded-lg font-bold transition-all ${
-                      selectedProvider === 'fal'
-                        ? 'bg-indigo-600 text-white'
-                        : 'bg-indigo-100 text-indigo-600 hover:bg-indigo-200'
-                    }`}
-                  >
-                    fal.ai
-                  </button>
-                  <button
-                    onClick={() => setSelectedProvider('replicate')}
-                    className={`flex-1 px-3 py-2 rounded-lg font-bold transition-all ${
-                      selectedProvider === 'replicate'
-                        ? 'bg-indigo-600 text-white'
-                        : 'bg-indigo-100 text-indigo-600 hover:bg-indigo-200'
-                    }`}
-                  >
-                    Replicate
-                  </button>
+                <div className="flex gap-2 flex-wrap">
+                  {providers.length > 0 ? providers.map((provider) => (
+                    <button
+                      key={provider.id}
+                      onClick={() => !provider.disabled && setSelectedProvider(provider.id)}
+                      disabled={provider.disabled}
+                      title={provider.disabled ? provider.disabledReason : undefined}
+                      className={`flex-1 min-w-[80px] px-3 py-2 rounded-lg font-bold transition-all ${
+                        provider.disabled
+                          ? 'bg-neutral-200 text-neutral-400 cursor-not-allowed'
+                          : selectedProvider === provider.id
+                            ? 'bg-indigo-600 text-white'
+                            : 'bg-indigo-100 text-indigo-600 hover:bg-indigo-200'
+                      }`}
+                    >
+                      {provider.name}
+                    </button>
+                  )) : (
+                    <>
+                      <button
+                        onClick={() => setSelectedProvider('fal')}
+                        className={`flex-1 px-3 py-2 rounded-lg font-bold transition-all ${
+                          selectedProvider === 'fal'
+                            ? 'bg-indigo-600 text-white'
+                            : 'bg-indigo-100 text-indigo-600 hover:bg-indigo-200'
+                        }`}
+                      >
+                        fal.ai
+                      </button>
+                      <button
+                        onClick={() => setSelectedProvider('replicate')}
+                        className={`flex-1 px-3 py-2 rounded-lg font-bold transition-all ${
+                          selectedProvider === 'replicate'
+                            ? 'bg-indigo-600 text-white'
+                            : 'bg-indigo-100 text-indigo-600 hover:bg-indigo-200'
+                        }`}
+                      >
+                        Replicate
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
               <div>

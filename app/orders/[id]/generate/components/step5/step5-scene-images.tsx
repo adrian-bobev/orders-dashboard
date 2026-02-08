@@ -6,7 +6,7 @@ import { SmartImage } from '@/components/SmartImage'
 import { SceneCard } from './SceneCard'
 import { DownloadZip } from '../download-zip'
 
-type ImageProvider = 'fal' | 'replicate'
+type ImageProvider = 'fal' | 'replicate' | 'kie'
 
 interface ProviderConfig {
   provider: ImageProvider
@@ -45,7 +45,7 @@ export function Step5SceneImages({ generationId, onComplete }: Step5SceneImagesP
 
   // Provider configuration
   const [providers, setProviders] = useState<ProviderOption[]>([])
-  const [selectedProvider, setSelectedProvider] = useState<ImageProvider>('fal')
+  const [selectedProvider, setSelectedProvider] = useState<ImageProvider>('kie')
   const [costPerImage, setCostPerImage] = useState<number>(0.039)
   const [step5Cost, setStep5Cost] = useState<number>(0)
 
@@ -595,7 +595,7 @@ export function Step5SceneImages({ generationId, onComplete }: Step5SceneImagesP
         <div className="text-sm text-neutral-500">
           {process.env.NEXT_PUBLIC_USE_MOCK_AI === 'true'
             ? '(Mock режим - ще върне placeholder изображения)'
-            : `(Използва Seedream 4.5 от ${selectedProvider === 'fal' ? 'fal.ai' : 'Replicate'})`}
+            : `(Използва Seedream 4.5 от ${selectedProvider === 'kie' ? 'kie.ai' : selectedProvider === 'fal' ? 'fal.ai' : 'Replicate'})`}
         </div>
       </div>
 

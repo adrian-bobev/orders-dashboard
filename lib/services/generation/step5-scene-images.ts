@@ -1,13 +1,14 @@
 import { createClient } from '@/lib/supabase/server'
 import { falClient } from '@/lib/services/ai/fal-client'
 import { replicateClient } from '@/lib/services/ai/replicate-client'
+import { kieClient } from '@/lib/services/ai/kie-client'
 import { getStorageClient } from '@/lib/r2-client'
 import { GetObjectCommand, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import sharp from 'sharp'
 import { getGenerationFolderPath } from './generation-service'
 
-export type ImageProvider = 'fal' | 'replicate'
+export type ImageProvider = 'fal' | 'replicate' | 'kie'
 
 export interface ProviderConfig {
   provider: ImageProvider
@@ -17,16 +18,18 @@ export interface ProviderConfig {
 export const IMAGE_GENERATION_COST = 0.039
 
 export const DEFAULT_PROVIDER_CONFIG: ProviderConfig = {
-  provider: 'fal',
+  provider: 'kie',
 }
 
-// Default model for each provider (both use Seedream 4.5 Edit)
+// Default model for each provider (all use Seedream 4.5 Edit)
 export const DEFAULT_MODEL_PER_PROVIDER: Record<ImageProvider, string> = {
   fal: 'fal-ai/bytedance/seedream/v4.5/edit',
   replicate: 'bytedance/seedream-4.5',
+  kie: 'seedream/4.5-edit',
 }
 
 export const AVAILABLE_PROVIDERS: { id: ImageProvider; name: string }[] = [
+  { id: 'kie', name: 'kie.ai' },
   { id: 'fal', name: 'fal.ai' },
   { id: 'replicate', name: 'Replicate' },
 ]
@@ -56,7 +59,16 @@ export class Step5SceneImagesService {
   ): Promise<{ url?: string; buffer?: Buffer; contentType?: string }> {
     const model = DEFAULT_MODEL_PER_PROVIDER[config.provider]
 
-    if (config.provider === 'replicate') {
+    if (config.provider === 'kie') {
+      // Seedream 4.5 Edit on kie.ai
+      return kieClient.generateImage({
+        model,
+        prompt,
+        imageUrls: referenceImageUrls,
+        aspectRatio: '1:1',
+        quality: 'high', // 4K output
+      })
+    } else if (config.provider === 'replicate') {
       // Seedream 4.5 on Replicate uses image_input and size
       return replicateClient.generateImage({
         model,
