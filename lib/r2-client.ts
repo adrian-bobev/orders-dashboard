@@ -97,8 +97,13 @@ export async function uploadPrintFile(
   woocommerceOrderId: number,
   zipBuffer: Buffer
 ): Promise<{ r2Key: string; fileSize: number }> {
+  const bucket = process.env.R2_PRINTS_BUCKET;
+
+  if (!bucket) {
+    throw new Error('R2_PRINTS_BUCKET environment variable not configured');
+  }
+
   const client = getStorageClient();
-  const bucket = process.env.R2_PRINTS_BUCKET || 'prints';
 
   const r2Key = `${woocommerceOrderId}.zip`;
 
@@ -128,8 +133,13 @@ export async function getSignedPrintDownloadUrl(
   r2Key: string,
   expiresInSeconds: number = 3600
 ): Promise<string> {
+  const bucket = process.env.R2_PRINTS_BUCKET;
+
+  if (!bucket) {
+    throw new Error('R2_PRINTS_BUCKET environment variable not configured');
+  }
+
   const client = getStorageClient();
-  const bucket = process.env.R2_PRINTS_BUCKET || 'prints';
 
   const command = new GetObjectCommand({
     Bucket: bucket,
