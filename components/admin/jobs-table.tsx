@@ -186,6 +186,27 @@ export function JobsTable({ initialJobs, initialTotal }: JobsTableProps) {
     }
   }
 
+  const handleForceCancel = async (jobId: string) => {
+    if (!confirm('Сигурни ли сте, че искате принудително да отмените тази задача? Това може да остави данните в несъответствие.')) return
+
+    try {
+      const response = await fetch(`/api/admin/jobs/${jobId}/force-cancel`, {
+        method: 'POST',
+      })
+      const data = await response.json()
+
+      if (response.ok) {
+        // Refresh the list
+        await fetchJobs(offset)
+      } else {
+        alert(`Грешка: ${data.error}`)
+      }
+    } catch (error) {
+      console.error('Failed to force cancel job:', error)
+      alert('Грешка при принудителна отмяна на задачата')
+    }
+  }
+
   const handleFilterChange = () => {
     fetchJobs(0)
   }
@@ -369,6 +390,15 @@ export function JobsTable({ initialJobs, initialTotal }: JobsTableProps) {
                           Отмени
                         </button>
                       )}
+                      {job.status === 'processing' && (
+                        <button
+                          onClick={() => handleForceCancel(job.id)}
+                          className="text-xs px-2 py-1 bg-orange-100 text-orange-700 rounded hover:bg-orange-200"
+                          title="Принудително отменя заседнала задача"
+                        >
+                          Прекрати
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>
@@ -474,6 +504,43 @@ export function JobsTable({ initialJobs, initialTotal }: JobsTableProps) {
                   </pre>
                 </div>
               )}
+
+              {/* Action buttons */}
+              <div className="flex gap-2 pt-2 border-t border-neutral-200">
+                {(selectedJob.status === 'failed' || selectedJob.status === 'cancelled') && (
+                  <button
+                    onClick={() => {
+                      handleRetrigger(selectedJob.id)
+                      setSelectedJob(null)
+                    }}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+                  >
+                    Повтори задачата
+                  </button>
+                )}
+                {selectedJob.status === 'pending' && (
+                  <button
+                    onClick={() => {
+                      handleCancel(selectedJob.id)
+                      setSelectedJob(null)
+                    }}
+                    className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm"
+                  >
+                    Отмени задачата
+                  </button>
+                )}
+                {selectedJob.status === 'processing' && (
+                  <button
+                    onClick={() => {
+                      handleForceCancel(selectedJob.id)
+                      setSelectedJob(null)
+                    }}
+                    className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 text-sm"
+                  >
+                    Прекрати задачата
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>

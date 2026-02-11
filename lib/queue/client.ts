@@ -111,6 +111,33 @@ export async function cancelJob(jobId: string): Promise<boolean> {
 }
 
 /**
+ * Force cancel a stuck processing job
+ * This bypasses the normal cancel which only works for pending jobs
+ */
+export async function forceCancelJob(jobId: string): Promise<boolean> {
+  const supabase = createServiceRoleClient()
+
+  const { data, error } = await supabase
+    .from('jobs')
+    .update({
+      status: 'cancelled',
+      completed_at: new Date().toISOString(),
+      error: 'Force cancelled by admin',
+      locked_by: null,
+      locked_at: null,
+    })
+    .eq('id', jobId)
+    .eq('status', 'processing')
+    .select('id')
+
+  if (error) {
+    throw new Error(`Failed to force cancel job: ${error.message}`)
+  }
+
+  return (data?.length ?? 0) > 0
+}
+
+/**
  * List jobs with optional filters
  */
 export async function listJobs(options?: {
