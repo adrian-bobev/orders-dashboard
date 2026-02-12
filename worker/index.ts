@@ -49,9 +49,8 @@ async function processNextJob(): Promise<boolean> {
         error: errorMessage,
       })
 
-      // Determine if we should retry based on the error type
-      const shouldRetry = !isNonRetryableError(error)
-      await failJob(job.id, errorMessage, shouldRetry)
+      // No auto-retry - failed jobs require manual investigation and retrigger
+      await failJob(job.id, errorMessage, false)
     }
 
     return true
@@ -64,25 +63,6 @@ async function processNextJob(): Promise<boolean> {
     isProcessing = false
     currentJobId = null
   }
-}
-
-/**
- * Determine if an error should not be retried
- */
-function isNonRetryableError(error: unknown): boolean {
-  if (!(error instanceof Error)) return false
-
-  // Add patterns for errors that should not be retried
-  const nonRetryablePatterns = [
-    'Order not found',
-    'Generation not found',
-    'not implemented',
-    'Invalid payload',
-  ]
-
-  return nonRetryablePatterns.some((pattern) =>
-    error.message.toLowerCase().includes(pattern.toLowerCase())
-  )
 }
 
 async function sleep(ms: number): Promise<void> {
