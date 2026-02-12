@@ -3,14 +3,73 @@ import type { Job, JobType, JobPayload, QueueJobOptions } from './types'
 import type { Json } from '@/lib/database.types'
 
 /**
+ * Check if a duplicate job already exists (pending or processing)
+ * Returns the existing job if found, null otherwise
+ */
+export async function findExistingJob(
+  type: JobType,
+  payload: JobPayload
+): Promise<Job | null> {
+  const supabase = createServiceRoleClient()
+
+  // Build payload filter based on job type
+  // For PRINT_GENERATION: match woocommerceOrderId
+  // For PREVIEW_GENERATION: match orderId
+  let payloadFilter: string | null = null
+
+  if (type === 'PRINT_GENERATION' && 'woocommerceOrderId' in payload) {
+    payloadFilter = `payload->>woocommerceOrderId.eq.${payload.woocommerceOrderId}`
+  } else if (type === 'PREVIEW_GENERATION' && 'orderId' in payload) {
+    payloadFilter = `payload->>orderId.eq.${payload.orderId}`
+  } else if (type === 'CONTENT_GENERATION' && 'generationId' in payload) {
+    payloadFilter = `payload->>generationId.eq.${payload.generationId}`
+  }
+
+  if (!payloadFilter) {
+    return null // Can't deduplicate without a key
+  }
+
+  const { data, error } = await supabase
+    .from('jobs')
+    .select('*')
+    .eq('type', type)
+    .in('status', ['pending', 'processing'])
+    .or(payloadFilter)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+
+  if (error) {
+    console.warn('Failed to check for duplicate job:', error.message)
+    return null // Fail open - allow the job to be queued
+  }
+
+  return data
+}
+
+/**
  * Queue a new job for async processing
+ * @param skipDuplicateCheck - If true, skips the duplicate check (default: false)
  */
 export async function queueJob<T extends JobType>(
   type: T,
   payload: JobPayload,
-  options?: QueueJobOptions
-): Promise<{ jobId: string }> {
+  options?: QueueJobOptions & { skipDuplicateCheck?: boolean }
+): Promise<{ jobId: string; isDuplicate?: boolean; existingJobId?: string }> {
   const supabase = createServiceRoleClient()
+
+  // Check for duplicates unless explicitly skipped
+  if (!options?.skipDuplicateCheck) {
+    const existingJob = await findExistingJob(type, payload)
+    if (existingJob) {
+      console.log(`Duplicate job found for ${type}, returning existing job ${existingJob.id}`)
+      return {
+        jobId: existingJob.id,
+        isDuplicate: true,
+        existingJobId: existingJob.id,
+      }
+    }
+  }
 
   const { data, error } = await supabase
     .from('jobs')

@@ -11,10 +11,38 @@ import { createHttpServer } from './http-server'
 const POLL_INTERVAL_MS = parseInt(process.env.WORKER_POLL_INTERVAL_MS || '3600000', 10) // Default 1 hour
 const WORKER_HTTP_PORT = parseInt(process.env.WORKER_HTTP_PORT || '4000', 10)
 const WORKER_ID = process.env.WORKER_ID || `worker-${randomUUID().slice(0, 8)}`
+const JOB_TIMEOUT_MS = parseInt(process.env.WORKER_JOB_TIMEOUT_MS || '600000', 10) // Default 10 minutes
 
 let isProcessing = false
 let currentJobId: string | null = null
 let wakeResolver: (() => void) | null = null
+
+/**
+ * Execute a function with a timeout
+ * Throws an error if the function doesn't complete within the specified time
+ */
+async function withTimeout<T>(
+  fn: () => Promise<T>,
+  timeoutMs: number,
+  timeoutMessage: string
+): Promise<T> {
+  let timeoutId: NodeJS.Timeout | undefined
+
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      reject(new Error(timeoutMessage))
+    }, timeoutMs)
+  })
+
+  try {
+    const result = await Promise.race([fn(), timeoutPromise])
+    return result
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId)
+    }
+  }
+}
 
 async function processNextJob(): Promise<boolean> {
   if (isShutdownRequested()) {
@@ -36,10 +64,16 @@ async function processNextJob(): Promise<boolean> {
       jobId: job.id,
       type: job.type,
       retryCount: job.retry_count,
+      timeoutMs: JOB_TIMEOUT_MS,
     })
 
     try {
-      const result = await executeJob(job)
+      const timeoutMinutes = Math.round(JOB_TIMEOUT_MS / 60000)
+      const result = await withTimeout(
+        () => executeJob(job),
+        JOB_TIMEOUT_MS,
+        `Job execution timed out after ${timeoutMinutes} minutes`
+      )
       await completeJob(job.id, result as object | undefined)
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)

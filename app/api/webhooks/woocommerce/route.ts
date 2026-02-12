@@ -165,6 +165,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Queue print generation job (status will be updated to READY_FOR_PRINT after ZIP upload)
+      // Duplicate check prevents double-processing from webhook retries
       try {
         console.log('🖨️ Queuing print generation job...');
         const result = await queueJob('PRINT_GENERATION', {
@@ -172,13 +173,20 @@ export async function POST(request: NextRequest) {
           orderId: order.id,
         }, { priority: 5 });
 
-        console.log(`✅ Print generation job queued: ${result.jobId}`);
+        if (result.isDuplicate) {
+          console.log(`⚠️ Print generation job already exists: ${result.jobId}`);
+        } else {
+          console.log(`✅ Print generation job queued: ${result.jobId}`);
+        }
 
         return NextResponse.json({
           success: true,
-          message: 'Order approved and print job queued',
+          message: result.isDuplicate
+            ? 'Print job already in progress (duplicate webhook ignored)'
+            : 'Order approved and print job queued',
           orderId: order.id,
           jobId: result.jobId,
+          isDuplicate: result.isDuplicate,
         });
       } catch (queueError) {
         console.error('❌ Failed to queue print generation job:', queueError);

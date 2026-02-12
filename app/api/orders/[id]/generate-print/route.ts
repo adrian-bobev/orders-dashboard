@@ -37,26 +37,31 @@ export async function POST(
       )
     }
 
-    // Queue the print generation job
-    const { jobId } = await queueJob('PRINT_GENERATION', {
+    // Queue the print generation job (with duplicate check)
+    const { jobId, isDuplicate } = await queueJob('PRINT_GENERATION', {
       woocommerceOrderId: order.woocommerce_order_id,
       orderId: order.id,
       orderNumber: order.order_number || undefined,
       includeShippingLabel,
     })
 
-    // Wake the worker
-    try {
-      const workerUrl = process.env.WORKER_URL || 'http://localhost:4000'
-      await fetch(`${workerUrl}/wake`, { method: 'POST' })
-    } catch (e) {
-      console.warn('Failed to wake worker:', e)
+    // Wake the worker (only if not a duplicate)
+    if (!isDuplicate) {
+      try {
+        const workerUrl = process.env.WORKER_URL || 'http://localhost:4000'
+        await fetch(`${workerUrl}/wake`, { method: 'POST' })
+      } catch (e) {
+        console.warn('Failed to wake worker:', e)
+      }
     }
 
     return NextResponse.json({
       success: true,
       jobId,
-      message: `Print generation job queued${includeShippingLabel ? ' with shipping label' : ' without shipping label'}`,
+      isDuplicate,
+      message: isDuplicate
+        ? 'Print generation job already exists and is in progress'
+        : `Print generation job queued${includeShippingLabel ? ' with shipping label' : ' without shipping label'}`,
     })
   } catch (error) {
     console.error('Error queueing print generation:', error)

@@ -114,9 +114,9 @@ export async function POST(
 
     const wooOrderId = order.woocommerce_order_id.toString()
 
-    // Queue preview generation job with notification details
+    // Queue preview generation job with notification details (with duplicate check)
     // Status will be updated to VALIDATION_PENDING after preview upload completes
-    const { jobId } = await queueJob('PREVIEW_GENERATION', {
+    const { jobId, isDuplicate } = await queueJob('PREVIEW_GENERATION', {
       orderId: order.id,
       wooOrderId,
       orderNumber: order.order_number || wooOrderId,
@@ -126,12 +126,15 @@ export async function POST(
       books,
     }, { priority: 5 })
 
-    console.log(`📤 Preview generation job queued: ${jobId}`)
+    console.log(`📤 Preview generation job ${isDuplicate ? 'already exists' : 'queued'}: ${jobId}`)
 
     return NextResponse.json({
       success: true,
-      message: 'Preview generation and notifications job queued',
+      message: isDuplicate
+        ? 'Preview generation job already in progress'
+        : 'Preview generation and notifications job queued',
       jobId,
+      isDuplicate,
       booksCount: allBookConfigIds.length,
     })
   } catch (error) {
