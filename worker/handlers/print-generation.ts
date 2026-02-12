@@ -1,4 +1,5 @@
 import type { TypedJob } from '../../lib/queue/types'
+import type { JobHandlerOptions } from './index'
 import { logger } from '../utils/logger'
 
 // Import functions dynamically to avoid Next.js-specific imports at top level
@@ -23,9 +24,11 @@ async function getSupabaseClient() {
  * uploads to R2, and updates the order record
  */
 export async function handlePrintGeneration(
-  job: TypedJob<'PRINT_GENERATION'>
+  job: TypedJob<'PRINT_GENERATION'>,
+  options?: JobHandlerOptions
 ): Promise<object> {
   const { woocommerceOrderId, orderId, orderNumber, includeShippingLabel } = job.payload
+  const signal = options?.signal
 
   logger.info('Starting print generation', {
     jobId: job.id,
@@ -39,7 +42,7 @@ export async function handlePrintGeneration(
 
   let result
   try {
-    result = await generateOrderForPrint(woocommerceOrderId, { includeShippingLabel })
+    result = await generateOrderForPrint(woocommerceOrderId, { includeShippingLabel, signal })
   } catch (error) {
     // Send error notification on complete failure
     const errorMessage = error instanceof Error ? error.message : String(error)

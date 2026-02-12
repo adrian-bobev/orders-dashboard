@@ -187,7 +187,8 @@ function getAuthHeaders(): Record<string, string> {
 async function uploadZipForPreviewImages(
   zipBuffer: Buffer,
   orderId: string,
-  bookConfigId: string
+  bookConfigId: string,
+  signal?: AbortSignal
 ): Promise<PreviewImagesResponse> {
   const { FormData } = await import('undici')
 
@@ -202,6 +203,7 @@ async function uploadZipForPreviewImages(
     headers: getAuthHeaders(),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     body: formData as any,
+    signal,
   })
 
   if (!response.ok) {
@@ -215,13 +217,19 @@ async function uploadZipForPreviewImages(
 /**
  * Poll for preview progress
  */
-async function pollProgress(workId: string): Promise<void> {
+async function pollProgress(workId: string, signal?: AbortSignal): Promise<void> {
   const maxAttempts = 120 // 10 minutes max
   const pollInterval = 5000 // 5 seconds - less intensive polling
 
   for (let i = 0; i < maxAttempts; i++) {
+    // Check if aborted before each poll
+    if (signal?.aborted) {
+      throw new Error('Operation cancelled')
+    }
+
     const response = await fetch(`${PDF_SERVICE_URL}/progress/${workId}`, {
       headers: getAuthHeaders(),
+      signal,
     })
     if (!response.ok) {
       throw new Error(`Progress check failed: ${response.status}`)
@@ -238,7 +246,13 @@ async function pollProgress(workId: string): Promise<void> {
       throw new Error(`Preview generation failed: ${progress.message}`)
     }
 
-    await new Promise((resolve) => setTimeout(resolve, pollInterval))
+    await new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(resolve, pollInterval)
+      signal?.addEventListener('abort', () => {
+        clearTimeout(timeout)
+        reject(new Error('Operation cancelled'))
+      }, { once: true })
+    })
   }
 
   throw new Error('Preview generation timed out')
@@ -251,9 +265,15 @@ async function pollProgress(workId: string): Promise<void> {
 export async function generatePreviewImages(
   generationId: string,
   orderId: string,
-  bookConfigId: string
+  bookConfigId: string,
+  signal?: AbortSignal
 ): Promise<string> {
   console.log(`📄 Generating preview images for generation ${generationId}...`)
+
+  // Check if aborted before starting
+  if (signal?.aborted) {
+    throw new Error('Operation cancelled')
+  }
 
   // Step 1: Generate ZIP from generation data
   console.log('📄 Step 1: Generating ZIP file...')
@@ -262,15 +282,22 @@ export async function generatePreviewImages(
 
   // Step 2: Upload ZIP to PDF service for preview image generation
   console.log('📄 Step 2: Uploading to PDF service for preview images...')
-  const response = await uploadZipForPreviewImages(zipBuffer, orderId, bookConfigId)
+  const response = await uploadZipForPreviewImages(zipBuffer, orderId, bookConfigId, signal)
   console.log(`📄 Work ID: ${response.workId}, R2 Folder: ${response.r2Folder}`)
 
   // Step 3: Poll for completion
   console.log('📄 Step 3: Waiting for preview image generation...')
-  await pollProgress(response.workId)
+  await pollProgress(response.workId, signal)
 
   console.log(`📄 Preview images uploaded to R2: ${response.r2Folder}`)
   return response.r2Folder
+}
+
+/**
+ * Options for preview generation
+ */
+export interface PreviewGenerationOptions {
+  signal?: AbortSignal // for cancellation support
 }
 
 /**
@@ -278,7 +305,11 @@ export async function generatePreviewImages(
  * Uploads watermarked images to R2 bucket
  * Uses WooCommerce order ID and book config_id for R2 folder structure
  */
-export async function generateOrderPreviews(orderId: string): Promise<void> {
+export async function generateOrderPreviews(
+  orderId: string,
+  options?: PreviewGenerationOptions
+): Promise<void> {
+  const signal = options?.signal
   const supabase = createServiceRoleClient()
 
   // Get all completed generations for this order
@@ -317,6 +348,11 @@ export async function generateOrderPreviews(orderId: string): Promise<void> {
 
   for (const lineItem of order.line_items || []) {
     for (const bookConfig of lineItem.book_configurations || []) {
+      // Check if aborted before processing each book
+      if (signal?.aborted) {
+        throw new Error('Operation cancelled')
+      }
+
       // Find completed generation
       const completedGen = bookConfig.book_generations?.find(
         (g: { status: string }) => g.status === 'completed'
@@ -329,7 +365,7 @@ export async function generateOrderPreviews(orderId: string): Promise<void> {
 
       try {
         console.log(`📄 Generating preview images for book: ${bookConfig.name} (WooCommerce order: ${wooOrderId}, config: ${bookConfigId})`)
-        await generatePreviewImages(completedGen.id, wooOrderId, bookConfigId)
+        await generatePreviewImages(completedGen.id, wooOrderId, bookConfigId, signal)
       } catch (e) {
         console.error(`Failed to generate preview images for ${bookConfig.name}:`, e)
         errors.push({ bookName: bookConfig.name, error: e })

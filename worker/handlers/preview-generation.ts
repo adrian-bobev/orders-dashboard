@@ -1,4 +1,5 @@
 import type { TypedJob } from '../../lib/queue/types'
+import type { JobHandlerOptions } from './index'
 import { logger } from '../utils/logger'
 
 // Import the preview service function dynamically
@@ -18,7 +19,8 @@ async function getSupabaseClient() {
  * Optionally sends notifications after successful preview generation
  */
 export async function handlePreviewGeneration(
-  job: TypedJob<'PREVIEW_GENERATION'>
+  job: TypedJob<'PREVIEW_GENERATION'>,
+  options?: JobHandlerOptions
 ): Promise<object> {
   const {
     orderId,
@@ -29,6 +31,7 @@ export async function handlePreviewGeneration(
     customerName,
     books,
   } = job.payload
+  const signal = options?.signal
 
   logger.info('Starting preview generation', {
     jobId: job.id,
@@ -41,7 +44,7 @@ export async function handlePreviewGeneration(
   const generateOrderPreviews = await getGenerateOrderPreviews()
 
   try {
-    await generateOrderPreviews(orderId)
+    await generateOrderPreviews(orderId, { signal })
 
     logger.info('Preview generation completed', {
       jobId: job.id,

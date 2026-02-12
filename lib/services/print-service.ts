@@ -249,7 +249,7 @@ async function generateZipForGeneration(generationId: string): Promise<Buffer> {
 /**
  * Upload ZIP to PDF service for print-ready PDF generation
  */
-async function uploadZipForPrint(zipBuffer: Buffer): Promise<GenerateResponse> {
+async function uploadZipForPrint(zipBuffer: Buffer, signal?: AbortSignal): Promise<GenerateResponse> {
   const { FormData } = await import('undici')
 
   const blob = new Blob([new Uint8Array(zipBuffer)] as BlobPart[], { type: 'application/zip' })
@@ -263,6 +263,7 @@ async function uploadZipForPrint(zipBuffer: Buffer): Promise<GenerateResponse> {
     headers: getAuthHeaders(),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     body: formData as any,
+    signal,
   })
 
   if (!response.ok) {
@@ -276,13 +277,19 @@ async function uploadZipForPrint(zipBuffer: Buffer): Promise<GenerateResponse> {
 /**
  * Poll for generation progress
  */
-async function pollProgress(workId: string): Promise<void> {
+async function pollProgress(workId: string, signal?: AbortSignal): Promise<void> {
   const maxAttempts = 120 // 10 minutes max
   const pollInterval = 5000 // 5 seconds - less intensive polling
 
   for (let i = 0; i < maxAttempts; i++) {
+    // Check if aborted before each poll
+    if (signal?.aborted) {
+      throw new Error('Operation cancelled')
+    }
+
     const response = await fetch(`${PDF_SERVICE_URL}/progress/${workId}`, {
       headers: getAuthHeaders(),
+      signal,
     })
     if (!response.ok) {
       throw new Error(`Progress check failed: ${response.status}`)
@@ -299,7 +306,14 @@ async function pollProgress(workId: string): Promise<void> {
       throw new Error(`PDF generation failed: ${progress.message}`)
     }
 
-    await new Promise((resolve) => setTimeout(resolve, pollInterval))
+    // Interruptible sleep
+    await new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(resolve, pollInterval)
+      signal?.addEventListener('abort', () => {
+        clearTimeout(timeout)
+        reject(new Error('Operation cancelled'))
+      }, { once: true })
+    })
   }
 
   throw new Error('PDF generation timed out')
@@ -308,9 +322,10 @@ async function pollProgress(workId: string): Promise<void> {
 /**
  * Download the generated book ZIP from PDF service
  */
-async function downloadGeneratedBook(workId: string): Promise<Buffer> {
+async function downloadGeneratedBook(workId: string, signal?: AbortSignal): Promise<Buffer> {
   const response = await fetch(`${PDF_SERVICE_URL}/download/${workId}`, {
     headers: getAuthHeaders(),
+    signal,
   })
 
   if (!response.ok) {
@@ -326,9 +341,15 @@ async function downloadGeneratedBook(workId: string): Promise<Buffer> {
  */
 async function generateAndDownloadBook(
   generationId: string,
-  bookConfig: { name: string; configId: string }
+  bookConfig: { name: string; configId: string },
+  signal?: AbortSignal
 ): Promise<Buffer> {
   console.log(`📄 [Print] Generating print-ready PDF for ${bookConfig.name}...`)
+
+  // Check if aborted before starting
+  if (signal?.aborted) {
+    throw new Error('Operation cancelled')
+  }
 
   // Step 1: Generate ZIP from generation data
   console.log('[Print] Step 1: Generating ZIP file...')
@@ -337,16 +358,16 @@ async function generateAndDownloadBook(
 
   // Step 2: Upload ZIP to PDF service
   console.log('[Print] Step 2: Uploading to PDF service...')
-  const response = await uploadZipForPrint(zipBuffer)
+  const response = await uploadZipForPrint(zipBuffer, signal)
   console.log(`[Print] Work ID: ${response.workId}`)
 
   // Step 3: Poll for completion
   console.log('[Print] Step 3: Waiting for PDF generation...')
-  await pollProgress(response.workId)
+  await pollProgress(response.workId, signal)
 
   // Step 4: Download the generated book
   console.log('[Print] Step 4: Downloading generated book...')
-  const bookData = await downloadGeneratedBook(response.workId)
+  const bookData = await downloadGeneratedBook(response.workId, signal)
   console.log(`[Print] ✅ Book generated: ${(bookData.length / 1024 / 1024).toFixed(2)} MB`)
 
   return bookData
@@ -357,6 +378,7 @@ async function generateAndDownloadBook(
  */
 export interface PrintGenerationOptions {
   includeShippingLabel?: boolean // defaults to true
+  signal?: AbortSignal // for cancellation support
 }
 
 /**
@@ -368,6 +390,7 @@ export async function generateOrderForPrint(
   options?: PrintGenerationOptions
 ): Promise<PrintResult> {
   const includeShippingLabel = options?.includeShippingLabel !== false // default to true
+  const signal = options?.signal
   const supabase = createServiceRoleClient()
 
   // Find order by WooCommerce ID - include shipping label info
@@ -448,13 +471,19 @@ export async function generateOrderForPrint(
         continue
       }
 
+      // Check if aborted before starting each book
+      if (signal?.aborted) {
+        throw new Error('Operation cancelled')
+      }
+
       try {
         const bookZipBuffer = await generateAndDownloadBook(
           completedGen.id,
           {
             name: bookConfig.name,
             configId: bookConfig.config_id?.toString() || bookConfig.id,
-          }
+          },
+          signal
         )
 
         // Extract story name from content

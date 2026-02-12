@@ -3,7 +3,15 @@ import { handlePrintGeneration } from './print-generation'
 import { handlePreviewGeneration } from './preview-generation'
 import { logger } from '../utils/logger'
 
-type HandlerFunction = (job: Job) => Promise<object | void>
+/**
+ * Options passed to job handlers
+ */
+export interface JobHandlerOptions {
+  /** AbortSignal for cancellation support */
+  signal?: AbortSignal
+}
+
+type HandlerFunction = (job: Job, options?: JobHandlerOptions) => Promise<object | void>
 
 // Registry of job handlers
 // We cast the handlers to HandlerFunction since they expect typed payloads
@@ -29,13 +37,15 @@ export function getHandler(type: JobType): HandlerFunction | undefined {
 
 /**
  * Execute a job using the appropriate handler
+ * @param job - The job to execute
+ * @param options - Handler options including AbortSignal for cancellation
  */
-export async function executeJob(job: Job): Promise<object | void> {
+export async function executeJob(job: Job, options?: JobHandlerOptions): Promise<object | void> {
   const handler = getHandler(job.type)
 
   if (!handler) {
     throw new Error(`No handler registered for job type: ${job.type}`)
   }
 
-  return handler(job)
+  return handler(job, options)
 }

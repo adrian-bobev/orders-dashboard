@@ -16,31 +16,36 @@ const JOB_TIMEOUT_MS = parseInt(process.env.WORKER_JOB_TIMEOUT_MS || '600000', 1
 let isProcessing = false
 let currentJobId: string | null = null
 let wakeResolver: (() => void) | null = null
+let currentAbortController: AbortController | null = null
 
 /**
- * Execute a function with a timeout
- * Throws an error if the function doesn't complete within the specified time
+ * Execute a function with a timeout and AbortController
+ * When timeout fires, the AbortController is aborted, which propagates to all fetch calls using the signal
  */
-async function withTimeout<T>(
-  fn: () => Promise<T>,
+async function withTimeoutAndAbort<T>(
+  fn: (signal: AbortSignal) => Promise<T>,
   timeoutMs: number,
   timeoutMessage: string
 ): Promise<T> {
-  let timeoutId: NodeJS.Timeout | undefined
+  const controller = new AbortController()
+  currentAbortController = controller
 
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    timeoutId = setTimeout(() => {
-      reject(new Error(timeoutMessage))
-    }, timeoutMs)
-  })
+  const timeoutId = setTimeout(() => {
+    controller.abort(new Error(timeoutMessage))
+  }, timeoutMs)
 
   try {
-    const result = await Promise.race([fn(), timeoutPromise])
+    const result = await fn(controller.signal)
     return result
-  } finally {
-    if (timeoutId) {
-      clearTimeout(timeoutId)
+  } catch (error) {
+    // If the error is an abort error, convert to a more descriptive timeout error
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error(timeoutMessage)
     }
+    throw error
+  } finally {
+    clearTimeout(timeoutId)
+    currentAbortController = null
   }
 }
 
@@ -69,8 +74,8 @@ async function processNextJob(): Promise<boolean> {
 
     try {
       const timeoutMinutes = Math.round(JOB_TIMEOUT_MS / 60000)
-      const result = await withTimeout(
-        () => executeJob(job),
+      const result = await withTimeoutAndAbort(
+        (signal) => executeJob(job, { signal }),
         JOB_TIMEOUT_MS,
         `Job execution timed out after ${timeoutMinutes} minutes`
       )
