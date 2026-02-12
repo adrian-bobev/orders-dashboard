@@ -10,6 +10,7 @@ export interface PrintGenerationPayload {
   woocommerceOrderId: number
   orderId: string
   orderNumber?: string
+  includeShippingLabel?: boolean // defaults to true if not specified
 }
 
 export interface PreviewGenerationPayload {

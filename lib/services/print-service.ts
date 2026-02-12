@@ -353,12 +353,21 @@ async function generateAndDownloadBook(
 }
 
 /**
+ * Options for print generation
+ */
+export interface PrintGenerationOptions {
+  includeShippingLabel?: boolean // defaults to true
+}
+
+/**
  * Generate print-ready PDFs for all completed books in an order
  * Returns a combined ZIP buffer containing all book ZIPs
  */
 export async function generateOrderForPrint(
-  woocommerceOrderId: number
+  woocommerceOrderId: number,
+  options?: PrintGenerationOptions
 ): Promise<PrintResult> {
+  const includeShippingLabel = options?.includeShippingLabel !== false // default to true
   const supabase = createServiceRoleClient()
 
   // Find order by WooCommerce ID - include shipping label info
@@ -515,8 +524,8 @@ export async function generateOrderForPrint(
       }
     }
 
-    // Add shipping label PDF if order uses Speedy
-    if (order.bg_carriers_carrier === 'speedy') {
+    // Add shipping label PDF if order uses Speedy and includeShippingLabel is true
+    if (order.bg_carriers_carrier === 'speedy' && includeShippingLabel) {
       try {
         const { createShippingLabel, downloadShippingLabelPdf } = await import('./speedy-service')
 

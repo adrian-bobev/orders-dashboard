@@ -44,6 +44,8 @@ export function OrderDetail({ order, currentUser, generationCounts = {}, complet
   const [isSendingNotifications, setIsSendingNotifications] = useState(false)
   const [notificationProgress, setNotificationProgress] = useState('')
   const [isDownloading, setIsDownloading] = useState(false)
+  const [isGeneratingPrint, setIsGeneratingPrint] = useState(false)
+  const [printGenerationMessage, setPrintGenerationMessage] = useState('')
   const [isCreatingLabel, setIsCreatingLabel] = useState(false)
   const [isDeletingLabel, setIsDeletingLabel] = useState(false)
   const [shippingLabelError, setShippingLabelError] = useState<string | null>(null)
@@ -257,6 +259,51 @@ export function OrderDetail({ order, currentUser, generationCounts = {}, complet
       setShippingLabelError(error instanceof Error ? error.message : 'Грешка при анулиране на товарителница')
     } finally {
       setIsDeletingLabel(false)
+    }
+  }
+
+  const handleGeneratePrint = async (includeShippingLabel: boolean) => {
+    if (!isAdmin || isGeneratingPrint) return
+
+    const labelText = includeShippingLabel ? 'с товарителница' : 'без товарителница'
+    if (
+      !confirm(
+        `Ще бъде генериран файл за печат ${labelText}. Продължавате ли?`
+      )
+    ) {
+      return
+    }
+
+    setIsGeneratingPrint(true)
+    setPrintGenerationMessage('Стартиране на генерация...')
+
+    try {
+      const response = await fetch(`/api/orders/${order.id}/generate-print`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ includeShippingLabel }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to queue print generation')
+      }
+
+      setPrintGenerationMessage(`Задачата е добавена в опашката (${data.jobId.slice(0, 8)}...)`)
+
+      // Clear message after a delay
+      setTimeout(() => {
+        setPrintGenerationMessage('')
+      }, 5000)
+    } catch (error) {
+      console.error('Error generating print:', error)
+      setPrintGenerationMessage(error instanceof Error ? error.message : 'Грешка при генериране')
+      setTimeout(() => {
+        setPrintGenerationMessage('')
+      }, 5000)
+    } finally {
+      setIsGeneratingPrint(false)
     }
   }
 
@@ -539,7 +586,7 @@ export function OrderDetail({ order, currentUser, generationCounts = {}, complet
                   <button
                     onClick={handleDownload}
                     disabled={isDownloading}
-                    className="w-full px-3 py-2.5 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg transition-all flex items-center justify-center gap-2 text-sm"
+                    className="w-full px-3 py-2.5 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg transition-all flex items-center justify-center gap-2 text-sm mb-2"
                   >
                     {isDownloading ? (
                       <>
@@ -558,15 +605,80 @@ export function OrderDetail({ order, currentUser, generationCounts = {}, complet
                       </>
                     )}
                   </button>
+
+                  {/* Regenerate buttons */}
+                  <div className="border-t border-green-200 pt-2 mt-2">
+                    <p className="text-xs text-green-800 font-bold mb-2">Регенерирай:</p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => handleGeneratePrint(true)}
+                        disabled={isGeneratingPrint}
+                        className="flex-1 px-2 py-1.5 bg-green-100 hover:bg-green-200 text-green-800 font-bold rounded text-xs transition-all disabled:opacity-50"
+                      >
+                        С товарителница
+                      </button>
+                      <button
+                        onClick={() => handleGeneratePrint(false)}
+                        disabled={isGeneratingPrint}
+                        className="flex-1 px-2 py-1.5 bg-green-100 hover:bg-green-200 text-green-800 font-bold rounded text-xs transition-all disabled:opacity-50"
+                      >
+                        Без товарителница
+                      </button>
+                    </div>
+                  </div>
                 </>
               ) : (
-                <div className="text-center py-4">
-                  <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-2">
-                    <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
+                <div className="space-y-3">
+                  <div className="text-center py-2">
+                    <div className="w-10 h-10 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                      <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                    </div>
+                    <p className="text-xs text-green-700">Все още не е генериран</p>
                   </div>
-                  <p className="text-xs text-green-700">Все още не е генериран</p>
+
+                  {/* Generate buttons */}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleGeneratePrint(true)}
+                      disabled={isGeneratingPrint || !allConfigsCompleted}
+                      className="flex-1 px-2 py-2 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg text-xs transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      С товарителница
+                    </button>
+                    <button
+                      onClick={() => handleGeneratePrint(false)}
+                      disabled={isGeneratingPrint || !allConfigsCompleted}
+                      className="flex-1 px-2 py-2 bg-green-600 hover:bg-green-700 text-white font-bold rounded-lg text-xs transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Без товарителница
+                    </button>
+                  </div>
+                  {!allConfigsCompleted && (
+                    <p className="text-xs text-green-700 text-center">
+                      Изисква завършени генерации
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Progress/Status message */}
+              {printGenerationMessage && (
+                <div className={`mt-2 p-2 rounded text-xs ${
+                  printGenerationMessage.includes('Грешка')
+                    ? 'bg-red-100 text-red-800'
+                    : printGenerationMessage.includes('добавена')
+                    ? 'bg-blue-100 text-blue-800'
+                    : 'bg-yellow-100 text-yellow-800'
+                }`}>
+                  {isGeneratingPrint && (
+                    <svg className="animate-spin h-3 w-3 inline mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  )}
+                  {printGenerationMessage}
                 </div>
               )}
             </div>

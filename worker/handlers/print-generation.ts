@@ -25,20 +25,21 @@ async function getSupabaseClient() {
 export async function handlePrintGeneration(
   job: TypedJob<'PRINT_GENERATION'>
 ): Promise<object> {
-  const { woocommerceOrderId, orderId, orderNumber } = job.payload
+  const { woocommerceOrderId, orderId, orderNumber, includeShippingLabel } = job.payload
 
   logger.info('Starting print generation', {
     jobId: job.id,
     woocommerceOrderId,
     orderId,
     orderNumber,
+    includeShippingLabel,
   })
 
   const generateOrderForPrint = await getGenerateOrderForPrint()
 
   let result
   try {
-    result = await generateOrderForPrint(woocommerceOrderId)
+    result = await generateOrderForPrint(woocommerceOrderId, { includeShippingLabel })
   } catch (error) {
     // Send error notification on complete failure
     const errorMessage = error instanceof Error ? error.message : String(error)

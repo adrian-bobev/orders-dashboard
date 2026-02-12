@@ -231,6 +231,31 @@ export function JobsTable({ initialJobs, initialTotal }: JobsTableProps) {
     }
   }
 
+  const handleClearAllJobs = async () => {
+    if (!confirm('ВНИМАНИЕ: Това ще изтрие ВСИЧКИ задачи (чакащи, в процес, завършени, неуспешни, отменени). Сигурни ли сте?')) {
+      return
+    }
+
+    try {
+      const response = await fetch('/api/admin/jobs/clear-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      })
+      const data = await response.json()
+
+      if (response.ok) {
+        alert(`Изтрити ${data.deletedCount} задачи`)
+        await fetchJobs(0)
+      } else {
+        alert(`Грешка: ${data.error}`)
+      }
+    } catch (error) {
+      console.error('Failed to clear jobs:', error)
+      alert('Грешка при изтриване на задачите')
+    }
+  }
+
   return (
     <div className="bg-white rounded-2xl shadow-warm border border-purple-100">
       {/* Filters */}
@@ -283,6 +308,16 @@ export function JobsTable({ initialJobs, initialTotal }: JobsTableProps) {
         </div>
 
         <div className="ml-auto flex gap-2">
+          <button
+            onClick={handleClearAllJobs}
+            className="px-4 py-1.5 bg-red-600 text-white rounded-lg text-sm hover:bg-red-700 flex items-center gap-1.5"
+            title="Изтрий всички задачи"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+            Изчисти
+          </button>
           <button
             onClick={handleWakeWorker}
             className="px-4 py-1.5 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700 flex items-center gap-1.5"
