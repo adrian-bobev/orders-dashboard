@@ -52,33 +52,25 @@ export async function handlePreviewGeneration(
     })
 
     // Update order status to VALIDATION_PENDING after preview upload completes
-    try {
-      const supabase = await getSupabaseClient()
-      const { error: updateError } = await supabase
-        .from('orders')
-        .update({ status: 'VALIDATION_PENDING' })
-        .eq('id', orderId)
+    const supabase = await getSupabaseClient()
+    const { error: updateError } = await supabase
+      .from('orders')
+      .update({ status: 'VALIDATION_PENDING' })
+      .eq('id', orderId)
 
-      if (updateError) {
-        logger.error('Failed to update order status to VALIDATION_PENDING', {
-          jobId: job.id,
-          orderId,
-          error: updateError.message,
-        })
-      } else {
-        logger.info('Order status updated to VALIDATION_PENDING', {
-          jobId: job.id,
-          orderId,
-        })
-      }
-    } catch (statusError) {
-      logger.error('Error updating order status', {
+    if (updateError) {
+      logger.error('Failed to update order status to VALIDATION_PENDING', {
         jobId: job.id,
         orderId,
-        error: statusError instanceof Error ? statusError.message : String(statusError),
+        error: updateError.message,
       })
-      // Don't fail the job - preview was generated successfully
+      throw new Error(`Failed to update order status: ${updateError.message}`)
     }
+    
+    logger.info('Order status updated to VALIDATION_PENDING', {
+      jobId: job.id,
+      orderId,
+    })
 
     // Send notifications if requested
     if (sendNotifications && customerEmail && books) {

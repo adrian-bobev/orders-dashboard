@@ -136,9 +136,10 @@ export async function handlePrintGeneration(
           jobId: job.id,
           error: updateError.message,
         })
-      } else {
-        logger.info('Order updated with print file info and status READY_FOR_PRINT', { jobId: job.id })
+        throw new Error(`Failed to update order status: ${updateError.message}`)
       }
+      
+      logger.info('Order updated with print file info and status READY_FOR_PRINT', { jobId: job.id })
     } catch (uploadError) {
       logger.error('Failed to upload print ZIP to R2', {
         jobId: job.id,
