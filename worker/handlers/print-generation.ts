@@ -30,13 +30,16 @@ export async function handlePrintGeneration(
   const { woocommerceOrderId, orderId, orderNumber, includeShippingLabel } = job.payload
   const signal = options?.signal
 
+  // Extract context for structured logging
+  const context = { wooOrderId: woocommerceOrderId, phase: 'print-generation' }
+
   logger.info('Starting print generation', {
     jobId: job.id,
     woocommerceOrderId,
     orderId,
     orderNumber,
     includeShippingLabel,
-  })
+  }, context)
 
   const generateOrderForPrint = await getGenerateOrderForPrint()
 
@@ -49,7 +52,7 @@ export async function handlePrintGeneration(
     logger.error('Print generation failed', {
       jobId: job.id,
       error: errorMessage,
-    })
+    }, context)
 
     try {
       const { sendErrorNotification } = await import(
@@ -65,7 +68,7 @@ export async function handlePrintGeneration(
       logger.warn('Failed to send error notification', {
         jobId: job.id,
         error: notificationError instanceof Error ? notificationError.message : String(notificationError),
-      })
+      }, context)
     }
 
     throw error
@@ -88,7 +91,7 @@ export async function handlePrintGeneration(
       logger.warn('Failed to send error notification', {
         jobId: job.id,
         error: notificationError instanceof Error ? notificationError.message : String(notificationError),
-      })
+      }, context)
     }
 
     throw new Error(errorMessage)
@@ -97,7 +100,7 @@ export async function handlePrintGeneration(
   logger.info('Print generation completed', {
     jobId: job.id,
     booksGenerated: result.books.length,
-  })
+  }, context)
 
   // Upload combined ZIP to R2
   let r2Key: string | undefined
@@ -106,9 +109,9 @@ export async function handlePrintGeneration(
 
   if (result.combinedZipBuffer) {
     try {
-      logger.info('Uploading print ZIP to R2...', { jobId: job.id })
+      logger.info('Uploading print ZIP to R2...', { jobId: job.id }, context)
       const uploadPrintFile = await getUploadPrintFile()
-      const uploadResult = await uploadPrintFile(woocommerceOrderId, result.combinedZipBuffer)
+      const uploadResult = await uploadPrintFile(woocommerceOrderId, result.combinedZipBuffer, signal)
       r2Key = uploadResult.r2Key
       fileSize = uploadResult.fileSize
       uploadSuccess = true
@@ -117,7 +120,7 @@ export async function handlePrintGeneration(
         jobId: job.id,
         r2Key,
         fileSize,
-      })
+      }, context)
 
       // Update order record with print file info AND status to READY_FOR_PRINT
       const supabase = await getSupabaseClient()
@@ -135,16 +138,16 @@ export async function handlePrintGeneration(
         logger.error('Failed to update order with print file info', {
           jobId: job.id,
           error: updateError.message,
-        })
+        }, context)
         throw new Error(`Failed to update order status: ${updateError.message}`)
       }
-      
-      logger.info('Order updated with print file info and status READY_FOR_PRINT', { jobId: job.id })
+
+      logger.info('Order updated with print file info and status READY_FOR_PRINT', { jobId: job.id }, context)
     } catch (uploadError) {
       logger.error('Failed to upload print ZIP to R2', {
         jobId: job.id,
         error: uploadError instanceof Error ? uploadError.message : String(uploadError),
-      })
+      }, context)
 
       // Send error notification for upload failure
       try {
@@ -185,7 +188,7 @@ export async function handlePrintGeneration(
         })),
       })
 
-      logger.info('Telegram notification sent', { jobId: job.id })
+      logger.info('Telegram notification sent', { jobId: job.id }, context)
 
       // If there was a partial failure, also send error notification
       if (result.error) {

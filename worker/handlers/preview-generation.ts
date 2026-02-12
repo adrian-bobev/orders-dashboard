@@ -33,13 +33,16 @@ export async function handlePreviewGeneration(
   } = job.payload
   const signal = options?.signal
 
+  // Extract context for structured logging
+  const context = { wooOrderId, phase: 'preview-generation' }
+
   logger.info('Starting preview generation', {
     jobId: job.id,
     orderId,
     wooOrderId,
     orderNumber,
     sendNotifications,
-  })
+  }, context)
 
   const generateOrderPreviews = await getGenerateOrderPreviews()
 
@@ -49,7 +52,7 @@ export async function handlePreviewGeneration(
     logger.info('Preview generation completed', {
       jobId: job.id,
       orderId,
-    })
+    }, context)
 
     // Update order status to VALIDATION_PENDING after preview upload completes
     const supabase = await getSupabaseClient()
@@ -63,18 +66,18 @@ export async function handlePreviewGeneration(
         jobId: job.id,
         orderId,
         error: updateError.message,
-      })
+      }, context)
       throw new Error(`Failed to update order status: ${updateError.message}`)
     }
-    
+
     logger.info('Order status updated to VALIDATION_PENDING', {
       jobId: job.id,
       orderId,
-    })
+    }, context)
 
     // Send notifications if requested
     if (sendNotifications && customerEmail && books) {
-      logger.info('Sending notifications...', { jobId: job.id })
+      logger.info('Sending notifications...', { jobId: job.id }, context)
 
       try {
         const { sendAllBooksReadyNotification } = await import(
@@ -101,12 +104,12 @@ export async function handlePreviewGeneration(
           books,
         })
 
-        logger.info('Notifications sent successfully', { jobId: job.id })
+        logger.info('Notifications sent successfully', { jobId: job.id }, context)
       } catch (notificationError) {
         logger.error('Failed to send notifications', {
           jobId: job.id,
           error: notificationError instanceof Error ? notificationError.message : String(notificationError),
-        })
+        }, context)
         // Don't fail the job for notification errors - previews were generated successfully
       }
     }
@@ -132,7 +135,7 @@ export async function handlePreviewGeneration(
       logger.warn('Failed to send error notification', {
         jobId: job.id,
         error: notificationError instanceof Error ? notificationError.message : String(notificationError),
-      })
+      }, context)
     }
 
     throw error

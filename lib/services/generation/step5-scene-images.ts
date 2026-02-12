@@ -7,6 +7,10 @@ import { GetObjectCommand, PutObjectCommand, DeleteObjectCommand } from '@aws-sd
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import sharp from 'sharp'
 import { getGenerationFolderPath } from './generation-service'
+import { createLogger, type LogContext } from '@/lib/utils/logger'
+import { checkCancellation } from '@/lib/utils/cancellation'
+
+const logger = createLogger('Step5SceneImages')
 
 export type ImageProvider = 'fal' | 'replicate' | 'kie'
 

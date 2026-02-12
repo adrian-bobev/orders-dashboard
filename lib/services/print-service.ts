@@ -2,7 +2,10 @@ import { createServiceRoleClient } from '@/lib/supabase/server'
 import { fetchImageFromStorage } from '@/lib/r2-client'
 import JSZip from 'jszip'
 import { Agent, fetch as undiciFetch } from 'undici'
+import { createLogger, type LogContext } from '@/lib/utils/logger'
+import { checkCancellation, promiseAllWithSignal } from '@/lib/utils/cancellation'
 
+const logger = createLogger('PrintService')
 const PDF_SERVICE_URL = process.env.PDF_SERVICE_URL || 'http://localhost:4001'
 const PDF_SERVICE_ACCESS_TOKEN = process.env.PDF_SERVICE_ACCESS_TOKEN
 
@@ -18,7 +21,7 @@ async function updateWooCommerceOrderMeta(
   const consumerSecret = process.env.WOOCOMMERCE_CONSUMER_SECRET
 
   if (!storeUrl || !consumerKey || !consumerSecret) {
-    console.warn('[Print] WooCommerce API credentials not configured, skipping meta update')
+    logger.warn('WooCommerce API credentials not configured, skipping meta update')
     return
   }
 
@@ -47,9 +50,9 @@ async function updateWooCommerceOrderMeta(
 
   if (!response.ok) {
     const errorText = await response.text()
-    console.error(`[Print] Failed to update WooCommerce order meta: ${response.status} ${errorText}`)
+    logger.error(`Failed to update WooCommerce order meta: ${response.status} ${errorText}`)
   } else {
-    console.log(`[Print] Updated WooCommerce order ${woocommerceOrderId} meta:`, metaData.map(m => m.key).join(', '))
+    logger.info(`Updated WooCommerce order ${woocommerceOrderId} meta`, { keys: metaData.map(m => m.key).join(', ') })
   }
 }
 
@@ -116,7 +119,11 @@ function getAuthHeaders(): Record<string, string> {
 /**
  * Generate ZIP file for a generation (same logic as pdf-preview-service)
  */
-async function generateZipForGeneration(generationId: string): Promise<Buffer> {
+async function generateZipForGeneration(
+  generationId: string,
+  context?: LogContext,
+  signal?: AbortSignal
+): Promise<Buffer> {
   const supabase = createServiceRoleClient()
 
   // Get the generation with book config
@@ -194,10 +201,10 @@ async function generateZipForGeneration(generationId: string): Promise<Buffer> {
 
   // Download and add images in parallel
   const selectedImages = sceneImages || []
-  console.log(`📄 [Print] Fetching ${selectedImages.length} images from R2 (parallel)...`)
+  logger.info(`Fetching ${selectedImages.length} images from R2 (parallel)...`, undefined, context)
   const fetchStart = Date.now()
 
-  // Fetch all images in parallel
+  // Fetch all images in parallel with signal support
   const fetchPromises = selectedImages
     .filter((img) => img.image_key)
     .map(async (img) => {
@@ -210,17 +217,17 @@ async function generateZipForGeneration(generationId: string): Promise<Buffer> {
       }
     })
 
-  const results = await Promise.all(fetchPromises)
+  const results = await promiseAllWithSignal(fetchPromises, signal, context)
 
   // Process results and add to ZIP
   for (const { img, imageData, error } of results) {
     if (error) {
-      console.warn(`[Print] Failed to download image ${img.image_key}:`, error)
+      logger.warn(`Failed to download image ${img.image_key}`, { error }, context)
       continue
     }
 
     if (!imageData) {
-      console.warn(`[Print] Failed to fetch image ${img.image_key}: not found in storage`)
+      logger.warn(`Failed to fetch image ${img.image_key}: not found in storage`, undefined, context)
       continue
     }
 
@@ -239,7 +246,7 @@ async function generateZipForGeneration(generationId: string): Promise<Buffer> {
   }
 
   const fetchDuration = ((Date.now() - fetchStart) / 1000).toFixed(2)
-  console.log(`📄 [Print] All images fetched in ${fetchDuration}s (parallel)`)
+  logger.info(`All images fetched in ${fetchDuration}s (parallel)`, undefined, context)
 
   // Generate ZIP as buffer
   const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' })
@@ -296,7 +303,7 @@ async function pollProgress(workId: string, signal?: AbortSignal): Promise<void>
     }
 
     const progress: ProgressResponse = await response.json()
-    console.log(`📄 [Print] Progress: ${progress.stage} - ${progress.message} (${progress.percent}%)`)
+    logger.debug(`Progress: ${progress.stage} - ${progress.message} (${progress.percent}%)`)
 
     if (progress.stage === 'done') {
       return
@@ -342,33 +349,36 @@ async function downloadGeneratedBook(workId: string, signal?: AbortSignal): Prom
 async function generateAndDownloadBook(
   generationId: string,
   bookConfig: { name: string; configId: string },
+  context?: LogContext,
   signal?: AbortSignal
 ): Promise<Buffer> {
-  console.log(`📄 [Print] Generating print-ready PDF for ${bookConfig.name}...`)
+  logger.info(`Generating print-ready PDF for ${bookConfig.name}...`, undefined, context)
 
   // Check if aborted before starting
-  if (signal?.aborted) {
-    throw new Error('Operation cancelled')
-  }
+  checkCancellation(signal, context)
 
   // Step 1: Generate ZIP from generation data
-  console.log('[Print] Step 1: Generating ZIP file...')
-  const zipBuffer = await generateZipForGeneration(generationId)
-  console.log(`[Print] ZIP generated: ${(zipBuffer.length / 1024 / 1024).toFixed(2)} MB`)
+  logger.info('Step 1: Generating ZIP file...', undefined, context)
+  checkCancellation(signal, context)
+  const zipBuffer = await generateZipForGeneration(generationId, context, signal)
+  logger.info(`ZIP generated: ${(zipBuffer.length / 1024 / 1024).toFixed(2)} MB`, undefined, context)
 
   // Step 2: Upload ZIP to PDF service
-  console.log('[Print] Step 2: Uploading to PDF service...')
+  logger.info('Step 2: Uploading to PDF service...', undefined, context)
+  checkCancellation(signal, context)
   const response = await uploadZipForPrint(zipBuffer, signal)
-  console.log(`[Print] Work ID: ${response.workId}`)
+  logger.info(`Work ID: ${response.workId}`, undefined, context)
 
   // Step 3: Poll for completion
-  console.log('[Print] Step 3: Waiting for PDF generation...')
+  logger.info('Step 3: Waiting for PDF generation...', undefined, context)
+  checkCancellation(signal, context)
   await pollProgress(response.workId, signal)
 
   // Step 4: Download the generated book
-  console.log('[Print] Step 4: Downloading generated book...')
+  logger.info('Step 4: Downloading generated book...', undefined, context)
+  checkCancellation(signal, context)
   const bookData = await downloadGeneratedBook(response.workId, signal)
-  console.log(`[Print] ✅ Book generated: ${(bookData.length / 1024 / 1024).toFixed(2)} MB`)
+  logger.info(`Book generated: ${(bookData.length / 1024 / 1024).toFixed(2)} MB`, undefined, context)
 
   return bookData
 }
@@ -467,14 +477,24 @@ export async function generateOrderForPrint(
       )
 
       if (!completedGen) {
-        console.log(`[Print] Skipping ${bookConfig.name}: no completed generation`)
+        logger.info(`Skipping ${bookConfig.name}: no completed generation`, undefined, {
+          wooOrderId: woocommerceOrderId,
+          bookConfigId: bookConfig.id,
+          phase: 'print-book-loop',
+        })
         continue
       }
 
-      // Check if aborted before starting each book
-      if (signal?.aborted) {
-        throw new Error('Operation cancelled')
+      // Context for this book
+      const bookContext: LogContext = {
+        wooOrderId: woocommerceOrderId,
+        bookConfigId: bookConfig.id,
+        generationId: completedGen.id,
+        phase: 'print-book-gen',
       }
+
+      // Check if aborted before starting each book
+      checkCancellation(signal, bookContext)
 
       try {
         const bookZipBuffer = await generateAndDownloadBook(
@@ -483,6 +503,7 @@ export async function generateOrderForPrint(
             name: bookConfig.name,
             configId: bookConfig.config_id?.toString() || bookConfig.id,
           },
+          bookContext,
           signal
         )
 
@@ -497,7 +518,7 @@ export async function generateOrderForPrint(
           zipBuffer: bookZipBuffer,
         })
       } catch (e) {
-        console.error(`[Print] Failed to generate book for ${bookConfig.name}:`, e)
+        logger.error(`Failed to generate book for ${bookConfig.name}`, { error: e }, bookContext)
         errors.push({ bookName: bookConfig.name, error: e })
       }
     }
@@ -525,7 +546,10 @@ export async function generateOrderForPrint(
   let shippingLabelError: string | undefined
 
   if (completedBooks.length > 0) {
-    console.log(`[Print] Combining ${completedBooks.length} books into single ZIP...`)
+    logger.info(`Combining ${completedBooks.length} books into single ZIP...`, undefined, {
+      wooOrderId: woocommerceOrderId,
+      phase: 'print-combine-zip',
+    })
     const combinedZip = new JSZip()
     const isSingleBook = completedBooks.length === 1
 
@@ -562,7 +586,10 @@ export async function generateOrderForPrint(
 
         // If shipping label doesn't exist, generate it first
         if (!shipmentId) {
-          console.log(`[Print] Shipping label not found, generating...`)
+          logger.info('Shipping label not found, generating...', undefined, {
+            wooOrderId: woocommerceOrderId,
+            phase: 'print-shipping-label',
+          })
 
           // Fetch line items for the shipping label
           const { data: lineItemsForShipping } = await supabase
@@ -615,30 +642,45 @@ export async function generateOrderForPrint(
           updateWooCommerceOrderMeta(order.woocommerce_order_id, [
             { key: '_speedy_shipment_id', value: shipmentId },
           ]).catch(err => {
-            console.error('[Print] Failed to update WooCommerce order meta:', err)
+            logger.error('Failed to update WooCommerce order meta', { error: err })
           })
 
-          console.log(`[Print] Shipping label generated: ${shipmentId}`)
+          logger.info(`Shipping label generated: ${shipmentId}`, undefined, {
+            wooOrderId: woocommerceOrderId,
+            phase: 'print-shipping-label',
+          })
         }
 
         // Download shipping label PDF
-        console.log(`[Print] Downloading shipping label PDF for shipment ${shipmentId}...`)
+        logger.info(`Downloading shipping label PDF for shipment ${shipmentId}...`, undefined, {
+          wooOrderId: woocommerceOrderId,
+          phase: 'print-shipping-label',
+        })
         const shippingLabelPdf = await downloadShippingLabelPdf(shipmentId)
 
         // Add to ZIP with name <wooOrderId>-shipping-label.pdf
         const shippingLabelFileName = `${woocommerceOrderId}-shipping-label.pdf`
         combinedZip.file(shippingLabelFileName, shippingLabelPdf)
-        console.log(`[Print] ✅ Shipping label added: ${shippingLabelFileName}`)
+        logger.info(`Shipping label added: ${shippingLabelFileName}`, undefined, {
+          wooOrderId: woocommerceOrderId,
+          phase: 'print-shipping-label',
+        })
       } catch (shippingError) {
         const errorMsg = shippingError instanceof Error ? shippingError.message : String(shippingError)
-        console.error(`[Print] Failed to add shipping label:`, shippingError)
+        logger.error('Failed to add shipping label', { error: shippingError }, {
+          wooOrderId: woocommerceOrderId,
+          phase: 'print-shipping-label',
+        })
         shippingLabelError = `Failed to add shipping label: ${errorMsg}`
         // Don't fail the whole process - just log the error
       }
     }
 
     combinedZipBuffer = await combinedZip.generateAsync({ type: 'nodebuffer' })
-    console.log(`[Print] ✅ Combined ZIP created: ${(combinedZipBuffer.length / 1024 / 1024).toFixed(2)} MB`)
+    logger.info(`Combined ZIP created: ${(combinedZipBuffer.length / 1024 / 1024).toFixed(2)} MB`, undefined, {
+      wooOrderId: woocommerceOrderId,
+      phase: 'print-combine-zip',
+    })
   }
 
   // Combine all errors

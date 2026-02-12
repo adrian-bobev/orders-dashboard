@@ -1,5 +1,8 @@
 import { postJson } from '@/lib/services/http-client'
 import { generateApprovalUrl } from '@/lib/services/approval-token'
+import { createLogger } from '@/lib/utils/logger'
+
+const logger = createLogger('TelegramService')
 
 /**
  * Order notification data structure
@@ -170,7 +173,7 @@ export async function sendOrderNotification(
 
   // Silent skip if credentials not configured
   if (!botToken || !chatId) {
-    console.warn('⚠️  Telegram credentials not configured, skipping notification');
+    logger.warn('Telegram credentials not configured, skipping notification');
     return;
   }
 
@@ -178,10 +181,10 @@ export async function sendOrderNotification(
     const message = formatOrderMessage(data);
     const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
 
-    console.log('📱 Sending Telegram notification...');
-    console.log('   Order ID:', data.orderId);
-    console.log('   Dashboard URL:', process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000');
-    console.log('   Message preview:', message.substring(0, 100) + '...');
+    logger.info('Sending Telegram notification', {
+      orderId: data.orderId,
+      dashboardUrl: process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000',
+    });
 
     const response = await postJson(url, {
       chat_id: chatId,
@@ -190,15 +193,16 @@ export async function sendOrderNotification(
     });
 
     if (response.status !== 200 || !response.data?.ok) {
-      console.error('❌ Telegram API returned error:');
-      console.error('   Status:', response.status);
-      console.error('   Response:', JSON.stringify(response.data, null, 2));
+      logger.error('Telegram API returned error', {
+        status: response.status,
+        response: response.data,
+      });
       return;
     }
 
-    console.log('✅ Telegram notification sent successfully');
+    logger.info('Telegram notification sent successfully');
   } catch (error) {
-    console.error('❌ Failed to send Telegram notification:', error);
+    logger.error('Failed to send Telegram notification', { error });
     // Don't throw - this is a non-critical operation
   }
 }

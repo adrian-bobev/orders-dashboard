@@ -1,5 +1,6 @@
 import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { checkCancellation } from '@/lib/utils/cancellation';
 
 /**
  * Creates and returns an S3-compatible client (R2 in production, MinIO in local dev)
@@ -91,12 +92,19 @@ export function getImageUrl(imageKey: string | undefined): string | undefined {
  * Uploads a print-ready ZIP file to R2 storage
  * Storage: 'prints' bucket, filename is {woocommerceOrderId}.zip
  *
+ * @param woocommerceOrderId - WooCommerce order ID
+ * @param zipBuffer - Buffer containing the ZIP file
+ * @param signal - Optional AbortSignal for cancellation support
  * @returns Object with r2Key and fileSize
  */
 export async function uploadPrintFile(
   woocommerceOrderId: number,
-  zipBuffer: Buffer
+  zipBuffer: Buffer,
+  signal?: AbortSignal
 ): Promise<{ r2Key: string; fileSize: number }> {
+  // Check for cancellation before upload
+  checkCancellation(signal, { wooOrderId: woocommerceOrderId, phase: 'upload-r2' });
+
   const bucket = process.env.R2_PRINTS_BUCKET;
 
   if (!bucket) {

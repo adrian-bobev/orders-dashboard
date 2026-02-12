@@ -1,7 +1,10 @@
 import { createServiceRoleClient } from '@/lib/supabase/server'
 import { fetchImageFromStorage } from '@/lib/r2-client'
 import JSZip from 'jszip'
+import { createLogger, type LogContext } from '@/lib/utils/logger'
+import { checkCancellation, promiseAllWithSignal } from '@/lib/utils/cancellation'
 
+const logger = createLogger('PreviewService')
 const PDF_SERVICE_URL = process.env.PDF_SERVICE_URL || 'http://localhost:4001'
 const PDF_SERVICE_ACCESS_TOKEN = process.env.PDF_SERVICE_ACCESS_TOKEN
 
@@ -31,7 +34,11 @@ interface ProgressResponse {
 /**
  * Generate ZIP file for a generation (server-side version of download-zip.tsx logic)
  */
-async function generateZipForGeneration(generationId: string): Promise<Buffer> {
+async function generateZipForGeneration(
+  generationId: string,
+  context?: LogContext,
+  signal?: AbortSignal
+): Promise<Buffer> {
   const supabase = createServiceRoleClient()
 
   // Get the generation with book config
@@ -109,10 +116,10 @@ async function generateZipForGeneration(generationId: string): Promise<Buffer> {
 
   // Download and add images in parallel
   const selectedImages = sceneImages || []
-  console.log(`📄 Fetching ${selectedImages.length} images from R2 (parallel)...`)
+  logger.info(`Fetching ${selectedImages.length} images from R2 (parallel)...`, undefined, context)
   const fetchStart = Date.now()
 
-  // Fetch all images in parallel
+  // Fetch all images in parallel with signal support
   const fetchPromises = selectedImages
     .filter((img) => img.image_key)
     .map(async (img) => {
@@ -127,17 +134,17 @@ async function generateZipForGeneration(generationId: string): Promise<Buffer> {
       }
     })
 
-  const results = await Promise.all(fetchPromises)
+  const results = await promiseAllWithSignal(fetchPromises, signal, context)
 
   // Process results and add to ZIP
   for (const { img, imageData, imgDuration, error } of results) {
     if (error) {
-      console.warn(`Failed to download image ${img.image_key}:`, error)
+      logger.warn(`Failed to download image ${img.image_key}`, { error }, context)
       continue
     }
 
     if (!imageData) {
-      console.warn(`Failed to fetch image ${img.image_key}: not found in storage`)
+      logger.warn(`Failed to fetch image ${img.image_key}: not found in storage`, undefined, context)
       continue
     }
 
@@ -152,20 +159,20 @@ async function generateZipForGeneration(generationId: string): Promise<Buffer> {
       fileName = `scene_${sceneNumber}.jpg`
     }
     const sizeMB = (imageData.body.length / 1024 / 1024).toFixed(2)
-    console.log(`📄   ${fileName}: ${sizeMB}MB (fetched in ${imgDuration}ms)`)
+    logger.debug(`${fileName}: ${sizeMB}MB (fetched in ${imgDuration}ms)`, undefined, context)
 
     imagesFolder.file(fileName, imageData.body)
   }
 
   const fetchDuration = ((Date.now() - fetchStart) / 1000).toFixed(2)
-  console.log(`📄 All images fetched in ${fetchDuration}s (parallel)`)
+  logger.info(`All images fetched in ${fetchDuration}s (parallel)`, undefined, context)
 
   // Generate ZIP as buffer
-  console.log(`📄 Compressing ZIP...`)
+  logger.debug('Compressing ZIP...', undefined, context)
   const zipStart = Date.now()
   const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' })
   const zipDuration = ((Date.now() - zipStart) / 1000).toFixed(2)
-  console.log(`📄 ZIP compressed in ${zipDuration}s`)
+  logger.debug(`ZIP compressed in ${zipDuration}s`, undefined, context)
 
   return zipBuffer
 }
@@ -236,7 +243,7 @@ async function pollProgress(workId: string, signal?: AbortSignal): Promise<void>
     }
 
     const progress: ProgressResponse = await response.json()
-    console.log(`📄 Preview images progress: ${progress.stage} - ${progress.message} (${progress.percent}%)`)
+    logger.debug(`Preview images progress: ${progress.stage} - ${progress.message} (${progress.percent}%)`)
 
     if (progress.stage === 'done') {
       return
@@ -268,28 +275,35 @@ export async function generatePreviewImages(
   bookConfigId: string,
   signal?: AbortSignal
 ): Promise<string> {
-  console.log(`📄 Generating preview images for generation ${generationId}...`)
-
-  // Check if aborted before starting
-  if (signal?.aborted) {
-    throw new Error('Operation cancelled')
+  const context: LogContext = {
+    generationId,
+    bookConfigId,
+    phase: 'preview-images',
   }
 
+  logger.info(`Generating preview images for generation ${generationId}...`, undefined, context)
+
+  // Check if aborted before starting
+  checkCancellation(signal, context)
+
   // Step 1: Generate ZIP from generation data
-  console.log('📄 Step 1: Generating ZIP file...')
-  const zipBuffer = await generateZipForGeneration(generationId)
-  console.log(`📄 ZIP generated: ${zipBuffer.length} bytes`)
+  logger.info('Step 1: Generating ZIP file...', undefined, context)
+  checkCancellation(signal, context)
+  const zipBuffer = await generateZipForGeneration(generationId, context, signal)
+  logger.info(`ZIP generated: ${zipBuffer.length} bytes`, undefined, context)
 
   // Step 2: Upload ZIP to PDF service for preview image generation
-  console.log('📄 Step 2: Uploading to PDF service for preview images...')
+  logger.info('Step 2: Uploading to PDF service for preview images...', undefined, context)
+  checkCancellation(signal, context)
   const response = await uploadZipForPreviewImages(zipBuffer, orderId, bookConfigId, signal)
-  console.log(`📄 Work ID: ${response.workId}, R2 Folder: ${response.r2Folder}`)
+  logger.info(`Work ID: ${response.workId}, R2 Folder: ${response.r2Folder}`, undefined, context)
 
   // Step 3: Poll for completion
-  console.log('📄 Step 3: Waiting for preview image generation...')
+  logger.info('Step 3: Waiting for preview image generation...', undefined, context)
+  checkCancellation(signal, context)
   await pollProgress(response.workId, signal)
 
-  console.log(`📄 Preview images uploaded to R2: ${response.r2Folder}`)
+  logger.info(`Preview images uploaded to R2: ${response.r2Folder}`, undefined, context)
   return response.r2Folder
 }
 
@@ -348,10 +362,15 @@ export async function generateOrderPreviews(
 
   for (const lineItem of order.line_items || []) {
     for (const bookConfig of lineItem.book_configurations || []) {
-      // Check if aborted before processing each book
-      if (signal?.aborted) {
-        throw new Error('Operation cancelled')
+      // Context for this book
+      const bookContext: LogContext = {
+        wooOrderId: order.woocommerce_order_id,
+        bookConfigId: bookConfig.id,
+        phase: 'preview-book-gen',
       }
+
+      // Check if aborted before processing each book
+      checkCancellation(signal, bookContext)
 
       // Find completed generation
       const completedGen = bookConfig.book_generations?.find(
@@ -364,10 +383,13 @@ export async function generateOrderPreviews(
       const bookConfigId = bookConfig.config_id?.toString() || bookConfig.id
 
       try {
-        console.log(`📄 Generating preview images for book: ${bookConfig.name} (WooCommerce order: ${wooOrderId}, config: ${bookConfigId})`)
+        logger.info(`Generating preview images for book: ${bookConfig.name}`, {
+          wooOrderId,
+          configId: bookConfigId,
+        }, bookContext)
         await generatePreviewImages(completedGen.id, wooOrderId, bookConfigId, signal)
       } catch (e) {
-        console.error(`Failed to generate preview images for ${bookConfig.name}:`, e)
+        logger.error(`Failed to generate preview images for ${bookConfig.name}`, { error: e }, bookContext)
         errors.push({ bookName: bookConfig.name, error: e })
       }
     }
