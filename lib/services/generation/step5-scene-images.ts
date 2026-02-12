@@ -420,8 +420,10 @@ export class Step5SceneImagesService {
     // Import the scene characters service to fetch character references
     const { step5SceneCharactersService } = await import('./step5-scene-characters-service')
 
-    // Generate images in parallel with concurrency limit of 6
-    const CONCURRENCY_LIMIT = 6
+    // Generate images in parallel with concurrency limit of 7
+    // This allows 14 scenes (typical book) to be generated in 2 batches
+    // Note: Cover and back cover are generated separately, not counted here
+    const CONCURRENCY_LIMIT = 7
     const results: any[] = []
 
     // Process in batches
