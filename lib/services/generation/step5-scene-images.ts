@@ -66,7 +66,7 @@ export class Step5SceneImagesService {
         prompt,
         imageUrls: referenceImageUrls,
         aspectRatio: '1:1',
-        quality: 'high', // 4K output
+        quality: 'basic', // 2K output (~2048px, closest to 2538px print requirement)
       })
     } else if (config.provider === 'replicate') {
       // Seedream 4.5 on Replicate uses image_input and size
