@@ -17,6 +17,7 @@
     "sync-order-images": "node scripts/sync-order-images.js",
     "fetch-order": "tsx scripts/fetch-order.ts",
     "fetch-and-sync": "tsx scripts/fetch-and-sync-order.ts",
+    "cleanup-prints": "tsx scripts/cleanup-downloaded-prints.ts",
     "docker:up": "docker-compose -f docker-compose.prod.yml up -d",
     "docker:down": "docker-compose -f docker-compose.prod.yml down",
     "docker:logs": "docker-compose -f docker-compose.prod.yml logs -f",

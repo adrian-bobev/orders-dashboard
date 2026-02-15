@@ -18,6 +18,11 @@ async function getSupabaseClient() {
   return createServiceRoleClient()
 }
 
+async function getCleanupOrderPreviewImages() {
+  const { cleanupOrderPreviewImages } = await import('../../lib/services/r2-cleanup')
+  return cleanupOrderPreviewImages
+}
+
 /**
  * Handle PRINT_GENERATION jobs
  * Generates print-ready PDFs for all completed books in an order,
@@ -143,6 +148,64 @@ export async function handlePrintGeneration(
       }
 
       logger.info('Order updated with print file info and status READY_FOR_PRINT', { jobId: job.id }, context)
+
+      // Cleanup R2 preview images after successful print generation
+      try {
+        logger.info('Starting R2 preview cleanup', { jobId: job.id, woocommerceOrderId }, context)
+        const cleanupOrderPreviewImages = await getCleanupOrderPreviewImages()
+        const cleanupResult = await cleanupOrderPreviewImages(woocommerceOrderId)
+
+        if (cleanupResult.success) {
+          logger.info('R2 preview cleanup completed', {
+            jobId: job.id,
+            woocommerceOrderId,
+            deletedCount: cleanupResult.deletedCount,
+          }, context)
+
+          // Update preview cleanup status
+          await supabase
+            .from('orders')
+            .update({
+              preview_cleanup_status: 'completed',
+              preview_cleanup_error: null,
+            })
+            .eq('id', result.orderId)
+        } else {
+          logger.warn('R2 preview cleanup failed (non-critical)', {
+            jobId: job.id,
+            woocommerceOrderId,
+            error: cleanupResult.error,
+          }, context)
+
+          // Update preview cleanup status
+          await supabase
+            .from('orders')
+            .update({
+              preview_cleanup_status: 'failed',
+              preview_cleanup_error: cleanupResult.error,
+            })
+            .eq('id', result.orderId)
+        }
+      } catch (cleanupError) {
+        logger.warn('R2 preview cleanup error (non-critical)', {
+          jobId: job.id,
+          woocommerceOrderId,
+          error: cleanupError instanceof Error ? cleanupError.message : String(cleanupError),
+        }, context)
+
+        // Update preview cleanup status
+        try {
+          await supabase
+            .from('orders')
+            .update({
+              preview_cleanup_status: 'failed',
+              preview_cleanup_error: cleanupError instanceof Error ? cleanupError.message : String(cleanupError),
+            })
+            .eq('id', result.orderId)
+        } catch (_) {
+          // Ignore DB update errors
+        }
+      }
     } catch (uploadError) {
       logger.error('Failed to upload print ZIP to R2', {
         jobId: job.id,

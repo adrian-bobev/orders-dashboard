@@ -3,6 +3,7 @@ import { fetchImageFromStorage } from '@/lib/r2-client'
 import JSZip from 'jszip'
 import { createLogger, type LogContext } from '@/lib/utils/logger'
 import { checkCancellation, promiseAllWithSignal } from '@/lib/utils/cancellation'
+import { cleanupPDFServiceJob } from '@/lib/services/pdf-service-client'
 
 const logger = createLogger('PreviewService')
 const PDF_SERVICE_URL = process.env.PDF_SERVICE_URL || 'http://localhost:4001'
@@ -282,29 +283,51 @@ export async function generatePreviewImages(
   }
 
   logger.info(`Generating preview images for generation ${generationId}...`, undefined, context)
-
-  // Check if aborted before starting
   checkCancellation(signal, context)
 
-  // Step 1: Generate ZIP from generation data
-  logger.info('Step 1: Generating ZIP file...', undefined, context)
-  checkCancellation(signal, context)
-  const zipBuffer = await generateZipForGeneration(generationId, context, signal)
-  logger.info(`ZIP generated: ${zipBuffer.length} bytes`, undefined, context)
+  let workId: string | undefined;
 
-  // Step 2: Upload ZIP to PDF service for preview image generation
-  logger.info('Step 2: Uploading to PDF service for preview images...', undefined, context)
-  checkCancellation(signal, context)
-  const response = await uploadZipForPreviewImages(zipBuffer, orderId, bookConfigId, signal)
-  logger.info(`Work ID: ${response.workId}, R2 Folder: ${response.r2Folder}`, undefined, context)
+  try {
+    // Step 1: Generate ZIP from generation data
+    logger.info('Step 1: Generating ZIP file...', undefined, context)
+    checkCancellation(signal, context)
+    const zipBuffer = await generateZipForGeneration(generationId, context, signal)
+    logger.info(`ZIP generated: ${zipBuffer.length} bytes`, undefined, context)
 
-  // Step 3: Poll for completion
-  logger.info('Step 3: Waiting for preview image generation...', undefined, context)
-  checkCancellation(signal, context)
-  await pollProgress(response.workId, signal)
+    // Step 2: Upload ZIP to PDF service for preview image generation
+    logger.info('Step 2: Uploading to PDF service for preview images...', undefined, context)
+    checkCancellation(signal, context)
+    const response = await uploadZipForPreviewImages(zipBuffer, orderId, bookConfigId, signal)
+    workId = response.workId; // Store for cleanup
+    logger.info(`Work ID: ${response.workId}, R2 Folder: ${response.r2Folder}`, undefined, context)
 
-  logger.info(`Preview images uploaded to R2: ${response.r2Folder}`, undefined, context)
-  return response.r2Folder
+    // Step 3: Poll for completion
+    logger.info('Step 3: Waiting for preview image generation...', undefined, context)
+    checkCancellation(signal, context)
+    await pollProgress(response.workId, signal)
+
+    logger.info(`Preview images uploaded to R2: ${response.r2Folder}`, undefined, context)
+
+    // Step 4: Cleanup PDF service files
+    logger.info('Step 4: Cleaning up PDF service files...', undefined, context)
+    const cleanupResult = await cleanupPDFServiceJob(response.workId)
+
+    if (!cleanupResult.ok) {
+      logger.warn('PDF service cleanup failed (non-critical)', {
+        workId: response.workId,
+        error: cleanupResult.error
+      }, context)
+    }
+
+    return response.r2Folder
+  } catch (error) {
+    // Cleanup on error/cancellation
+    if (workId) {
+      logger.info('Cleaning up after error/cancellation...', undefined, context)
+      await cleanupPDFServiceJob(workId)
+    }
+    throw error
+  }
 }
 
 /**

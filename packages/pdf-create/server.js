@@ -360,6 +360,10 @@ async function handleGenerate(req, res) {
     const zip = new AdmZip(zipPath);
     zip.extractAllTo(workDir, true);
 
+    // Delete the uploaded ZIP file after extraction
+    fs.unlinkSync(zipPath);
+    console.log(`[Cleanup] Deleted uploaded ZIP: ${zipPath}`);
+
     await processJob(workId, workDir, { type: 'generate', skipUpscale });
   } catch (e) {
     progress[workId] = { stage: 'error', message: e.message };
@@ -376,6 +380,39 @@ app.get('/progress/:id', requireToken, (req, res) => {
   const state = progress[req.params.id];
   if (!state) return res.status(404).json({ error: 'Unknown work id' });
   res.json(state);
+});
+
+// POST /cleanup/:workId - Delete job files
+app.post('/cleanup/:workId', requireToken, async (req, res) => {
+  const { workId } = req.params;
+
+  try {
+    const workDir = path.join(uploadsRoot, workId);
+    let cleaned = { uploads: false };
+
+    // Delete uploads directory
+    if (fs.existsSync(workDir)) {
+      fs.rmSync(workDir, { recursive: true, force: true });
+      cleaned.uploads = true;
+      console.log(`[Cleanup] Deleted uploads directory: ${workId}`);
+    }
+
+    // Clean up progress tracking
+    delete progress[workId];
+
+    res.json({
+      ok: true,
+      workId,
+      cleaned,
+      message: 'Cleanup completed successfully'
+    });
+  } catch (error) {
+    console.error(`[Cleanup] Error cleaning ${workId}:`, error.message);
+    res.status(500).json({
+      ok: false,
+      error: error.message
+    });
+  }
 });
 
 // Helper function to generate preview images and upload to R2
@@ -513,6 +550,10 @@ app.post('/preview-images', requireToken, upload.single('archive'), async (req, 
     progress[workId] = { stage: 'unzip', message: 'Unzipping archive', percent: 0 };
     const zip = new AdmZip(zipPath);
     zip.extractAllTo(workDir, true);
+
+    // Delete the uploaded ZIP file after extraction
+    fs.unlinkSync(zipPath);
+    console.log(`[Cleanup] Deleted uploaded ZIP: ${zipPath}`);
 
     // Validate ZIP contents
     const validation = validateZipContents(workDir);

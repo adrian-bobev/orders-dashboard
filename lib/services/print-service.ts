@@ -4,6 +4,7 @@ import JSZip from 'jszip'
 import { Agent, fetch as undiciFetch } from 'undici'
 import { createLogger, type LogContext } from '@/lib/utils/logger'
 import { checkCancellation, promiseAllWithSignal } from '@/lib/utils/cancellation'
+import { cleanupPDFServiceJob } from '@/lib/services/pdf-service-client'
 
 const logger = createLogger('PrintService')
 const PDF_SERVICE_URL = process.env.PDF_SERVICE_URL || 'http://localhost:4001'
@@ -353,34 +354,57 @@ async function generateAndDownloadBook(
   signal?: AbortSignal
 ): Promise<Buffer> {
   logger.info(`Generating print-ready PDF for ${bookConfig.name}...`, undefined, context)
-
-  // Check if aborted before starting
   checkCancellation(signal, context)
 
-  // Step 1: Generate ZIP from generation data
-  logger.info('Step 1: Generating ZIP file...', undefined, context)
-  checkCancellation(signal, context)
-  const zipBuffer = await generateZipForGeneration(generationId, context, signal)
-  logger.info(`ZIP generated: ${(zipBuffer.length / 1024 / 1024).toFixed(2)} MB`, undefined, context)
+  let workId: string | undefined;
 
-  // Step 2: Upload ZIP to PDF service
-  logger.info('Step 2: Uploading to PDF service...', undefined, context)
-  checkCancellation(signal, context)
-  const response = await uploadZipForPrint(zipBuffer, signal)
-  logger.info(`Work ID: ${response.workId}`, undefined, context)
+  try {
+    // Step 1: Generate ZIP from generation data
+    logger.info('Step 1: Generating ZIP file...', undefined, context)
+    checkCancellation(signal, context)
+    const zipBuffer = await generateZipForGeneration(generationId, context, signal)
+    logger.info(`ZIP generated: ${(zipBuffer.length / 1024 / 1024).toFixed(2)} MB`, undefined, context)
 
-  // Step 3: Poll for completion
-  logger.info('Step 3: Waiting for PDF generation...', undefined, context)
-  checkCancellation(signal, context)
-  await pollProgress(response.workId, signal)
+    // Step 2: Upload ZIP to PDF service
+    logger.info('Step 2: Uploading to PDF service...', undefined, context)
+    checkCancellation(signal, context)
+    const response = await uploadZipForPrint(zipBuffer, signal)
+    workId = response.workId; // Store for cleanup
+    logger.info(`Work ID: ${response.workId}`, undefined, context)
 
-  // Step 4: Download the generated book
-  logger.info('Step 4: Downloading generated book...', undefined, context)
-  checkCancellation(signal, context)
-  const bookData = await downloadGeneratedBook(response.workId, signal)
-  logger.info(`Book generated: ${(bookData.length / 1024 / 1024).toFixed(2)} MB`, undefined, context)
+    // Step 3: Poll for completion
+    logger.info('Step 3: Waiting for PDF generation...', undefined, context)
+    checkCancellation(signal, context)
+    await pollProgress(response.workId, signal)
 
-  return bookData
+    // Step 4: Download the generated book
+    logger.info('Step 4: Downloading generated book...', undefined, context)
+    checkCancellation(signal, context)
+    const bookData = await downloadGeneratedBook(response.workId, signal)
+    logger.info(`Book generated: ${(bookData.length / 1024 / 1024).toFixed(2)} MB`, undefined, context)
+
+    // Step 5: Cleanup PDF service files
+    logger.info('Step 5: Cleaning up PDF service files...', undefined, context)
+    const cleanupResult = await cleanupPDFServiceJob(response.workId)
+
+    if (!cleanupResult.ok) {
+      logger.warn('PDF service cleanup failed (non-critical)', {
+        workId: response.workId,
+        error: cleanupResult.error
+      }, context)
+      // Note: Don't throw - cleanup failure shouldn't fail the job
+      // Files will be cleaned by cron job after 24 hours
+    }
+
+    return bookData
+  } catch (error) {
+    // Cleanup on error/cancellation
+    if (workId) {
+      logger.info('Cleaning up after error/cancellation...', undefined, context)
+      await cleanupPDFServiceJob(workId)
+    }
+    throw error
+  }
 }
 
 /**

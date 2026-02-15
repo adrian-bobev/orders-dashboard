@@ -63,6 +63,8 @@ export function OrderDetail({ order, currentUser, generationCounts = {}, complet
       : null
   )
   const [isStatusHistoryExpanded, setIsStatusHistoryExpanded] = useState(false)
+  const [isCleaningPreviews, setIsCleaningPreviews] = useState(false)
+  const [cleanupMessage, setCleanupMessage] = useState<string | null>(null)
 
   const isAdmin = currentUser.role === 'admin'
   const isViewer = currentUser.role === 'viewer'
@@ -259,6 +261,35 @@ export function OrderDetail({ order, currentUser, generationCounts = {}, complet
       setShippingLabelError(error instanceof Error ? error.message : 'Грешка при анулиране на товарителница')
     } finally {
       setIsDeletingLabel(false)
+    }
+  }
+
+  const handleCleanupPreviews = async () => {
+    if (!confirm('Сигурни ли сте, че искате да изтриете всички preview изображения за тази поръчка? Това действие е необратимо.')) {
+      return
+    }
+
+    setIsCleaningPreviews(true)
+    setCleanupMessage(null)
+
+    try {
+      const response = await fetch(`/api/orders/${order.id}/cleanup-previews`, {
+        method: 'POST',
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        setCleanupMessage(`✅ ${result.message}`)
+        // Refresh page to update cleanup status
+        router.refresh()
+      } else {
+        setCleanupMessage(`❌ Грешка: ${result.error}`)
+      }
+    } catch (error) {
+      setCleanupMessage(`❌ Грешка: ${error instanceof Error ? error.message : String(error)}`)
+    } finally {
+      setIsCleaningPreviews(false)
     }
   }
 
@@ -781,6 +812,61 @@ export function OrderDetail({ order, currentUser, generationCounts = {}, complet
                 )}
               </div>
             )}
+          </div>
+
+          {/* Preview Image Cleanup Section */}
+          <div className="mt-4 bg-red-50 rounded-xl p-4 border border-red-200">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-8 h-8 bg-red-500 rounded-lg flex items-center justify-center">
+                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </div>
+              <h4 className="font-bold text-red-900">Изтриване на Preview изображения</h4>
+            </div>
+
+            <p className="text-xs text-red-700 mb-3">
+              Изтриване на всички preview изображения от R2 storage. Полезно ако поръчката е била изтрита преди одобрение/отказ, или ако автоматичното изтриване е било неуспешно.
+            </p>
+
+            {order.preview_cleanup_status === 'failed' && (
+              <div className="mb-3 p-2 bg-red-100 border border-red-200 rounded text-xs text-red-800">
+                ⚠️ Автоматичното изтриване е било неуспешно: {order.preview_cleanup_error}
+              </div>
+            )}
+
+            {cleanupMessage && (
+              <div className="mb-3 p-2 bg-blue-50 border border-blue-200 rounded text-xs">
+                {cleanupMessage}
+              </div>
+            )}
+
+            <button
+              onClick={handleCleanupPreviews}
+              disabled={isCleaningPreviews}
+              className={`w-full px-3 py-2.5 rounded-lg font-bold transition-all flex items-center justify-center gap-2 text-sm ${
+                isCleaningPreviews
+                  ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                  : 'bg-red-500 hover:bg-red-600 text-white'
+              }`}
+            >
+              {isCleaningPreviews ? (
+                <>
+                  <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <span>Изтриване...</span>
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                  <span>Изтрий Preview Изображения</span>
+                </>
+              )}
+            </button>
           </div>
         </div>
       )}

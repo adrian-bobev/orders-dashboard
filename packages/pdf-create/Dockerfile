@@ -1,6 +1,6 @@
 FROM node:20-slim
 
-# Install Python and dependencies for PDF generation
+# Install Python, cron, and dependencies for PDF generation
 RUN apt-get update && apt-get install -y \
     python3 \
     python3-pip \
@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y \
     imagemagick \
     poppler-utils \
     wget \
+    cron \
     && rm -rf /var/lib/apt/lists/*
 
 # Update ImageMagick policy to allow PDF operations
@@ -33,11 +34,23 @@ COPY server.js index.js pdf-bleed.py pdf-to-images.py pdf-to-images-wrapper.js P
 COPY fonts ./fonts
 COPY public ./public
 
-# Create directories for uploads
-RUN mkdir -p uploads
+# Copy cleanup script
+COPY cleanup-stale.sh /app/cleanup-stale.sh
+RUN chmod +x /app/cleanup-stale.sh
+
+# Create directories for uploads and logs
+RUN mkdir -p uploads generated_cmyk_tiffs /var/log
+RUN touch /var/log/pdf-service-cleanup.log
+
+# Add cron job (runs every hour at :00)
+RUN echo "0 * * * * /app/cleanup-stale.sh" | crontab -
+
+# Create entrypoint that starts cron and node
+RUN echo '#!/bin/sh\ncron\nnode server.js' > /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
 
 # Expose port
 EXPOSE 4001
 
-# Start the server
-CMD ["node", "server.js"]
+# Start cron and server
+CMD ["/app/entrypoint.sh"]

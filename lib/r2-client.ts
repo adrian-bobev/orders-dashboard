@@ -1,4 +1,4 @@
-import { S3Client, GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, GetObjectCommand, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import { checkCancellation } from '@/lib/utils/cancellation';
 
@@ -159,4 +159,27 @@ export async function getSignedPrintDownloadUrl(
   });
 
   return signedUrl;
+}
+
+/**
+ * Delete a print file from R2 storage
+ *
+ * @param r2Key - The R2 storage key for the file (e.g., "12345.zip")
+ * @returns Promise that resolves when file is deleted
+ */
+export async function deletePrintFile(r2Key: string): Promise<void> {
+  const bucket = process.env.R2_PRINTS_BUCKET;
+
+  if (!bucket) {
+    throw new Error('R2_PRINTS_BUCKET environment variable not configured');
+  }
+
+  const client = getStorageClient();
+
+  const command = new DeleteObjectCommand({
+    Bucket: bucket,
+    Key: r2Key,
+  });
+
+  await client.send(command);
 }
