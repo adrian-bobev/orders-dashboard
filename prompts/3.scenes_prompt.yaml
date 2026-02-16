@@ -77,6 +77,21 @@ user_prompt: |
         ],
         "imagePrompt": "<ENGLISH: a single, self-contained prompt with style tags and all necessary details>"
       }
+       ....
+      {
+        "sceneNumber": 14,
+        "characters": [
+          {
+            "name": "<string>"
+          }
+        ],
+        "objects": [
+          {
+            "name": "<string>"
+          }
+        ],
+        "imagePrompt": "<ENGLISH: a single, self-contained prompt with style tags and all necessary details>"
+      }
     ]
   }
   ```
