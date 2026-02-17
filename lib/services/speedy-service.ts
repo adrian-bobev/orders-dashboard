@@ -50,23 +50,30 @@ interface OrderData {
   billing_email: string
   total: number
   payment_method: string // 'cod' for cash on delivery, 'stripe', 'bacs', etc.
-  // Delivery type
-  bg_carriers_service_type: 'office' | 'apm' | 'home' | null
-  // For office/APM delivery
+
+  // Delivery type (NEW)
+  bg_carriers_delivery_type: 'pickup' | 'home' | null
+
+  // Pickup delivery fields
   speedy_pickup_location_id: string | null
-  // For home delivery
+  speedy_pickup_location_type: 'office' | 'apm' | null
+  speedy_pickup_location_city_id: string | null
+
+  // Home delivery fields
   speedy_delivery_city_id: string | null
   speedy_delivery_city_name: string | null
   speedy_delivery_postcode: string | null
   speedy_delivery_street_id: string | null
   speedy_delivery_street_name: string | null
+  speedy_delivery_street_type: 'street' | 'complex' | 'custom' | null
   speedy_delivery_street_number: string | null
-  speedy_delivery_full_address: string | null
-  // Billing address fallback
+
+  // Billing fallback
   billing_city: string | null
   billing_address_1: string | null
   billing_postcode: string | null
-  // Line items for weight calculation and COD
+
+  // Line items
   line_items: LineItem[]
 }
 
@@ -361,7 +368,7 @@ function parseStreetNumber(streetNumber: string): { streetNo: string; addressNot
 }
 
 function buildRecipient(order: OrderData): Record<string, unknown> {
-  const serviceType = order.bg_carriers_service_type
+  const deliveryType = order.bg_carriers_delivery_type
 
   const baseRecipient = {
     privatePerson: true,
@@ -370,24 +377,32 @@ function buildRecipient(order: OrderData): Record<string, unknown> {
     email: order.billing_email,
   }
 
-  // Office or APM delivery - use pickupOfficeId
-  if (serviceType === 'office' || serviceType === 'apm') {
-    if (!order.speedy_pickup_location_id) {
-      throw new Error('Pickup location ID is required for office/APM delivery')
+  // PICKUP DELIVERY (Office or APM)
+  if (deliveryType === 'pickup') {
+    const locationId = order.speedy_pickup_location_id
+    const locationType = order.speedy_pickup_location_type
+
+    if (!locationId) {
+      throw new Error('Pickup location ID is required for pickup delivery')
     }
+
+    console.log(`[Speedy] Creating ${locationType || 'pickup'} label for location ${locationId}`)
+
     return {
       ...baseRecipient,
-      pickupOfficeId: parseInt(order.speedy_pickup_location_id, 10),
+      pickupOfficeId: parseInt(locationId, 10),
     }
   }
 
-  // Home delivery - use address
-  if (serviceType === 'home') {
+  // HOME DELIVERY
+  if (deliveryType === 'home') {
+    const streetType = order.speedy_delivery_street_type
+
     const address: Record<string, unknown> = {
       countryId: SPEEDY_CONFIG.COUNTRY_ID_BULGARIA,
     }
 
-    // Determine city: prefer speedy_delivery_city_id, fallback to city name
+    // City (required)
     if (order.speedy_delivery_city_id) {
       address.siteId = parseInt(order.speedy_delivery_city_id, 10)
     } else if (order.speedy_delivery_city_name) {
@@ -395,46 +410,52 @@ function buildRecipient(order: OrderData): Record<string, unknown> {
     } else if (order.billing_city) {
       address.siteName = order.billing_city
     } else {
-      throw new Error('City is required for home delivery (no speedy_delivery_city_id, speedy_delivery_city_name, or billing_city)')
+      throw new Error('City is required for home delivery')
     }
 
-    // Add postcode if available
+    console.log(`[Speedy] Creating home delivery label (street type: ${streetType || 'unknown'})`)
+
+    // Postcode (optional)
     if (order.speedy_delivery_postcode) {
       address.postCode = order.speedy_delivery_postcode
     } else if (order.billing_postcode) {
       address.postCode = order.billing_postcode
     }
 
-    // Determine address: prefer structured (streetId), then street name, then use addressNote for free-form
-    if (order.speedy_delivery_street_id) {
-      // Structured address with street ID
-      address.streetId = parseInt(order.speedy_delivery_street_id, 10)
+    // Handle address based on street type
+    if (streetType === 'custom') {
+      // Custom address: manually entered, not in Speedy database
+      console.log('[Speedy] Using custom address (not in Speedy DB)')
+
+      // Combine street name + number into addressNote
+      let customAddress = order.speedy_delivery_street_name || ''
       if (order.speedy_delivery_street_number) {
-        const parsed = parseStreetNumber(order.speedy_delivery_street_number)
-        address.streetNo = parsed.streetNo
-        if (parsed.addressNote) {
-          address.addressNote = parsed.addressNote
-        }
+        customAddress += (customAddress ? ' ' : '') + order.speedy_delivery_street_number
       }
-    } else if (order.speedy_delivery_street_name) {
-      // Street name lookup (no ID) - use addressNote for the full address
-      address.streetName = order.speedy_delivery_street_name
-      if (order.speedy_delivery_street_number) {
-        const parsed = parseStreetNumber(order.speedy_delivery_street_number)
-        address.streetNo = parsed.streetNo
-        if (parsed.addressNote) {
-          address.addressNote = parsed.addressNote
-        }
-      }
-    } else if (order.speedy_delivery_full_address) {
-      // Free-form custom address - put everything in addressNote
-      // This is used when customer enters a custom address without selecting from Speedy's database
-      address.addressNote = order.speedy_delivery_full_address
-    } else if (order.billing_address_1) {
-      // Fallback to billing address
-      address.addressNote = order.billing_address_1
+
+      address.addressNote = customAddress || order.billing_address_1 || 'No address provided'
+
     } else {
-      throw new Error('Address is required for home delivery')
+      // Street or complex from Speedy database
+      if (order.speedy_delivery_street_id) {
+        address.streetId = parseInt(order.speedy_delivery_street_id, 10)
+      }
+
+      if (order.speedy_delivery_street_name) {
+        address.streetName = order.speedy_delivery_street_name
+      }
+
+      if (order.speedy_delivery_street_number) {
+        const parsed = parseStreetNumber(order.speedy_delivery_street_number)
+        address.streetNo = parsed.streetNo
+        if (parsed.addressNote) {
+          address.addressNote = parsed.addressNote
+        }
+      }
+
+      if (streetType === 'complex') {
+        console.log('[Speedy] Delivery to residential complex (жк)')
+      }
     }
 
     return {
@@ -443,7 +464,7 @@ function buildRecipient(order: OrderData): Record<string, unknown> {
     }
   }
 
-  throw new Error(`Unsupported delivery type: ${serviceType}`)
+  throw new Error(`Invalid delivery type: ${deliveryType}. Expected "pickup" or "home"`)
 }
 
 async function buildShipmentRequest(
@@ -453,7 +474,7 @@ async function buildShipmentRequest(
   const senderConfig = await getSenderConfig()
   // COD only applies when payment method is 'cod' (cash on delivery)
   const isCodPayment = order.payment_method === 'cod'
-  const isApmDelivery = order.bg_carriers_service_type === 'apm'
+  const isApmDelivery = order.bg_carriers_delivery_type === 'pickup' && order.speedy_pickup_location_type === 'apm'
 
   // Build additional services
   const additionalServices: Record<string, unknown> = {}
@@ -517,7 +538,7 @@ async function buildShipmentRequest(
     },
     payment: {
       // For home delivery with COD, receiver pays for courier service
-      courierServicePayer: (order.bg_carriers_service_type === 'home' && isCodPayment) ? 'RECIPIENT' : 'SENDER',
+      courierServicePayer: (order.bg_carriers_delivery_type === 'home' && isCodPayment) ? 'RECIPIENT' : 'SENDER',
       declaredValuePayer: 'SENDER',
       packagePayer: 'SENDER',
     },

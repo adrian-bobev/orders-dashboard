@@ -78,16 +78,18 @@ export async function POST(
         billing_postcode,
         total,
         payment_method,
-        bg_carriers_service_type,
+        bg_carriers_delivery_type,
         bg_carriers_carrier,
         speedy_pickup_location_id,
+        speedy_pickup_location_type,
+        speedy_pickup_location_city_id,
         speedy_delivery_city_id,
         speedy_delivery_city_name,
         speedy_delivery_postcode,
         speedy_delivery_street_id,
         speedy_delivery_street_name,
+        speedy_delivery_street_type,
         speedy_delivery_street_number,
-        speedy_delivery_full_address,
         speedy_shipment_id,
         speedy_label_created_at
       `)
@@ -110,10 +112,10 @@ export async function POST(
     }
 
     // Validate delivery type
-    const serviceType = order.bg_carriers_service_type
-    if (!serviceType || !['office', 'apm', 'home'].includes(serviceType)) {
+    const deliveryType = order.bg_carriers_delivery_type
+    if (!deliveryType || !['pickup', 'home'].includes(deliveryType)) {
       return NextResponse.json(
-        { error: `Invalid delivery type: ${serviceType}` },
+        { error: `Invalid delivery type: ${deliveryType}` },
         { status: 400 }
       )
     }
@@ -162,15 +164,17 @@ export async function POST(
       billing_postcode: order.billing_postcode,
       total: order.total,
       payment_method: order.payment_method,
-      bg_carriers_service_type: serviceType as 'office' | 'apm' | 'home',
+      bg_carriers_delivery_type: deliveryType as 'pickup' | 'home',
       speedy_pickup_location_id: order.speedy_pickup_location_id,
+      speedy_pickup_location_type: order.speedy_pickup_location_type as 'office' | 'apm' | null,
+      speedy_pickup_location_city_id: order.speedy_pickup_location_city_id,
       speedy_delivery_city_id: order.speedy_delivery_city_id,
       speedy_delivery_city_name: order.speedy_delivery_city_name,
       speedy_delivery_postcode: order.speedy_delivery_postcode,
       speedy_delivery_street_id: order.speedy_delivery_street_id,
       speedy_delivery_street_name: order.speedy_delivery_street_name,
+      speedy_delivery_street_type: order.speedy_delivery_street_type as 'street' | 'complex' | 'custom' | null,
       speedy_delivery_street_number: order.speedy_delivery_street_number,
-      speedy_delivery_full_address: order.speedy_delivery_full_address,
       line_items: lineItems.map((item) => ({
         id: item.id,
         product_name: item.product_name,

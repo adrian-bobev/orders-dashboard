@@ -1171,7 +1171,7 @@ export function OrderDetail({ order, currentUser, generationCounts = {}, complet
         </div>
 
         {/* Delivery Information */}
-        {order.bg_carriers_service_type && (
+        {order.bg_carriers_delivery_type && (
           <div className="bg-white rounded-2xl shadow-warm p-4 border border-purple-100">
             <div className="flex items-center gap-2 mb-3 flex-wrap">
               <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1179,16 +1179,14 @@ export function OrderDetail({ order, currentUser, generationCounts = {}, complet
               </svg>
               <h3 className="text-base font-bold text-purple-900">Доставка</h3>
               <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-bold ${
-                order.bg_carriers_service_type === 'home'
+                order.bg_carriers_delivery_type === 'home'
                   ? 'bg-blue-100 text-blue-800'
-                  : order.bg_carriers_service_type === 'office'
-                  ? 'bg-green-100 text-green-800'
-                  : 'bg-orange-100 text-orange-800'
+                  : 'bg-green-100 text-green-800'
               }`}>
-                {order.bg_carriers_service_type === 'home' && 'До адрес'}
-                {order.bg_carriers_service_type === 'office' && 'До офис'}
-                {order.bg_carriers_service_type === 'apm' && 'До автомат'}
-                {order.bg_carriers_service_type === 'pickup' && 'Вземане от място'}
+                {order.bg_carriers_delivery_type === 'home' && 'До адрес'}
+                {order.bg_carriers_delivery_type === 'pickup' && (
+                  order.speedy_pickup_location_type === 'apm' ? 'До автомат' : 'До офис'
+                )}
               </span>
               {order.bg_carriers_carrier && (
                 <span className="text-xs text-neutral-500">({order.bg_carriers_carrier})</span>
@@ -1196,8 +1194,8 @@ export function OrderDetail({ order, currentUser, generationCounts = {}, complet
             </div>
 
             <div className="text-sm space-y-1">
-              {/* Office/APM delivery */}
-              {(order.bg_carriers_service_type === 'office' || order.bg_carriers_service_type === 'apm') && (
+              {/* Pickup delivery (office or APM) */}
+              {order.bg_carriers_delivery_type === 'pickup' && (
                 <>
                   {order.speedy_pickup_location_name && (
                     <p className="font-bold text-neutral-800">{order.speedy_pickup_location_name}</p>
@@ -1212,33 +1210,26 @@ export function OrderDetail({ order, currentUser, generationCounts = {}, complet
               )}
 
               {/* Home delivery */}
-              {order.bg_carriers_service_type === 'home' && (
+              {order.bg_carriers_delivery_type === 'home' && (
                 <>
-                  {order.speedy_delivery_full_address && (
-                    <p className="font-bold text-neutral-800">{order.speedy_delivery_full_address}</p>
-                  )}
                   {order.speedy_delivery_city_name && (
-                    <p className="text-neutral-600">
+                    <p className="font-bold text-neutral-800">
                       {order.speedy_delivery_city_name}
                       {order.speedy_delivery_postcode && `, ${order.speedy_delivery_postcode}`}
                     </p>
                   )}
-                  {order.speedy_delivery_street_name && !order.speedy_delivery_full_address && (
+                  {order.speedy_delivery_street_name && (
                     <p className="text-neutral-600">
-                      {order.speedy_delivery_street_type && `${order.speedy_delivery_street_type} `}
                       {order.speedy_delivery_street_name}
                       {order.speedy_delivery_street_number && ` ${order.speedy_delivery_street_number}`}
                     </p>
                   )}
+                  {order.speedy_delivery_street_type === 'custom' && !order.speedy_delivery_street_name && (
+                    <p className="text-neutral-500 text-xs">
+                      (Адрес въведен ръчно)
+                    </p>
+                  )}
                 </>
-              )}
-
-              {/* Generic fallback */}
-              {order.bg_carriers_location_name && !order.speedy_pickup_location_name && !order.speedy_delivery_city_name && (
-                <p className="text-neutral-600">
-                  {order.bg_carriers_location_name}
-                  {order.bg_carriers_location_address && ` - ${order.bg_carriers_location_address}`}
-                </p>
               )}
             </div>
           </div>

@@ -447,15 +447,17 @@ export async function generateOrderForPrint(
       billing_postcode,
       total,
       payment_method,
-      bg_carriers_service_type,
+      bg_carriers_delivery_type,
       speedy_pickup_location_id,
+      speedy_pickup_location_type,
+      speedy_pickup_location_city_id,
       speedy_delivery_city_id,
       speedy_delivery_city_name,
       speedy_delivery_postcode,
       speedy_delivery_street_id,
       speedy_delivery_street_name,
-      speedy_delivery_street_number,
-      speedy_delivery_full_address
+      speedy_delivery_street_type,
+      speedy_delivery_street_number
     `)
     .eq('woocommerce_order_id', woocommerceOrderId)
     .single()
@@ -644,15 +646,17 @@ export async function generateOrderForPrint(
             billing_postcode: order.billing_postcode,
             total: order.total,
             payment_method: order.payment_method,
-            bg_carriers_service_type: order.bg_carriers_service_type as 'office' | 'apm' | 'home',
+            bg_carriers_delivery_type: order.bg_carriers_delivery_type as 'pickup' | 'home',
             speedy_pickup_location_id: order.speedy_pickup_location_id,
+            speedy_pickup_location_type: order.speedy_pickup_location_type as 'office' | 'apm' | null,
+            speedy_pickup_location_city_id: order.speedy_pickup_location_city_id,
             speedy_delivery_city_id: order.speedy_delivery_city_id,
             speedy_delivery_city_name: order.speedy_delivery_city_name,
             speedy_delivery_postcode: order.speedy_delivery_postcode,
             speedy_delivery_street_id: order.speedy_delivery_street_id,
             speedy_delivery_street_name: order.speedy_delivery_street_name,
+            speedy_delivery_street_type: order.speedy_delivery_street_type as 'street' | 'complex' | 'custom' | null,
             speedy_delivery_street_number: order.speedy_delivery_street_number,
-            speedy_delivery_full_address: order.speedy_delivery_full_address,
             line_items: (lineItemsForShipping || []).map(item => ({
               id: item.id,
               product_name: item.product_name,

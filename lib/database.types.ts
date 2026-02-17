@@ -34,6 +34,30 @@ export type Database = {
   }
   public: {
     Tables: {
+      app_settings: {
+        Row: {
+          description: string | null
+          key: string
+          updated_at: string | null
+          updated_by: string | null
+          value: Json
+        }
+        Insert: {
+          description?: string | null
+          key: string
+          updated_at?: string | null
+          updated_by?: string | null
+          value: Json
+        }
+        Update: {
+          description?: string | null
+          key?: string
+          updated_at?: string | null
+          updated_by?: string | null
+          value?: Json
+        }
+        Relationships: []
+      }
       book_configurations: {
         Row: {
           age: string | null
@@ -104,6 +128,7 @@ export type Database = {
           id: string
           status: string
           steps_completed: Json | null
+          total_cost: number | null
           updated_at: string
         }
         Insert: {
@@ -115,6 +140,7 @@ export type Database = {
           id?: string
           status?: string
           steps_completed?: Json | null
+          total_cost?: number | null
           updated_at?: string
         }
         Update: {
@@ -126,6 +152,7 @@ export type Database = {
           id?: string
           status?: string
           steps_completed?: Json | null
+          total_cost?: number | null
           updated_at?: string
         }
         Relationships: [
@@ -236,6 +263,7 @@ export type Database = {
         Row: {
           character_list_id: string
           created_at: string
+          generation_cost: number | null
           generation_id: string
           generation_params: Json | null
           id: string
@@ -249,6 +277,7 @@ export type Database = {
         Insert: {
           character_list_id: string
           created_at?: string
+          generation_cost?: number | null
           generation_id: string
           generation_params?: Json | null
           id?: string
@@ -262,6 +291,7 @@ export type Database = {
         Update: {
           character_list_id?: string
           created_at?: string
+          generation_cost?: number | null
           generation_id?: string
           generation_params?: Json | null
           id?: string
@@ -336,6 +366,7 @@ export type Database = {
           completed_at: string | null
           created_at: string
           error_message: string | null
+          generation_cost: number | null
           generation_id: string
           generation_params: Json | null
           generation_status: string
@@ -352,6 +383,7 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           error_message?: string | null
+          generation_cost?: number | null
           generation_id: string
           generation_params?: Json | null
           generation_status?: string
@@ -368,6 +400,7 @@ export type Database = {
           completed_at?: string | null
           created_at?: string
           error_message?: string | null
+          generation_cost?: number | null
           generation_id?: string
           generation_params?: Json | null
           generation_status?: string
@@ -439,58 +472,64 @@ export type Database = {
       }
       jobs: {
         Row: {
-          id: string
-          type: Database["public"]["Enums"]["job_type"]
-          status: Database["public"]["Enums"]["job_status"]
-          payload: Json
-          result: Json | null
-          error: string | null
-          retry_count: number
-          max_retries: number
-          locked_by: string | null
-          locked_at: string | null
-          created_at: string
-          updated_at: string
-          started_at: string | null
           completed_at: string | null
-          scheduled_for: string
+          created_at: string
+          error: string | null
+          id: string
+          locked_at: string | null
+          locked_by: string | null
+          max_retries: number
+          payload: Json
+          pdf_cleanup_error: string | null
+          pdf_cleanup_status: string | null
           priority: number
+          result: Json | null
+          retry_count: number
+          scheduled_for: string
+          started_at: string | null
+          status: Database["public"]["Enums"]["job_status"]
+          type: Database["public"]["Enums"]["job_type"]
+          updated_at: string
         }
         Insert: {
-          id?: string
-          type: Database["public"]["Enums"]["job_type"]
-          status?: Database["public"]["Enums"]["job_status"]
-          payload?: Json
-          result?: Json | null
-          error?: string | null
-          retry_count?: number
-          max_retries?: number
-          locked_by?: string | null
-          locked_at?: string | null
-          created_at?: string
-          updated_at?: string
-          started_at?: string | null
           completed_at?: string | null
-          scheduled_for?: string
+          created_at?: string
+          error?: string | null
+          id?: string
+          locked_at?: string | null
+          locked_by?: string | null
+          max_retries?: number
+          payload?: Json
+          pdf_cleanup_error?: string | null
+          pdf_cleanup_status?: string | null
           priority?: number
+          result?: Json | null
+          retry_count?: number
+          scheduled_for?: string
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["job_status"]
+          type: Database["public"]["Enums"]["job_type"]
+          updated_at?: string
         }
         Update: {
-          id?: string
-          type?: Database["public"]["Enums"]["job_type"]
-          status?: Database["public"]["Enums"]["job_status"]
-          payload?: Json
-          result?: Json | null
-          error?: string | null
-          retry_count?: number
-          max_retries?: number
-          locked_by?: string | null
-          locked_at?: string | null
-          created_at?: string
-          updated_at?: string
-          started_at?: string | null
           completed_at?: string | null
-          scheduled_for?: string
+          created_at?: string
+          error?: string | null
+          id?: string
+          locked_at?: string | null
+          locked_by?: string | null
+          max_retries?: number
+          payload?: Json
+          pdf_cleanup_error?: string | null
+          pdf_cleanup_status?: string | null
           priority?: number
+          result?: Json | null
+          retry_count?: number
+          scheduled_for?: string
+          started_at?: string | null
+          status?: Database["public"]["Enums"]["job_status"]
+          type?: Database["public"]["Enums"]["job_type"]
+          updated_at?: string
         }
         Relationships: []
       }
@@ -590,11 +629,7 @@ export type Database = {
       orders: {
         Row: {
           bg_carriers_carrier: string | null
-          bg_carriers_location_address: string | null
-          bg_carriers_location_id: string | null
-          bg_carriers_location_name: string | null
-          bg_carriers_method_id: string | null
-          bg_carriers_service_type: string | null
+          bg_carriers_delivery_type: string | null
           billing_address_1: string | null
           billing_address_2: string | null
           billing_city: string | null
@@ -614,6 +649,8 @@ export type Database = {
           order_number: string | null
           payment_method: string
           payment_method_title: string | null
+          preview_cleanup_error: string | null
+          preview_cleanup_status: string | null
           print_file_r2_key: string | null
           print_file_size_bytes: number | null
           print_generated_at: string | null
@@ -621,12 +658,12 @@ export type Database = {
           shipping_total: number | null
           speedy_delivery_city_id: string | null
           speedy_delivery_city_name: string | null
-          speedy_delivery_full_address: string | null
           speedy_delivery_postcode: string | null
           speedy_delivery_street_id: string | null
           speedy_delivery_street_name: string | null
           speedy_delivery_street_number: string | null
           speedy_delivery_street_type: string | null
+          speedy_label_created_at: string | null
           speedy_pickup_location_address: string | null
           speedy_pickup_location_city: string | null
           speedy_pickup_location_city_id: string | null
@@ -635,7 +672,6 @@ export type Database = {
           speedy_pickup_location_postcode: string | null
           speedy_pickup_location_type: string | null
           speedy_shipment_id: string | null
-          speedy_label_created_at: string | null
           status: Database["public"]["Enums"]["order_status"]
           total: number
           updated_at: string
@@ -644,11 +680,7 @@ export type Database = {
         }
         Insert: {
           bg_carriers_carrier?: string | null
-          bg_carriers_location_address?: string | null
-          bg_carriers_location_id?: string | null
-          bg_carriers_location_name?: string | null
-          bg_carriers_method_id?: string | null
-          bg_carriers_service_type?: string | null
+          bg_carriers_delivery_type?: string | null
           billing_address_1?: string | null
           billing_address_2?: string | null
           billing_city?: string | null
@@ -668,6 +700,8 @@ export type Database = {
           order_number?: string | null
           payment_method: string
           payment_method_title?: string | null
+          preview_cleanup_error?: string | null
+          preview_cleanup_status?: string | null
           print_file_r2_key?: string | null
           print_file_size_bytes?: number | null
           print_generated_at?: string | null
@@ -675,12 +709,12 @@ export type Database = {
           shipping_total?: number | null
           speedy_delivery_city_id?: string | null
           speedy_delivery_city_name?: string | null
-          speedy_delivery_full_address?: string | null
           speedy_delivery_postcode?: string | null
           speedy_delivery_street_id?: string | null
           speedy_delivery_street_name?: string | null
           speedy_delivery_street_number?: string | null
           speedy_delivery_street_type?: string | null
+          speedy_label_created_at?: string | null
           speedy_pickup_location_address?: string | null
           speedy_pickup_location_city?: string | null
           speedy_pickup_location_city_id?: string | null
@@ -689,7 +723,6 @@ export type Database = {
           speedy_pickup_location_postcode?: string | null
           speedy_pickup_location_type?: string | null
           speedy_shipment_id?: string | null
-          speedy_label_created_at?: string | null
           status?: Database["public"]["Enums"]["order_status"]
           total: number
           updated_at?: string
@@ -698,11 +731,7 @@ export type Database = {
         }
         Update: {
           bg_carriers_carrier?: string | null
-          bg_carriers_location_address?: string | null
-          bg_carriers_location_id?: string | null
-          bg_carriers_location_name?: string | null
-          bg_carriers_method_id?: string | null
-          bg_carriers_service_type?: string | null
+          bg_carriers_delivery_type?: string | null
           billing_address_1?: string | null
           billing_address_2?: string | null
           billing_city?: string | null
@@ -722,6 +751,8 @@ export type Database = {
           order_number?: string | null
           payment_method?: string
           payment_method_title?: string | null
+          preview_cleanup_error?: string | null
+          preview_cleanup_status?: string | null
           print_file_r2_key?: string | null
           print_file_size_bytes?: number | null
           print_generated_at?: string | null
@@ -729,12 +760,12 @@ export type Database = {
           shipping_total?: number | null
           speedy_delivery_city_id?: string | null
           speedy_delivery_city_name?: string | null
-          speedy_delivery_full_address?: string | null
           speedy_delivery_postcode?: string | null
           speedy_delivery_street_id?: string | null
           speedy_delivery_street_name?: string | null
           speedy_delivery_street_number?: string | null
           speedy_delivery_street_type?: string | null
+          speedy_label_created_at?: string | null
           speedy_pickup_location_address?: string | null
           speedy_pickup_location_city?: string | null
           speedy_pickup_location_city_id?: string | null
@@ -743,7 +774,6 @@ export type Database = {
           speedy_pickup_location_postcode?: string | null
           speedy_pickup_location_type?: string | null
           speedy_shipment_id?: string | null
-          speedy_label_created_at?: string | null
           status?: Database["public"]["Enums"]["order_status"]
           total?: number
           updated_at?: string
@@ -791,6 +821,50 @@ export type Database = {
           },
         ]
       }
+      shipping_labels: {
+        Row: {
+          created_at: string
+          delivery_deadline: string | null
+          id: string
+          order_id: string
+          pickup_date: string | null
+          price_amount: number | null
+          price_currency: string | null
+          price_total: number | null
+          shipment_id: string
+        }
+        Insert: {
+          created_at?: string
+          delivery_deadline?: string | null
+          id?: string
+          order_id: string
+          pickup_date?: string | null
+          price_amount?: number | null
+          price_currency?: string | null
+          price_total?: number | null
+          shipment_id: string
+        }
+        Update: {
+          created_at?: string
+          delivery_deadline?: string | null
+          id?: string
+          order_id?: string
+          pickup_date?: string | null
+          price_amount?: number | null
+          price_currency?: string | null
+          price_total?: number | null
+          shipment_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shipping_labels_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       users: {
         Row: {
           created_at: string
@@ -829,54 +903,52 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      cancel_job: { Args: { p_job_id: string }; Returns: boolean }
       claim_next_job: {
-        Args: {
-          p_worker_id: string
-          p_stale_timeout_minutes?: number
-        }
+        Args: { p_stale_timeout_minutes?: number; p_worker_id: string }
         Returns: {
-          id: string
-          type: Database["public"]["Enums"]["job_type"]
-          status: Database["public"]["Enums"]["job_status"]
-          payload: Json
-          result: Json | null
-          error: string | null
-          retry_count: number
-          max_retries: number
-          locked_by: string | null
-          locked_at: string | null
-          created_at: string
-          updated_at: string
-          started_at: string | null
           completed_at: string | null
-          scheduled_for: string
+          created_at: string
+          error: string | null
+          id: string
+          locked_at: string | null
+          locked_by: string | null
+          max_retries: number
+          payload: Json
+          pdf_cleanup_error: string | null
+          pdf_cleanup_status: string | null
           priority: number
+          result: Json | null
+          retry_count: number
+          scheduled_for: string
+          started_at: string | null
+          status: Database["public"]["Enums"]["job_status"]
+          type: Database["public"]["Enums"]["job_type"]
+          updated_at: string
         }[]
+        SetofOptions: {
+          from: "*"
+          to: "jobs"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       complete_job: {
-        Args: {
-          p_job_id: string
-          p_result?: Json
-        }
+        Args: { p_job_id: string; p_result?: Json }
         Returns: undefined
       }
       fail_job: {
-        Args: {
-          p_job_id: string
-          p_error: string
-          p_should_retry?: boolean
-        }
+        Args: { p_error: string; p_job_id: string; p_should_retry?: boolean }
         Returns: undefined
-      }
-      cancel_job: {
-        Args: {
-          p_job_id: string
-        }
-        Returns: boolean
       }
     }
     Enums: {
-      job_status: "pending" | "processing" | "completed" | "failed" | "cancelled"
+      job_status:
+        | "pending"
+        | "processing"
+        | "completed"
+        | "failed"
+        | "cancelled"
       job_type: "PRINT_GENERATION" | "PREVIEW_GENERATION" | "CONTENT_GENERATION"
       order_status:
         | "NEW"
@@ -1016,13 +1088,7 @@ export const Constants = {
   },
   public: {
     Enums: {
-      job_status: [
-        "pending",
-        "processing",
-        "completed",
-        "failed",
-        "cancelled",
-      ],
+      job_status: ["pending", "processing", "completed", "failed", "cancelled"],
       job_type: [
         "PRINT_GENERATION",
         "PREVIEW_GENERATION",

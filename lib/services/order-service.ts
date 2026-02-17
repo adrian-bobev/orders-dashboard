@@ -49,15 +49,11 @@ function buildOrderInsertData(orderData: any): OrderInsert {
     billing_state: orderData.billing?.state || null,
     billing_country: orderData.billing?.country || null,
 
-    // Generic BG Carriers metadata
-    bg_carriers_method_id: extractMetadata(metaData, '_bg_carriers_method_id'),
+    // BG Carriers metadata (2 fields only)
     bg_carriers_carrier: extractMetadata(metaData, '_bg_carriers_carrier'),
-    bg_carriers_service_type: extractMetadata(metaData, '_bg_carriers_service_type'),
-    bg_carriers_location_id: extractMetadata(metaData, '_bg_carriers_location_id'),
-    bg_carriers_location_name: extractMetadata(metaData, '_bg_carriers_location_name'),
-    bg_carriers_location_address: extractMetadata(metaData, '_bg_carriers_location_address'),
+    bg_carriers_delivery_type: extractMetadata(metaData, '_bg_carriers_delivery_type'),
 
-    // Speedy pickup (office/APM) metadata
+    // Speedy pickup metadata (7 fields)
     speedy_pickup_location_id: extractMetadata(metaData, '_speedy_pickup_location_id'),
     speedy_pickup_location_name: extractMetadata(metaData, '_speedy_pickup_location_name'),
     speedy_pickup_location_address: extractMetadata(metaData, '_speedy_pickup_location_address'),
@@ -66,7 +62,7 @@ function buildOrderInsertData(orderData: any): OrderInsert {
     speedy_pickup_location_city_id: extractMetadata(metaData, '_speedy_pickup_location_city_id'),
     speedy_pickup_location_postcode: extractMetadata(metaData, '_speedy_pickup_location_postcode'),
 
-    // Speedy home delivery metadata
+    // Speedy home delivery metadata (7 fields)
     speedy_delivery_city_id: extractMetadata(metaData, '_speedy_delivery_city_id'),
     speedy_delivery_city_name: extractMetadata(metaData, '_speedy_delivery_city_name'),
     speedy_delivery_street_id: extractMetadata(metaData, '_speedy_delivery_street_id'),
@@ -74,12 +70,10 @@ function buildOrderInsertData(orderData: any): OrderInsert {
     speedy_delivery_street_type: extractMetadata(metaData, '_speedy_delivery_street_type'),
     speedy_delivery_street_number: extractMetadata(metaData, '_speedy_delivery_street_number'),
     speedy_delivery_postcode: extractMetadata(metaData, '_speedy_delivery_postcode'),
-    speedy_delivery_full_address: extractMetadata(metaData, '_speedy_delivery_full_address'),
 
     // Shipping details
     shipping_total: orderData.shipping_total || null,
-    shipping_method_title:
-      orderData.shipping_lines?.[0]?.method_title || null,
+    shipping_method_title: orderData.shipping_lines?.[0]?.method_title || null,
 
     // WooCommerce timestamps
     woocommerce_created_at: orderData.date_created_gmt || null,
