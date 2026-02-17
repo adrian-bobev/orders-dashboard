@@ -21,14 +21,11 @@ export interface HttpResponse<T = any> {
 }
 
 /**
- * Create HTTPS agent that accepts self-signed certificates for local development only
+ * Create HTTPS agent that accepts self-signed certificates when explicitly allowed
  */
 function createHttpsAgent(allowSelfSignedCerts: boolean): https.Agent {
-  const isDevelopment = process.env.NODE_ENV === 'development'
-  const shouldAllowSelfSigned = isDevelopment && allowSelfSignedCerts
-
-  if (shouldAllowSelfSigned) {
-    console.log('⚠️ Using HTTPS agent with self-signed cert support (development only)')
+  if (allowSelfSignedCerts) {
+    console.log('⚠️ Using HTTPS agent with self-signed cert support')
     return new https.Agent({ rejectUnauthorized: false })
   }
 
