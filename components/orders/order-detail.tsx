@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import type { Database } from '@/lib/database.types'
 import { SmartImage } from '@/components/SmartImage'
@@ -47,27 +47,45 @@ export function OrderDetail({ order, currentUser, generationCounts = {}, complet
   const [isGeneratingPrint, setIsGeneratingPrint] = useState(false)
   const [printGenerationMessage, setPrintGenerationMessage] = useState('')
   const [isCreatingLabel, setIsCreatingLabel] = useState(false)
-  const [isDeletingLabel, setIsDeletingLabel] = useState(false)
+  const [isDeletingLabel, setIsDeletingLabel] = useState<string | null>(null)
   const [shippingLabelError, setShippingLabelError] = useState<string | null>(null)
-  const [shippingLabel, setShippingLabel] = useState<{
+  const [shippingLabels, setShippingLabels] = useState<Array<{
+    id: string
     shipmentId: string
     trackingUrl: string
     createdAt: string
-  } | null>(
-    order.speedy_shipment_id
-      ? {
-          shipmentId: order.speedy_shipment_id,
-          trackingUrl: `https://www.speedy.bg/bg/track-shipment?shipmentNumber=${order.speedy_shipment_id}`,
-          createdAt: order.speedy_label_created_at,
-        }
-      : null
-  )
+    price?: {
+      amount: number
+      total: number
+      currency: string
+    }
+  }>>([])
   const [isStatusHistoryExpanded, setIsStatusHistoryExpanded] = useState(false)
   const [isCleaningPreviews, setIsCleaningPreviews] = useState(false)
   const [cleanupMessage, setCleanupMessage] = useState<string | null>(null)
 
   const isAdmin = currentUser.role === 'admin'
   const isViewer = currentUser.role === 'viewer'
+
+  // Fetch shipping labels
+  useEffect(() => {
+    const fetchShippingLabels = async () => {
+      try {
+        const response = await fetch(`/api/orders/${order.id}/shipping-label`)
+        const data = await response.json()
+
+        if (response.ok && data.labels) {
+          setShippingLabels(data.labels)
+        }
+      } catch (error) {
+        console.error('Error fetching shipping labels:', error)
+      }
+    }
+
+    if (isAdmin && order.bg_carriers_carrier === 'speedy') {
+      fetchShippingLabels()
+    }
+  }, [order.id, order.bg_carriers_carrier, isAdmin])
 
   const handleDownload = async () => {
     setIsDownloading(true)
@@ -215,11 +233,13 @@ export function OrderDetail({ order, currentUser, generationCounts = {}, complet
         throw new Error(data.error || data.details || 'Failed to create shipping label')
       }
 
-      setShippingLabel({
-        shipmentId: data.shipmentId,
-        trackingUrl: data.trackingUrl,
-        createdAt: new Date().toISOString(),
-      })
+      // Refresh labels list
+      const labelsResponse = await fetch(`/api/orders/${order.id}/shipping-label`)
+      const labelsData = await labelsResponse.json()
+      if (labelsResponse.ok && labelsData.labels) {
+        setShippingLabels(labelsData.labels)
+      }
+
       router.refresh()
     } catch (error) {
       console.error('Error creating shipping label:', error)
@@ -229,22 +249,22 @@ export function OrderDetail({ order, currentUser, generationCounts = {}, complet
     }
   }
 
-  const handleDeleteShippingLabel = async () => {
-    if (!isAdmin || isDeletingLabel || !shippingLabel) return
+  const handleDeleteShippingLabel = async (labelId: string, shipmentId: string) => {
+    if (!isAdmin || isDeletingLabel) return
 
     if (
       !confirm(
-        `Сигурни ли сте, че искате да анулирате товарителница ${shippingLabel.shipmentId}?`
+        `Сигурни ли сте, че искате да анулирате товарителница ${shipmentId}?`
       )
     ) {
       return
     }
 
-    setIsDeletingLabel(true)
+    setIsDeletingLabel(labelId)
     setShippingLabelError(null)
 
     try {
-      const response = await fetch(`/api/orders/${order.id}/shipping-label`, {
+      const response = await fetch(`/api/orders/${order.id}/shipping-label?labelId=${labelId}`, {
         method: 'DELETE',
       })
 
@@ -254,13 +274,14 @@ export function OrderDetail({ order, currentUser, generationCounts = {}, complet
         throw new Error(data.error || data.details || 'Failed to delete shipping label')
       }
 
-      setShippingLabel(null)
+      // Remove from local state
+      setShippingLabels(prev => prev.filter(label => label.id !== labelId))
       router.refresh()
     } catch (error) {
       console.error('Error deleting shipping label:', error)
       setShippingLabelError(error instanceof Error ? error.message : 'Грешка при анулиране на товарителница')
     } finally {
-      setIsDeletingLabel(false)
+      setIsDeletingLabel(null)
     }
   }
 
@@ -723,7 +744,12 @@ export function OrderDetail({ order, currentUser, generationCounts = {}, complet
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 4H6a2 2 0 00-2 2v12a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-2m-4-1v8m0 0l3-3m-3 3L9 8m-5 5h2.586a1 1 0 01.707.293l2.414 2.414a1 1 0 00.707.293h3.172a1 1 0 00.707-.293l2.414-2.414a1 1 0 01.707-.293H20" />
                     </svg>
                   </div>
-                  <h4 className="font-bold text-orange-900">Товарителница</h4>
+                  <h4 className="font-bold text-orange-900">Товарителници</h4>
+                  {shippingLabels.length > 0 && (
+                    <span className="text-xs font-bold text-orange-600 bg-orange-100 px-2 py-0.5 rounded-full">
+                      {shippingLabels.length}
+                    </span>
+                  )}
                 </div>
 
                 {shippingLabelError && (
@@ -732,84 +758,98 @@ export function OrderDetail({ order, currentUser, generationCounts = {}, complet
                   </div>
                 )}
 
-                {shippingLabel ? (
-                  <>
-                    <div className="flex items-center gap-1.5 text-green-700 mb-3">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                      <span className="text-xs font-bold">Създадена</span>
-                    </div>
+                {shippingLabels.length > 0 ? (
+                  <div className="space-y-2 mb-3">
+                    {shippingLabels.map((label, index) => (
+                      <div key={label.id} className="bg-white rounded-lg p-3 border border-orange-200">
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="text-xs font-bold text-orange-600">
+                                #{shippingLabels.length - index}
+                              </span>
+                              {index === 0 && (
+                                <span className="text-xs font-bold text-green-600 bg-green-100 px-1.5 py-0.5 rounded">
+                                  Най-нова
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-xs font-bold text-orange-800">Номер</p>
+                            <p className="text-sm font-mono text-orange-700">{label.shipmentId}</p>
+                            <p className="text-xs text-orange-600 mt-1">
+                              {new Date(label.createdAt).toLocaleString('bg-BG', {
+                                day: '2-digit',
+                                month: '2-digit',
+                                year: '2-digit',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}
+                            </p>
+                          </div>
 
-                    <div className="mb-3">
-                      <p className="text-xs font-bold text-orange-800">Номер</p>
-                      <p className="text-sm font-mono text-orange-700">{shippingLabel.shipmentId}</p>
-                    </div>
+                          <button
+                            onClick={() => handleDeleteShippingLabel(label.id, label.shipmentId)}
+                            disabled={isDeletingLabel === label.id}
+                            className={`px-2 py-1.5 rounded font-bold transition-all text-xs ${
+                              isDeletingLabel === label.id
+                                ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                                : 'bg-red-100 hover:bg-red-200 text-red-700'
+                            }`}
+                          >
+                            {isDeletingLabel === label.id ? (
+                              <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                              </svg>
+                            ) : (
+                              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                              </svg>
+                            )}
+                          </button>
+                        </div>
 
-                    <div className="flex gap-2">
-                      <a
-                        href={shippingLabel.trackingUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex-1 inline-flex items-center justify-center gap-1 px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-lg transition-all text-xs"
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                        </svg>
-                        Проследи
-                      </a>
-
-                      <button
-                        onClick={handleDeleteShippingLabel}
-                        disabled={isDeletingLabel}
-                        className={`px-3 py-2 rounded-lg font-bold transition-all text-xs ${
-                          isDeletingLabel
-                            ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                            : 'bg-red-100 hover:bg-red-200 text-red-700'
-                        }`}
-                      >
-                        {isDeletingLabel ? (
-                          <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        <a
+                          href={label.trackingUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="w-full inline-flex items-center justify-center gap-1 px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-lg transition-all text-xs"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                           </svg>
-                        ) : (
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                          </svg>
-                        )}
-                      </button>
-                    </div>
-                  </>
+                          Проследи
+                        </a>
+                      </div>
+                    ))}
+                  </div>
                 ) : (
-                  <>
-                    <p className="text-xs text-orange-700 mb-3">
-                      Товарителница не е създадена
-                    </p>
-
-                    <button
-                      onClick={handleCreateShippingLabel}
-                      disabled={isCreatingLabel}
-                      className={`w-full px-3 py-2.5 rounded-lg font-bold transition-all flex items-center justify-center gap-2 text-sm ${
-                        isCreatingLabel
-                          ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
-                          : 'bg-orange-500 hover:bg-orange-600 text-white'
-                      }`}
-                    >
-                      {isCreatingLabel ? (
-                        <>
-                          <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                          </svg>
-                          <span>Създаване...</span>
-                        </>
-                      ) : (
-                        <span>Генерирай</span>
-                      )}
-                    </button>
-                  </>
+                  <p className="text-xs text-orange-700 mb-3">
+                    Няма създадени товарителници
+                  </p>
                 )}
+
+                <button
+                  onClick={handleCreateShippingLabel}
+                  disabled={isCreatingLabel}
+                  className={`w-full px-3 py-2.5 rounded-lg font-bold transition-all flex items-center justify-center gap-2 text-sm ${
+                    isCreatingLabel
+                      ? 'bg-gray-200 text-gray-500 cursor-not-allowed'
+                      : 'bg-orange-500 hover:bg-orange-600 text-white'
+                  }`}
+                >
+                  {isCreatingLabel ? (
+                    <>
+                      <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      <span>Създаване...</span>
+                    </>
+                  ) : (
+                    <span>+ Създай нова товарителница</span>
+                  )}
+                </button>
               </div>
             )}
           </div>

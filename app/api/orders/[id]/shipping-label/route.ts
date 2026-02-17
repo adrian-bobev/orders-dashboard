@@ -98,18 +98,8 @@ export async function POST(
       return NextResponse.json({ error: 'Order not found' }, { status: 404 })
     }
 
-    // Check if label already exists
-    if (order.speedy_shipment_id) {
-      return NextResponse.json(
-        {
-          error: 'Shipping label already exists',
-          shipmentId: order.speedy_shipment_id,
-          trackingUrl: `https://www.speedy.bg/bg/track-shipment?shipmentNumber=${order.speedy_shipment_id}`,
-          createdAt: order.speedy_label_created_at,
-        },
-        { status: 409 }
-      )
-    }
+    // NOTE: We allow multiple labels for testing purposes
+    // No check for existing labels - we just create a new one
 
     // Validate that this is a Speedy delivery
     if (order.bg_carriers_carrier !== 'speedy') {
@@ -197,7 +187,26 @@ export async function POST(
     // Create shipping label via Speedy API
     const result = await createShippingLabel(orderData)
 
-    // Store shipment ID in database
+    // Store shipment ID in shipping_labels table
+    const { error: insertError } = await supabase
+      .from('shipping_labels')
+      .insert({
+        order_id: orderId,
+        shipment_id: result.shipmentId,
+        price_amount: result.price?.amount,
+        price_total: result.price?.total,
+        price_currency: result.price?.currency || 'BGN',
+        pickup_date: result.pickupDate,
+        delivery_deadline: result.deliveryDeadline,
+      })
+
+    if (insertError) {
+      console.error('Failed to save shipment to database:', insertError)
+      // Don't fail the request - the shipment was created successfully
+      // Log for manual intervention if needed
+    }
+
+    // Also update the main orders table with the latest shipment (for backward compatibility)
     const { error: updateError } = await supabase
       .from('orders')
       .update({
@@ -207,9 +216,7 @@ export async function POST(
       .eq('id', orderId)
 
     if (updateError) {
-      console.error('Failed to save shipment ID to database:', updateError)
-      // Don't fail the request - the shipment was created successfully
-      // Log for manual intervention if needed
+      console.error('Failed to update order with latest shipment ID:', updateError)
     }
 
     // Update WooCommerce order meta (non-blocking)
@@ -251,32 +258,46 @@ export async function GET(
     const { id: orderId } = await params
     const supabase = await createClient()
 
-    // Fetch order shipping label info
-    const { data: order, error: orderError } = await supabase
-      .from('orders')
-      .select('id, speedy_shipment_id, speedy_label_created_at')
-      .eq('id', orderId)
-      .single()
+    // Fetch all shipping labels for this order
+    const { data: labels, error: labelsError } = await supabase
+      .from('shipping_labels')
+      .select('*')
+      .eq('order_id', orderId)
+      .order('created_at', { ascending: false })
 
-    if (orderError || !order) {
-      return NextResponse.json({ error: 'Order not found' }, { status: 404 })
+    if (labelsError) {
+      console.error('Error fetching shipping labels:', labelsError)
+      return NextResponse.json(
+        { error: 'Failed to fetch shipping labels' },
+        { status: 500 }
+      )
     }
 
-    if (!order.speedy_shipment_id) {
-      return NextResponse.json({ exists: false })
+    if (!labels || labels.length === 0) {
+      return NextResponse.json({ labels: [] })
     }
 
-    return NextResponse.json({
-      exists: true,
-      shipmentId: order.speedy_shipment_id,
-      trackingUrl: `https://www.speedy.bg/bg/track-shipment?shipmentNumber=${order.speedy_shipment_id}`,
-      createdAt: order.speedy_label_created_at,
-    })
+    // Format labels for response
+    const formattedLabels = labels.map(label => ({
+      id: label.id,
+      shipmentId: label.shipment_id,
+      trackingUrl: `https://www.speedy.bg/bg/track-shipment?shipmentNumber=${label.shipment_id}`,
+      createdAt: label.created_at,
+      price: {
+        amount: label.price_amount,
+        total: label.price_total,
+        currency: label.price_currency,
+      },
+      pickupDate: label.pickup_date,
+      deliveryDeadline: label.delivery_deadline,
+    }))
+
+    return NextResponse.json({ labels: formattedLabels })
   } catch (error) {
-    console.error('Error fetching shipping label info:', error)
+    console.error('Error fetching shipping labels:', error)
     return NextResponse.json(
       {
-        error: 'Failed to fetch shipping label info',
+        error: 'Failed to fetch shipping labels',
         details: error instanceof Error ? error.message : 'Unknown error',
       },
       { status: 500 }
@@ -345,48 +366,98 @@ export async function DELETE(
     const { id: orderId } = await params
     const supabase = await createClient()
 
-    // Fetch order with shipment info
-    const { data: order, error: orderError } = await supabase
-      .from('orders')
-      .select('id, woocommerce_order_id, speedy_shipment_id')
-      .eq('id', orderId)
-      .single()
+    // Get labelId from query params
+    const url = new URL(request.url)
+    const labelId = url.searchParams.get('labelId')
 
-    if (orderError || !order) {
-      return NextResponse.json({ error: 'Order not found' }, { status: 404 })
-    }
-
-    if (!order.speedy_shipment_id) {
+    if (!labelId) {
       return NextResponse.json(
-        { error: 'No shipping label exists for this order' },
+        { error: 'labelId query parameter is required' },
         { status: 400 }
       )
     }
 
-    const shipmentId = order.speedy_shipment_id
+    // Fetch the label to get shipment ID and verify it belongs to this order
+    const { data: label, error: labelError } = await supabase
+      .from('shipping_labels')
+      .select('shipment_id, order_id')
+      .eq('id', labelId)
+      .single()
+
+    if (labelError || !label) {
+      return NextResponse.json({ error: 'Label not found' }, { status: 404 })
+    }
+
+    if (label.order_id !== orderId) {
+      return NextResponse.json(
+        { error: 'Label does not belong to this order' },
+        { status: 403 }
+      )
+    }
+
+    const shipmentId = label.shipment_id
 
     // Cancel shipment via Speedy API
     await cancelShippingLabel(shipmentId)
 
-    // Remove shipment ID from database
-    const { error: updateError } = await supabase
-      .from('orders')
-      .update({
-        speedy_shipment_id: null,
-        speedy_label_created_at: null,
-      })
-      .eq('id', orderId)
+    // Remove label from database
+    const { error: deleteError } = await supabase
+      .from('shipping_labels')
+      .delete()
+      .eq('id', labelId)
 
-    if (updateError) {
-      console.error('Failed to remove shipment ID from database:', updateError)
+    if (deleteError) {
+      console.error('Failed to remove label from database:', deleteError)
     }
 
-    // Delete from WooCommerce order meta (non-blocking)
-    deleteWooCommerceOrderMeta(order.woocommerce_order_id, [
-      '_speedy_shipment_id',
-    ]).catch(err => {
-      console.error('Failed to delete WooCommerce order meta:', err)
-    })
+    // Update orders table to clear latest shipment if this was it
+    const { data: order } = await supabase
+      .from('orders')
+      .select('speedy_shipment_id')
+      .eq('id', orderId)
+      .single()
+
+    if (order?.speedy_shipment_id === shipmentId) {
+      // Find the next latest label
+      const { data: latestLabel } = await supabase
+        .from('shipping_labels')
+        .select('shipment_id, created_at')
+        .eq('order_id', orderId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single()
+
+      await supabase
+        .from('orders')
+        .update({
+          speedy_shipment_id: latestLabel?.shipment_id || null,
+          speedy_label_created_at: latestLabel?.created_at || null,
+        })
+        .eq('id', orderId)
+    }
+
+    // Get WooCommerce order ID for meta update
+    const { data: orderData } = await supabase
+      .from('orders')
+      .select('woocommerce_order_id')
+      .eq('id', orderId)
+      .single()
+
+    if (orderData) {
+      // Delete from WooCommerce order meta (non-blocking) - only if no more labels
+      const { data: remainingLabels } = await supabase
+        .from('shipping_labels')
+        .select('id')
+        .eq('order_id', orderId)
+
+      if (!remainingLabels || remainingLabels.length === 0) {
+        deleteWooCommerceOrderMeta(orderData.woocommerce_order_id, [
+          '_speedy_shipment_id',
+        ]).catch(err => {
+          console.error('Failed to delete WooCommerce order meta:', err)
+        })
+      }
+    }
 
     return NextResponse.json({
       success: true,

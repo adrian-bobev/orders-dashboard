@@ -606,7 +606,16 @@ export async function generateOrderForPrint(
       try {
         const { createShippingLabel, downloadShippingLabelPdf } = await import('./speedy-service')
 
-        let shipmentId = order.speedy_shipment_id
+        // Get the latest shipping label from shipping_labels table
+        const { data: latestLabel } = await supabase
+          .from('shipping_labels')
+          .select('shipment_id')
+          .eq('order_id', order.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single()
+
+        let shipmentId = latestLabel?.shipment_id
 
         // If shipping label doesn't exist, generate it first
         if (!shipmentId) {
@@ -653,7 +662,20 @@ export async function generateOrderForPrint(
           const result = await createShippingLabel(orderData)
           shipmentId = result.shipmentId
 
-          // Save shipment ID to database
+          // Save shipment ID to shipping_labels table
+          await supabase
+            .from('shipping_labels')
+            .insert({
+              order_id: order.id,
+              shipment_id: shipmentId,
+              price_amount: result.price?.amount,
+              price_total: result.price?.total,
+              price_currency: result.price?.currency || 'BGN',
+              pickup_date: result.pickupDate,
+              delivery_deadline: result.deliveryDeadline,
+            })
+
+          // Also update orders table for backward compatibility
           await supabase
             .from('orders')
             .update({
