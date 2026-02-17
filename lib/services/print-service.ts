@@ -264,7 +264,9 @@ async function uploadZipForPrint(zipBuffer: Buffer, signal?: AbortSignal): Promi
   const formData = new FormData()
   formData.append('archive', blob, 'book.zip')
 
-  const url = `${PDF_SERVICE_URL}/generate`
+  // Enable upscaling for print-ready PDFs to ensure proper quality
+  // Cover/back need 2538x2538px (21.5cm @ 300 DPI), book pages need 2421x2421px (20.5cm @ 300 DPI)
+  const url = `${PDF_SERVICE_URL}/generate?skipUpscale=false`
 
   const response = await fetch(url, {
     method: 'POST',
