@@ -30,6 +30,7 @@ export async function handlePreviewGeneration(
     customerEmail,
     customerName,
     books,
+    skipWatermark,
   } = job.payload
   const signal = options?.signal
 
@@ -42,12 +43,13 @@ export async function handlePreviewGeneration(
     wooOrderId,
     orderNumber,
     sendNotifications,
+    skipWatermark,
   }, context)
 
   const generateOrderPreviews = await getGenerateOrderPreviews()
 
   try {
-    await generateOrderPreviews(orderId, { signal })
+    await generateOrderPreviews(orderId, { signal, skipWatermark })
 
     logger.info('Preview generation completed', {
       jobId: job.id,

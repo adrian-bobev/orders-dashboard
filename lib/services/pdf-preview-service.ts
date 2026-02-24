@@ -196,7 +196,8 @@ async function uploadZipForPreviewImages(
   zipBuffer: Buffer,
   orderId: string,
   bookConfigId: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  skipWatermark?: boolean
 ): Promise<PreviewImagesResponse> {
   const { FormData } = await import('undici')
 
@@ -204,7 +205,12 @@ async function uploadZipForPreviewImages(
   const formData = new FormData()
   formData.append('archive', blob, 'book.zip')
 
-  const url = `${PDF_SERVICE_URL}/preview-images?orderId=${encodeURIComponent(orderId)}&bookConfigId=${encodeURIComponent(bookConfigId)}`
+  let url = `${PDF_SERVICE_URL}/preview-images?orderId=${encodeURIComponent(orderId)}&bookConfigId=${encodeURIComponent(bookConfigId)}`
+  if (skipWatermark) {
+    url += '&skipWatermark=true'
+  }
+
+  console.log(`[PreviewService] Uploading ZIP to: ${url} (skipWatermark=${skipWatermark})`)
 
   const response = await fetch(url, {
     method: 'POST',
@@ -274,7 +280,8 @@ export async function generatePreviewImages(
   generationId: string,
   orderId: string,
   bookConfigId: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  skipWatermark?: boolean
 ): Promise<string> {
   const context: LogContext = {
     generationId,
@@ -282,7 +289,7 @@ export async function generatePreviewImages(
     phase: 'preview-images',
   }
 
-  logger.info(`Generating preview images for generation ${generationId}...`, undefined, context)
+  logger.info(`Generating preview images for generation ${generationId}...`, { skipWatermark }, context)
   checkCancellation(signal, context)
 
   let workId: string | undefined;
@@ -297,7 +304,7 @@ export async function generatePreviewImages(
     // Step 2: Upload ZIP to PDF service for preview image generation
     logger.info('Step 2: Uploading to PDF service for preview images...', undefined, context)
     checkCancellation(signal, context)
-    const response = await uploadZipForPreviewImages(zipBuffer, orderId, bookConfigId, signal)
+    const response = await uploadZipForPreviewImages(zipBuffer, orderId, bookConfigId, signal, skipWatermark)
     workId = response.workId; // Store for cleanup
     logger.info(`Work ID: ${response.workId}, R2 Folder: ${response.r2Folder}`, undefined, context)
 
@@ -335,11 +342,12 @@ export async function generatePreviewImages(
  */
 export interface PreviewGenerationOptions {
   signal?: AbortSignal // for cancellation support
+  skipWatermark?: boolean // skip watermark for final review
 }
 
 /**
  * Generate preview images for all completed generations in an order
- * Uploads watermarked images to R2 bucket
+ * Uploads watermarked images to R2 bucket (unless skipWatermark is true)
  * Uses WooCommerce order ID and book config_id for R2 folder structure
  */
 export async function generateOrderPreviews(
@@ -347,6 +355,7 @@ export async function generateOrderPreviews(
   options?: PreviewGenerationOptions
 ): Promise<void> {
   const signal = options?.signal
+  const skipWatermark = options?.skipWatermark
   const supabase = createServiceRoleClient()
 
   // Get all completed generations for this order
@@ -409,8 +418,9 @@ export async function generateOrderPreviews(
         logger.info(`Generating preview images for book: ${bookConfig.name}`, {
           wooOrderId,
           configId: bookConfigId,
+          skipWatermark,
         }, bookContext)
-        await generatePreviewImages(completedGen.id, wooOrderId, bookConfigId, signal)
+        await generatePreviewImages(completedGen.id, wooOrderId, bookConfigId, signal, skipWatermark)
       } catch (e) {
         logger.error(`Failed to generate preview images for ${bookConfig.name}`, { error: e }, bookContext)
         errors.push({ bookName: bookConfig.name, error: e })

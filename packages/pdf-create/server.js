@@ -417,12 +417,12 @@ app.post('/cleanup/:workId', requireToken, async (req, res) => {
 
 // Helper function to generate preview images and upload to R2
 // Returns array of uploaded image info
-async function generatePreviewImages(workId, workDir, coverPdf, outPdf, backPdf, r2FolderPath) {
+async function generatePreviewImages(workId, workDir, coverPdf, outPdf, backPdf, r2FolderPath, skipWatermark = false) {
   const previewDir = path.join(workDir, 'preview-images-temp');
   if (!fs.existsSync(previewDir)) fs.mkdirSync(previewDir, { recursive: true });
 
   try {
-    console.log(`[PreviewImages] Starting image generation for ${workDir}`);
+    console.log(`[PreviewImages] Starting image generation for ${workDir} (skipWatermark: ${skipWatermark})`);
     progress[workId] = { stage: 'images', message: 'Converting PDFs to images', percent: 10 };
 
     // Convert PDFs to PNGs
@@ -440,22 +440,24 @@ async function generatePreviewImages(workId, workDir, coverPdf, outPdf, backPdf,
       await execAsync(`convert "${backPdf}" "${path.join(previewDir, 'back.png')}"`);
     }
 
-    progress[workId] = { stage: 'watermark', message: 'Adding watermarks', percent: 30 };
+    progress[workId] = { stage: 'watermark', message: skipWatermark ? 'Skipping watermarks' : 'Adding watermarks', percent: 30 };
 
-    // Add watermark to all PNGs
+    // Add watermark to all PNGs (unless skipWatermark is true)
     const pngFiles = fs.readdirSync(previewDir).filter(f => f.endsWith('.png'));
-    console.log(`[PreviewImages] Found ${pngFiles.length} PNG files, adding watermarks`);
+    console.log(`[PreviewImages] Found ${pngFiles.length} PNG files${skipWatermark ? ', skipping watermarks' : ', adding watermarks'}`);
 
     if (pngFiles.length === 0) {
       throw new Error('No PNG files generated from PDFs');
     }
 
-    for (let i = 0; i < pngFiles.length; i++) {
-      const img = pngFiles[i];
-      const imgPath = path.join(previewDir, img);
-      await execAsync(`convert "${imgPath}" -gravity center -pointsize 80 -fill 'rgba(255,255,255,0.4)' -annotate +0+0 'Приказко БГ' "${imgPath}"`);
-      const percent = 30 + Math.round((i / pngFiles.length) * 30);
-      progress[workId] = { stage: 'watermark', message: `Adding watermark (${i + 1}/${pngFiles.length})`, percent };
+    if (!skipWatermark) {
+      for (let i = 0; i < pngFiles.length; i++) {
+        const img = pngFiles[i];
+        const imgPath = path.join(previewDir, img);
+        await execAsync(`convert "${imgPath}" -gravity center -pointsize 80 -fill 'rgba(255,255,255,0.4)' -annotate +0+0 'Приказко БГ' "${imgPath}"`);
+        const percent = 30 + Math.round((i / pngFiles.length) * 30);
+        progress[workId] = { stage: 'watermark', message: `Adding watermark (${i + 1}/${pngFiles.length})`, percent };
+      }
     }
 
     progress[workId] = { stage: 'upload', message: 'Uploading images to R2', percent: 60 };
@@ -514,11 +516,15 @@ async function generatePreviewImages(workId, workDir, coverPdf, outPdf, backPdf,
 // Query params:
 //   - orderId (required): The order ID for organizing in R2
 //   - bookConfigId (required): The book config ID
+//   - skipWatermark (optional): If 'true', skip adding watermark to images
 app.post('/preview-images', requireToken, upload.single('archive'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
   const orderId = req.query.orderId || req.body?.orderId;
   const bookConfigId = req.query.bookConfigId || req.body?.bookConfigId;
+  const skipWatermark = req.query.skipWatermark === 'true' || req.body?.skipWatermark === true;
+
+  console.log(`[PreviewImages] Received request: orderId=${orderId}, bookConfigId=${bookConfigId}, skipWatermark=${skipWatermark}`);
 
   if (!orderId) {
     return res.status(400).json({ error: 'orderId is required' });
@@ -591,7 +597,8 @@ app.post('/preview-images', requireToken, upload.single('archive'), async (req, 
       pdfResult.coverPdf,
       pdfResult.outPdf,
       pdfResult.backPdf,
-      r2FolderPath
+      r2FolderPath,
+      skipWatermark
     );
 
     writeManifest(workDir, {

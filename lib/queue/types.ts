@@ -22,6 +22,8 @@ export interface PreviewGenerationPayload {
   customerEmail?: string
   customerName?: string
   books?: Array<{ childName: string; storyName: string }>
+  // Optional: disable watermark on preview images (for final review)
+  skipWatermark?: boolean
 }
 
 export interface ContentGenerationPayload {

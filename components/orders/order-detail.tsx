@@ -48,6 +48,7 @@ export function OrderDetail({ order, currentUser, generationCounts = {}, complet
   const [printGenerationMessage, setPrintGenerationMessage] = useState('')
   const [isCreatingLabel, setIsCreatingLabel] = useState(false)
   const [isDeletingLabel, setIsDeletingLabel] = useState<string | null>(null)
+  const [showPreviewOptionsDialog, setShowPreviewOptionsDialog] = useState(false)
   const [shippingLabelError, setShippingLabelError] = useState<string | null>(null)
   const [shippingLabels, setShippingLabels] = useState<Array<{
     id: string
@@ -165,23 +166,20 @@ export function OrderDetail({ order, currentUser, generationCounts = {}, complet
   // Check if order is in validation pending state
   const isValidationPending = currentStatus === 'VALIDATION_PENDING'
 
-  const handleSendNotifications = async () => {
-    if (!isAdmin || !allConfigsCompleted || isValidationPending) return
+  const handleSendNotifications = async (options: { sendNotifications: boolean; skipWatermark: boolean }) => {
+    if (!isAdmin || !allConfigsCompleted) return
 
-    if (
-      !confirm(
-        'Ще бъдат генерирани PDF прегледи и изпратени известия (Telegram + Email). Продължавате ли?'
-      )
-    ) {
-      return
-    }
-
+    setShowPreviewOptionsDialog(false)
     setIsSendingNotifications(true)
     setNotificationProgress('Генериране на PDF прегледи...')
 
     try {
       const response = await fetch(`/api/orders/${order.id}/send-notifications`, {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(options),
       })
 
       const data = await response.json()
@@ -577,10 +575,10 @@ export function OrderDetail({ order, currentUser, generationCounts = {}, complet
 
                 {/* Send Button */}
                 <button
-                  onClick={handleSendNotifications}
-                  disabled={!allConfigsCompleted || isSendingNotifications || isValidationPending}
+                  onClick={() => setShowPreviewOptionsDialog(true)}
+                  disabled={!allConfigsCompleted || isSendingNotifications}
                   className={`w-full px-3 py-2.5 rounded-lg font-bold transition-all flex items-center justify-center gap-2 text-sm ${
-                    allConfigsCompleted && !isSendingNotifications && !isValidationPending
+                    allConfigsCompleted && !isSendingNotifications
                       ? 'bg-indigo-600 hover:bg-indigo-700 text-white'
                       : 'bg-gray-200 text-gray-500 cursor-not-allowed'
                   }`}
@@ -603,11 +601,68 @@ export function OrderDetail({ order, currentUser, generationCounts = {}, complet
                     Изисква завършени генерации
                   </p>
                 )}
-                {allConfigsCompleted && isValidationPending && (
-                  <p className="text-xs text-indigo-600 mt-2">
-                    Поръчката е в &quot;Очаква валидация&quot;
-                  </p>
-                )}
+              </div>
+            )}
+
+            {/* Preview Options Dialog */}
+            {showPreviewOptionsDialog && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl">
+                  <h3 className="text-lg font-bold text-gray-900 mb-4">Опции за преглед</h3>
+
+                  <form onSubmit={(e) => {
+                    e.preventDefault()
+                    const formData = new FormData(e.currentTarget)
+                    handleSendNotifications({
+                      sendNotifications: formData.get('sendNotifications') === 'on',
+                      skipWatermark: formData.get('skipWatermark') === 'on',
+                    })
+                  }}>
+                    <div className="space-y-4">
+                      <label className="flex items-start gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          name="sendNotifications"
+                          defaultChecked={true}
+                          className="mt-1 w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"
+                        />
+                        <div>
+                          <span className="font-medium text-gray-900">Изпрати известия</span>
+                          <p className="text-sm text-gray-500">Email и Telegram съобщения до клиента</p>
+                        </div>
+                      </label>
+
+                      <label className="flex items-start gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          name="skipWatermark"
+                          defaultChecked={false}
+                          className="mt-1 w-4 h-4 text-indigo-600 rounded border-gray-300 focus:ring-indigo-500"
+                        />
+                        <div>
+                          <span className="font-medium text-gray-900">Без воден знак</span>
+                          <p className="text-sm text-gray-500">Генерирай preview без &quot;Приказко БГ&quot; воден знак</p>
+                        </div>
+                      </label>
+                    </div>
+
+                    <div className="flex gap-3 mt-6">
+                      <button
+                        type="button"
+                        onClick={() => setShowPreviewOptionsDialog(false)}
+                        className="flex-1 px-4 py-2 rounded-lg border border-gray-300 text-gray-700 font-medium hover:bg-gray-50"
+                      >
+                        Отказ
+                      </button>
+                      <button
+                        type="submit"
+                        className="flex-1 px-4 py-2 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700"
+                      >
+                        Генерирай
+                      </button>
+                    </div>
+                  </form>
+                </div>
               </div>
             )}
 

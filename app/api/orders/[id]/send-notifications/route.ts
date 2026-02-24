@@ -6,8 +6,12 @@ import { queueJob } from '@/lib/queue/client'
 /**
  * POST /api/orders/[id]/send-notifications
  *
- * Queues a job to generate preview images (uploaded to R2) and send notifications (Telegram + Email).
+ * Queues a job to generate preview images (uploaded to R2) and optionally send notifications (Telegram + Email).
  * Order status is updated to VALIDATION_PENDING after preview upload completes in the worker.
+ *
+ * Request body (optional):
+ * - sendNotifications: boolean (default: true) - whether to send email/telegram notifications
+ * - skipWatermark: boolean (default: false) - whether to skip watermark on preview images
  *
  * Prerequisites:
  * - All book configurations must have at least one completed generation
@@ -23,7 +27,22 @@ export async function POST(
     const { id: orderId } = await params
     const supabase = await createClient()
 
-    console.log('📤 Send notifications called for order:', orderId)
+    // Parse request body for options
+    let sendNotificationsOption = true
+    let skipWatermark = false
+    try {
+      const body = await request.json()
+      if (typeof body.sendNotifications === 'boolean') {
+        sendNotificationsOption = body.sendNotifications
+      }
+      if (typeof body.skipWatermark === 'boolean') {
+        skipWatermark = body.skipWatermark
+      }
+    } catch {
+      // No body or invalid JSON - use defaults
+    }
+
+    console.log('📤 Send notifications called for order:', orderId, { sendNotifications: sendNotificationsOption, skipWatermark })
 
     // Get the order with all its line_items and book_configurations
     const { data: order, error: orderError } = await supabase
@@ -120,10 +139,11 @@ export async function POST(
       orderId: order.id,
       wooOrderId,
       orderNumber: order.order_number || wooOrderId,
-      sendNotifications: true,
+      sendNotifications: sendNotificationsOption,
       customerEmail: order.billing_email,
       customerName: order.billing_first_name,
       books,
+      skipWatermark,
     }, { priority: 5 })
 
     console.log(`📤 Preview generation job ${isDuplicate ? 'already exists' : 'queued'}: ${jobId}`)
