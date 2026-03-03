@@ -13,9 +13,11 @@ import { checkCancellation } from '@/lib/utils/cancellation'
 const logger = createLogger('Step5SceneImages')
 
 export type ImageProvider = 'fal' | 'replicate' | 'kie'
+export type AspectRatio = '1:1' | '16:9'
 
 export interface ProviderConfig {
   provider: ImageProvider
+  aspectRatio?: AspectRatio
 }
 
 // Cost per image generation (in USD) - same as Step 4
@@ -62,6 +64,12 @@ export class Step5SceneImagesService {
     config: ProviderConfig
   ): Promise<{ url?: string; buffer?: Buffer; contentType?: string }> {
     const model = DEFAULT_MODEL_PER_PROVIDER[config.provider]
+    const aspectRatio = config.aspectRatio || '1:1'
+
+    // Calculate dimensions based on aspect ratio
+    const is16x9 = aspectRatio === '16:9'
+    const width = is16x9 ? 3584 : 2540  // 16:9 panoramic or square
+    const height = is16x9 ? 2016 : 2540
 
     if (config.provider === 'kie') {
       // Seedream 4.5 Edit on kie.ai
@@ -69,7 +77,7 @@ export class Step5SceneImagesService {
         model,
         prompt,
         imageUrls: referenceImageUrls,
-        aspectRatio: '1:1',
+        aspectRatio: aspectRatio,
         quality: 'basic', // 2K output (~2048px, closest to 2538px print requirement)
       })
     } else if (config.provider === 'replicate') {
@@ -79,8 +87,8 @@ export class Step5SceneImagesService {
         prompt,
         imageUrls: referenceImageUrls,
         size: 'custom',
-        width: 2540,
-        height: 2540,
+        width,
+        height,
       })
     } else {
       // Default to fal.ai
@@ -89,7 +97,7 @@ export class Step5SceneImagesService {
         model,
         prompt,
         imageUrls: referenceImageUrls,
-        size: { width: 2540, height: 2540 },
+        size: { width, height },
         numImages: 1,
         additionalParams: {
           enable_safety_checker: true,

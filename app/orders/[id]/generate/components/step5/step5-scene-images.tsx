@@ -7,9 +7,11 @@ import { SceneCard } from './SceneCard'
 import { DownloadZip } from '../download-zip'
 
 type ImageProvider = 'fal' | 'replicate' | 'kie'
+type AspectRatio = '1:1' | '16:9'
 
 interface ProviderConfig {
   provider: ImageProvider
+  aspectRatio?: AspectRatio
 }
 
 interface ProviderOption {
@@ -46,6 +48,7 @@ export function Step5SceneImages({ generationId, onComplete }: Step5SceneImagesP
   // Provider configuration
   const [providers, setProviders] = useState<ProviderOption[]>([])
   const [selectedProvider, setSelectedProvider] = useState<ImageProvider>('kie')
+  const [selectedAspectRatio, setSelectedAspectRatio] = useState<AspectRatio>('1:1')
   const [costPerImage, setCostPerImage] = useState<number>(0.039)
   const [step5Cost, setStep5Cost] = useState<number>(0)
 
@@ -224,6 +227,7 @@ export function Step5SceneImages({ generationId, onComplete }: Step5SceneImagesP
     try {
       const providerConfig: ProviderConfig = {
         provider: selectedProvider,
+        aspectRatio: selectedAspectRatio,
       }
 
       const scenePromptIds = Array.from(selectedScenes)
@@ -328,6 +332,7 @@ export function Step5SceneImages({ generationId, onComplete }: Step5SceneImagesP
     try {
       const providerConfig: ProviderConfig = {
         provider: selectedProvider,
+        aspectRatio: selectedAspectRatio,
       }
 
       const response = await fetch(
@@ -575,6 +580,35 @@ export function Step5SceneImages({ generationId, onComplete }: Step5SceneImagesP
                   {provider.name}
                 </button>
               ))}
+            </div>
+          </div>
+
+          {/* Aspect Ratio Selection */}
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium text-neutral-700">Формат:</span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setSelectedAspectRatio('1:1')}
+                disabled={isGenerating || generatingScene !== null}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                  selectedAspectRatio === '1:1'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-white border border-neutral-300 text-neutral-700 hover:border-blue-400'
+                } disabled:opacity-50`}
+              >
+                1:1
+              </button>
+              <button
+                onClick={() => setSelectedAspectRatio('16:9')}
+                disabled={isGenerating || generatingScene !== null}
+                className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all ${
+                  selectedAspectRatio === '16:9'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-white border border-neutral-300 text-neutral-700 hover:border-blue-400'
+                } disabled:opacity-50`}
+              >
+                16:9
+              </button>
             </div>
           </div>
 
