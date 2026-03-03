@@ -363,10 +363,10 @@ export async function generateOrderPreviews(
     .from('orders')
     .select(`
       woocommerce_order_id,
-      line_items!line_items_order_id_fkey (
+      line_items!fk_order (
         id,
         product_name,
-        book_configurations!book_configurations_line_item_id_fkey (
+        book_configurations!fk_line_item (
           id,
           name,
           config_id,

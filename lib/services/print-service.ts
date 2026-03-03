@@ -479,7 +479,7 @@ export async function generateOrderForPrint(
     .select(`
       id,
       product_name,
-      book_configurations!book_configurations_line_item_id_fkey (
+      book_configurations!fk_line_item (
         id,
         name,
         config_id,

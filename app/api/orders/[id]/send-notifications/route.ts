@@ -55,10 +55,10 @@ export async function POST(
         billing_first_name,
         billing_last_name,
         billing_email,
-        line_items!line_items_order_id_fkey (
+        line_items!fk_order (
           id,
           product_name,
-          book_configurations!book_configurations_line_item_id_fkey (
+          book_configurations!fk_line_item (
             id,
             name,
             content

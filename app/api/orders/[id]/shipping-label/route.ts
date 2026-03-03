@@ -128,7 +128,7 @@ export async function POST(
         product_name,
         quantity,
         total,
-        book_configurations!book_configurations_line_item_id_fkey (
+        book_configurations!fk_line_item (
           id,
           name,
           content
