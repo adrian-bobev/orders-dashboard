@@ -428,44 +428,58 @@ export class Step5SceneImagesService {
     // Import the scene characters service to fetch character references
     const { step5SceneCharactersService } = await import('./step5-scene-characters-service')
 
-    // Generate images in parallel with concurrency limit of 7
-    // This allows 14 scenes (typical book) to be generated in 2 batches
-    // Note: Cover and back cover are generated separately, not counted here
-    const CONCURRENCY_LIMIT = 7
+    const providerConfig = params.providerConfig || DEFAULT_PROVIDER_CONFIG
+
+    // kie.ai handles rate limiting server-side, so run all at once
+    // For other providers, use a sliding window of 7 concurrent requests
+    const CONCURRENCY_LIMIT = providerConfig.provider === 'kie' ? scenePrompts.length : 7
+
     const results: any[] = []
+    let activeCount = 0
+    let nextIndex = 0
 
-    // Process in batches
-    for (let i = 0; i < scenePrompts.length; i += CONCURRENCY_LIMIT) {
-      const batch = scenePrompts.slice(i, i + CONCURRENCY_LIMIT)
+    // Sliding window: start a new task as soon as one finishes
+    await new Promise<void>((resolve) => {
+      const launchNext = () => {
+        while (activeCount < CONCURRENCY_LIMIT && nextIndex < scenePrompts.length) {
+          const prompt = scenePrompts[nextIndex++]
+          activeCount++
 
-      const batchPromises = batch.map(async (prompt) => {
-        try {
-          // Fetch character reference IDs for this scene
-          const characterReferenceIds = await step5SceneCharactersService.getSceneCharacterReferenceIds(
-            prompt.id
-          )
+          ;(async () => {
+            try {
+              const characterReferenceIds = await step5SceneCharactersService.getSceneCharacterReferenceIds(
+                prompt.id
+              )
 
-          const image = await this.generateSceneImage({
-            generationId: params.generationId,
-            scenePromptId: prompt.id,
-            imagePrompt: prompt.image_prompt,
-            characterReferenceIds: characterReferenceIds.length > 0 ? characterReferenceIds : undefined,
-            providerConfig: params.providerConfig,
-          })
-          return { success: true, scenePromptId: prompt.id, image }
-        } catch (error) {
-          console.error(`Failed to generate image for scene ${prompt.scene_number}:`, error)
-          return {
-            success: false,
-            scenePromptId: prompt.id,
-            error: error instanceof Error ? error.message : 'Unknown error',
-          }
+              const image = await this.generateSceneImage({
+                generationId: params.generationId,
+                scenePromptId: prompt.id,
+                imagePrompt: prompt.image_prompt,
+                characterReferenceIds: characterReferenceIds.length > 0 ? characterReferenceIds : undefined,
+                providerConfig: params.providerConfig,
+              })
+              results.push({ success: true, scenePromptId: prompt.id, image })
+            } catch (error) {
+              console.error(`Failed to generate image for scene ${prompt.scene_number}:`, error)
+              results.push({
+                success: false,
+                scenePromptId: prompt.id,
+                error: error instanceof Error ? error.message : 'Unknown error',
+              })
+            } finally {
+              activeCount--
+              if (results.length === scenePrompts.length) {
+                resolve()
+              } else {
+                launchNext()
+              }
+            }
+          })()
         }
-      })
+      }
 
-      const batchResults = await Promise.all(batchPromises)
-      results.push(...batchResults)
-    }
+      launchNext()
+    })
 
     return results
   }

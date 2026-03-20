@@ -294,36 +294,51 @@ export class Step4CharacterRefsService {
       return []
     }
 
-    // Generate references in parallel with concurrency limit of 6
-    const CONCURRENCY_LIMIT = 6
+    const effectiveProvider = providerConfig?.provider || DEFAULT_PROVIDER_CONFIG.provider
+
+    // kie.ai handles rate limiting server-side, so run all at once
+    // For other providers, use a sliding window of 6 concurrent requests
+    const CONCURRENCY_LIMIT = effectiveProvider === 'kie' ? characters.length : 6
     const results: any[] = []
+    let activeCount = 0
+    let nextIndex = 0
 
-    // Process in batches
-    for (let i = 0; i < characters.length; i += CONCURRENCY_LIMIT) {
-      const batch = characters.slice(i, i + CONCURRENCY_LIMIT)
+    // Sliding window: start a new task as soon as one finishes
+    await new Promise<void>((resolve) => {
+      const launchNext = () => {
+        while (activeCount < CONCURRENCY_LIMIT && nextIndex < characters.length) {
+          const character = characters[nextIndex++]
+          activeCount++
 
-      const batchPromises = batch.map(async (character) => {
-        try {
-          const ref = await this.generateCharacterReference({
-            generationId,
-            characterListId: character.id,
-            characterName: character.character_name,
-            characterType: character.character_type ?? undefined,
-            description: character.description,
-            customPrompt: customPrompts?.[character.id],
-            bookConfig,
-            providerConfig,
-          })
-          return ref
-        } catch (error) {
-          console.error(`Failed to generate reference for ${character.character_name}:`, error)
-          return null
+          ;(async () => {
+            try {
+              const ref = await this.generateCharacterReference({
+                generationId,
+                characterListId: character.id,
+                characterName: character.character_name,
+                characterType: character.character_type ?? undefined,
+                description: character.description,
+                customPrompt: customPrompts?.[character.id],
+                bookConfig,
+                providerConfig,
+              })
+              results.push(ref)
+            } catch (error) {
+              console.error(`Failed to generate reference for ${character.character_name}:`, error)
+            } finally {
+              activeCount--
+              if (nextIndex >= characters.length && activeCount === 0) {
+                resolve()
+              } else {
+                launchNext()
+              }
+            }
+          })()
         }
-      })
+      }
 
-      const batchResults = await Promise.all(batchPromises)
-      results.push(...batchResults.filter((r) => r !== null))
-    }
+      launchNext()
+    })
 
     return results
   }

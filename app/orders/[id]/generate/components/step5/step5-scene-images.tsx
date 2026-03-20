@@ -287,16 +287,35 @@ export function Step5SceneImages({ generationId, onComplete }: Step5SceneImagesP
 
       // Generate scenes, front cover, and back cover in parallel
       // Back cover depends on front cover, so we handle that separately
-      const CONCURRENCY_LIMIT = 6
 
-      // Start all scene generations in parallel batches
-      const sceneGenerationPromise = (async () => {
-        for (let i = 0; i < scenes.length; i += CONCURRENCY_LIMIT) {
-          const batch = scenes.slice(i, i + CONCURRENCY_LIMIT)
-          const batchPromises = batch.map(generateSingleScene)
-          await Promise.all(batchPromises)
+      // kie.ai handles rate limiting server-side, so run all at once
+      // For other providers, use a sliding window of 6 concurrent requests
+      const CONCURRENCY_LIMIT = selectedProvider === 'kie' ? scenes.length : 6
+
+      // Sliding window: start next scene as soon as one finishes
+      const sceneGenerationPromise = new Promise<void>((resolve) => {
+        if (scenes.length === 0) { resolve(); return }
+        let activeCount = 0
+        let nextIndex = 0
+        let doneCount = 0
+
+        const launchNext = () => {
+          while (activeCount < CONCURRENCY_LIMIT && nextIndex < scenes.length) {
+            const scene = scenes[nextIndex++]
+            activeCount++
+            generateSingleScene(scene).finally(() => {
+              activeCount--
+              doneCount++
+              if (doneCount === scenes.length) {
+                resolve()
+              } else {
+                launchNext()
+              }
+            })
+          }
         }
-      })()
+        launchNext()
+      })
 
       // Handle covers: front cover first (if selected), then back cover (if selected)
       const coverGenerationPromise = (async () => {
