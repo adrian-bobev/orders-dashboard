@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -p 4002",
     "dev:worker": "tsx watch worker/index.ts",
     "dev:pdf": "cd packages/pdf-create && npm run dev",
     "dev:all": "concurrently \"npm run dev\" \"npm run dev:worker\" \"npm run dev:pdf\"",
