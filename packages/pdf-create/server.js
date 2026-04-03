@@ -308,7 +308,10 @@ async function processJob(workId, workDir, options = {}) {
     const pipelineDurationSec = ((Date.now() - pipelineStart) / 1000).toFixed(2);
     writeManifest(workDir, { pipelineDurationSec });
 
-    const imagesDir = path.join(workDir, 'cmyk_tiff_images');
+    // Use upscaled JPEG images directly for PDF generation.
+    // ReportLab embeds JPEGs with DCTDecode passthrough (compact),
+    // whereas TIFFs get decoded and re-encoded with FlateDecode (huge).
+    const imagesDir = path.join(workDir, 'upscaled_images');
 
     // Generate PDF
     const pdfResult = await generatePdf(workId, workDir, bookJsonPath, imagesDir);

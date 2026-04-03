@@ -45,7 +45,9 @@ const upscaleImages = async (files) => {
   const CONCURRENCY = 4;
   const processImage = async (file) => {
     const inputPath = path.join(inputFolder, file);
-    const outputPath = path.join(upscaledFolder, file);
+    // Output as JPEG for optimal PDF embedding (ReportLab uses DCTDecode passthrough)
+    const baseName = path.parse(file).name;
+    const outputPath = path.join(upscaledFolder, `${baseName}.jpg`);
 
     const image = sharp(inputPath);
     const metadata = await image.metadata();
@@ -54,16 +56,17 @@ const upscaleImages = async (files) => {
     let targetWidth = REQUIRED_PX;
     let targetHeight = REQUIRED_PX;
 
+    const jpegOpts = { quality: 95, mozjpeg: true };
+
     // If source is already close to target (within 5%), skip resize for performance
     if (Math.abs(metadata.width - REQUIRED_PX) < REQUIRED_PX * 0.05 &&
         Math.abs(metadata.height - REQUIRED_PX) < REQUIRED_PX * 0.05) {
-      // Just copy or do minimal processing
-      await image.png({ quality: 100 }).toFile(outputPath);
+      await image.jpeg(jpegOpts).toFile(outputPath);
     } else {
       // Resize to exact dimensions needed for print
       await image
         .resize({ width: targetWidth, height: targetHeight, fit: 'cover', kernel: 'lanczos3' })
-        .png({ quality: 100 })
+        .jpeg(jpegOpts)
         .toFile(outputPath);
     }
 
@@ -104,8 +107,9 @@ const convertToCMYKTiff = async (files) => {
   // Process images in parallel with limited concurrency (4 at a time)
   const CONCURRENCY = 4;
   const convertImage = async (file) => {
-    const inputPath = path.join(upscaledFolder, file);
     const baseName = path.parse(file).name;
+    // Upscale step outputs .jpg files
+    const inputPath = path.join(upscaledFolder, `${baseName}.jpg`);
     const outputPath = path.join(cmykFolder, `${baseName}.tiff`);
 
     const command = `convert "${inputPath}" -profile "${iccProfile}" "${outputPath}"`;
@@ -179,7 +183,8 @@ const convertToCMYKTiff = async (files) => {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
         const src = path.join(inputFolder, file);
-        const dest = path.join(upscaledFolder, file);
+        const baseName = path.parse(file).name;
+        const dest = path.join(upscaledFolder, `${baseName}.jpg`);
         fs.copyFileSync(src, dest);
         if (machineReadable) console.log(`PROGRESS|upscale|${i + 1}|${files.length}`);
       }

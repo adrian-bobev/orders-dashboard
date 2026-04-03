@@ -422,7 +422,7 @@ export async function generateOrderPreviews(
         }, bookContext)
         await generatePreviewImages(completedGen.id, wooOrderId, bookConfigId, signal, skipWatermark)
       } catch (e) {
-        logger.error(`Failed to generate preview images for ${bookConfig.name}`, { error: e }, bookContext)
+        logger.error(`Failed to generate preview images for ${bookConfig.name}`, { error: e instanceof Error ? e.message : e }, bookContext)
         errors.push({ bookName: bookConfig.name, error: e })
       }
     }
