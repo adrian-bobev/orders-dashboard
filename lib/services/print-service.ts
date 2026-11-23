@@ -258,8 +258,9 @@ async function generateZipForGeneration(
  * Upload ZIP to PDF service for print-ready PDF generation
  */
 async function uploadZipForPrint(zipBuffer: Buffer, signal?: AbortSignal): Promise<GenerateResponse> {
-  const { FormData } = await import('undici')
-
+  // This upload uses Node's global fetch, so its FormData must come from the
+  // same built-in Web API. The separately-installed undici FormData is encoded
+  // as "[object FormData]" by newer Node versions, not multipart/form-data.
   const blob = new Blob([new Uint8Array(zipBuffer)] as BlobPart[], { type: 'application/zip' })
   const formData = new FormData()
   formData.append('archive', blob, 'book.zip')

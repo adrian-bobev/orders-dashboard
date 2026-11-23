@@ -199,8 +199,10 @@ async function uploadZipForPreviewImages(
   signal?: AbortSignal,
   skipWatermark?: boolean
 ): Promise<PreviewImagesResponse> {
-  const { FormData } = await import('undici')
-
+  // Use the built-in FormData because this request is sent with Node's global
+  // fetch. Mixing it with undici's separately-installed FormData causes newer
+  // Node versions to serialize the body as "[object FormData]" instead of
+  // multipart/form-data, leaving Multer without an `archive` file.
   const blob = new Blob([new Uint8Array(zipBuffer)] as BlobPart[], { type: 'application/zip' })
   const formData = new FormData()
   formData.append('archive', blob, 'book.zip')
